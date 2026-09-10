@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import pulsoescolar_api.dto.ClassroomResponse;
-import pulsoescolar_api.dto.NameRequest;
+import pulsoescolar_api.dto.CreateClassroomRequest;
 import pulsoescolar_api.service.ClassroomService;
 import static org.springframework.http.HttpStatus.CREATED;
 
@@ -22,7 +22,7 @@ public class ClassroomController {
 
     @PostMapping
     @ResponseStatus(CREATED)
-    public ClassroomResponse create(@Valid @RequestBody NameRequest request) {
+    public ClassroomResponse create(@Valid @RequestBody CreateClassroomRequest request) {
         return service.createClassroom(request);
     }
 

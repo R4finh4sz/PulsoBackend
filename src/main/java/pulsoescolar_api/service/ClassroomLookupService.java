@@ -15,6 +15,6 @@ public class ClassroomLookupService {
 
     public Classroom findById(Long id) {
         return classrooms.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Classe não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Sala não encontrada."));
     }
 }

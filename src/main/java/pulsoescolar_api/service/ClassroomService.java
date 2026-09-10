@@ -5,7 +5,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.ClassroomResponse;
-import pulsoescolar_api.dto.NameRequest;
+import pulsoescolar_api.dto.CreateClassroomRequest;
 import pulsoescolar_api.entity.Classroom;
 import pulsoescolar_api.mapper.ClassroomMapper;
 import pulsoescolar_api.repository.ClassroomRepository;
@@ -22,10 +22,11 @@ public class ClassroomService {
     private final ClassroomMapper mapper;
 
     @Transactional
-    public ClassroomResponse createClassroom(NameRequest request) {
+    public ClassroomResponse createClassroom(CreateClassroomRequest request) {
         accessPolicy.requireManager(currentUser.get().getRole());
         var classroom = new Classroom();
         classroom.setName(request.name().strip());
+        classroom.setIdentifier(request.identifier());
         return mapper.toResponse(classrooms.saveAndFlush(classroom));
     }
 

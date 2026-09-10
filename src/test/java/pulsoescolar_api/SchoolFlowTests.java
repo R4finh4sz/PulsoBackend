@@ -30,7 +30,7 @@ class SchoolFlowTests {
   var coordinator = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("coord@example.com");
   var csrf = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf();
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/classrooms")
-    .with(coordinator).with(csrf).contentType("application/json").content("{\"name\":\"3 year C\"}"))
+    .with(coordinator).with(csrf).contentType("application/json").content("{\"name\":\"3 year\",\"identifier\":\"C\"}"))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/classrooms").with(coordinator))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
@@ -42,7 +42,7 @@ class SchoolFlowTests {
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound());
   login("coord@example.com");
   var teacher = registration.createUser(request("httpTeacher"), Role.TEACHER);
-  var room = classrooms.createClassroom(new NameRequest("HTTP room"));
+  var room = classrooms.createClassroom(new CreateClassroomRequest("HTTP room", "A"));
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
      "/api/classrooms/" + room.id() + "/students/" + teacher.id()).with(coordinator).with(csrf))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
@@ -64,8 +64,8 @@ class SchoolFlowTests {
  }
  CreateUser request(String name) { return new CreateUser(name,name,name+"@example.com","password12345"); }
  @Test void studentsInheritSubjectsIncludingLateEnrollmentAndTransfer() {
-  var room=classrooms.createClassroom(new NameRequest("3 year B"));
-  var other=classrooms.createClassroom(new NameRequest("3 year A"));
+  var room=classrooms.createClassroom(new CreateClassroomRequest("3 year", "B"));
+  var other=classrooms.createClassroom(new CreateClassroomRequest("3 year", "A"));
   var teacher=registration.createUser(request("teacher"),Role.TEACHER);
   var student=registration.createUser(request("student"),Role.STUDENT);
   assignment.assign(room.id(),teacher.id()); assignment.assign(other.id(),teacher.id());
@@ -81,7 +81,7 @@ class SchoolFlowTests {
   assertThrows(AccessDeniedException.class,()->subjects.subjects(room.id()));
  }
  @Test void unassignedTeachersCannotAccessOrCreateSubjects() {
-  var room=classrooms.createClassroom(new NameRequest("3 year B"));
+  var room=classrooms.createClassroom(new CreateClassroomRequest("3 year", "B"));
   var teacher=registration.createUser(request("teacher"),Role.TEACHER);
   login(teacher.email());
   assertTrue(classrooms.listClassrooms().isEmpty());

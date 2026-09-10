@@ -17,9 +17,9 @@ public class UserLookupService {
 
     public SchoolUser findByRole(Long id, Role role) {
         var user = users.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado."));
         if (user.getRole() != role) {
-            throw new InvalidUserRoleException("Invalid user role");
+            throw new InvalidUserRoleException("O usuário não possui o perfil necessário para esta operação.");
         }
         return user;
     }

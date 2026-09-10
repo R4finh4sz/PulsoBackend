@@ -20,7 +20,7 @@ public class AdminBootstrap implements CommandLineRunner {
   email=email.strip().toLowerCase(Locale.ROOT);
   if(users.findByEmail(email).isPresent()) return;
   if(password==null || password.length()<12 || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72)
-   throw new IllegalStateException("Bootstrap admin password must have at least 12 characters and at most 72 bytes");
+   throw new IllegalStateException("A senha inicial do administrador deve ter pelo menos 12 caracteres e no máximo 72 bytes.");
   var admin=new SchoolUser(); admin.setFullName("Administrator"); admin.setRa("SYSTEM-ADMIN");
   admin.setEmail(email); admin.setPasswordHash(encoder.encode(password)); admin.setRole(Role.ADMIN);
   users.save(admin);

@@ -16,20 +16,20 @@ public class ClassroomAccessPolicy {
                     && user.getClassroom().getId().equals(classroom.getId());
         };
         if (!allowed) {
-            throw new AccessDeniedException("Acesso a sala bloqueado");
+            throw new AccessDeniedException("Você não tem permissão para acessar esta sala.");
         }
     }
 
     public void requireRosterAccess(Classroom classroom, SchoolUser user) {
         requireAccess(classroom, user);
         if (user.getRole() == Role.STUDENT) {
-            throw new AccessDeniedException("Necessario ser um Staff do sistema");
+            throw new AccessDeniedException("A consulta de alunos exige acesso de administrador, coordenador pedagógico ou professor vinculado à sala.");
         }
     }
 
     public void requireAssignedTeacher(Classroom classroom, SchoolUser user) {
         if (user.getRole() != Role.TEACHER || !isAssigned(classroom, user)) {
-            throw new AccessDeniedException("Professor necessário");
+            throw new AccessDeniedException("Esta operação exige um professor vinculado à sala.");
         }
     }
 

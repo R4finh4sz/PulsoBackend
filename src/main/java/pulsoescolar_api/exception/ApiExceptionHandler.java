@@ -15,11 +15,11 @@ public class ApiExceptionHandler {
  }
  @ExceptionHandler(DataIntegrityViolationException.class)
  public ProblemDetail conflict(DataIntegrityViolationException ex) {
-  return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,"RA, email or name already exists, or an association is invalid");
+  return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,"Já existe um cadastro com esse RA, e-mail ou nome, ou o vínculo informado é inválido.");
  }
  @ExceptionHandler(MethodArgumentNotValidException.class)
  public ProblemDetail validation(MethodArgumentNotValidException ex) {
-  var detail=ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,"Invalid request");
+  var detail=ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,"Os dados informados são inválidos.");
   detail.setProperty("errors",ex.getBindingResult().getFieldErrors().stream()
    .map(e->e.getField()+": "+e.getDefaultMessage()).toList());
   return detail;
