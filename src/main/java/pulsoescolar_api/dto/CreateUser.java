@@ -8,12 +8,12 @@ import java.nio.charset.StandardCharsets;
 
 public record CreateUser(
         @NotBlank(message = "O nome completo é obrigatório.")
-        @Size(max = 200, message = "O nome completo deve ter no máximo 200 caracteres.") String fullName,
+        @Size(max = 100, message = "O nome completo deve ter no máximo 100 caracteres.") String fullName,
         @NotBlank(message = "O RA é obrigatório.")
         @Size(max = 50, message = "O RA deve ter no máximo 50 caracteres.") String ra,
         @NotBlank(message = "O e-mail é obrigatório.")
         @Email(message = "Informe um e-mail válido.")
-        @Size(max = 255, message = "O e-mail deve ter no máximo 255 caracteres.") String email,
+        @Size(max = 50, message = "O e-mail deve ter no máximo 50 caracteres.") String email,
         @NotBlank(message = "A senha é obrigatória.")
         @Size(min = 12, max = 72, message = "A senha deve ter entre 12 e 72 caracteres.") String password) {
 
