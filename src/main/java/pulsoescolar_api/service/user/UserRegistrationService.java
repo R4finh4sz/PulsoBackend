@@ -13,11 +13,15 @@ import pulsoescolar_api.mapper.user.UserMapper;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.security.CurrentUser;
 import pulsoescolar_api.security.user.UserAccessPolicy;
+import pulsoescolar_api.service.auth.PasswordGenerator;
+import pulsoescolar_api.service.mail.WelcomeMailService;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class UserRegistrationService {
+    private final PasswordGenerator passwords;
+    private final WelcomeMailService mail;
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final CurrentUser currentUser;
@@ -31,8 +35,11 @@ public class UserRegistrationService {
         user.setFullName(request.fullName().strip());
         user.setRa(request.ra().strip());
         user.setEmail(request.email().strip().toLowerCase(Locale.ROOT));
-        user.setPasswordHash(encoder.encode(request.password()));
+        String password = passwords.generate();
+        user.setPasswordHash(encoder.encode(password));
         user.setRole(role);
-        return mapper.toResponse(users.saveAndFlush(user));
+        users.saveAndFlush(user);
+        mail.send(user.getEmail(), user.getFullName(), password);
+        return mapper.toResponse(user);
     }
 }

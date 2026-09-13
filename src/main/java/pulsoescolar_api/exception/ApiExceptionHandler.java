@@ -5,6 +5,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 @RestControllerAdvice
 public class ApiExceptionHandler {
+ @ExceptionHandler(EmailDeliveryException.class)
+ public ProblemDetail mailDelivery(EmailDeliveryException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+ }
+ @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+ public ProblemDetail authentication(org.springframework.security.core.AuthenticationException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "E-mail ou senha inválidos.");
+ }
  @ExceptionHandler(ResourceNotFoundException.class)
  public ProblemDetail notFound(ResourceNotFoundException ex) {
   return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
