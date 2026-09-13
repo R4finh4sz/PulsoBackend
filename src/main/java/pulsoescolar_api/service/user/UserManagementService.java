@@ -27,10 +27,14 @@ public class UserManagementService {
     private final UserMapper mapper;
 
     public UserPageResponse list(Role role, String q, Long classroomId, Boolean unassigned, int page, int size) {
-        policy.requireManager(currentUser.get().getRole());
+        var actor = currentUser.get();
+        policy.requireManager(actor.getRole());
         Specification<SchoolUser> filter = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("role"), role));
+            if (actor.getRole() == Role.PEDAGOGICAL_COORDINATOR && actor.getSchool() != null) {
+                predicates.add(cb.equal(root.get("school").get("id"), actor.getSchool().getId()));
+            }
             if (q != null && !q.isBlank()) {
                 String term = "%" + q.strip().toLowerCase(Locale.ROOT)
                         .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
@@ -51,17 +55,28 @@ public class UserManagementService {
     }
 
     public UserResponse get(Long id, Role role) {
-        policy.requireManager(currentUser.get().getRole());
-        return mapper.toResponse(lookup.findByRole(id, role));
+        var actor = currentUser.get();
+        policy.requireManager(actor.getRole());
+        return mapper.toResponse(requireSameSchool(lookup.findByRole(id, role), actor));
     }
 
     @Transactional
     public UserResponse update(Long id, Role role, UpdateUserRequest request) {
-        policy.requireManager(currentUser.get().getRole());
-        var user = lookup.findByRole(id, role);
+        var actor = currentUser.get();
+        policy.requireManager(actor.getRole());
+        var user = requireSameSchool(lookup.findByRole(id, role), actor);
         if (request.fullName() != null) user.setFullName(request.fullName().strip());
         if (request.ra() != null) user.setRa(request.ra().strip());
         if (request.email() != null) user.setEmail(request.email().strip().toLowerCase(Locale.ROOT));
         return mapper.toResponse(users.saveAndFlush(user));
+    }
+
+    private SchoolUser requireSameSchool(SchoolUser user, SchoolUser actor) {
+        if (actor.getRole() == Role.PEDAGOGICAL_COORDINATOR && actor.getSchool() != null
+                && (user.getSchool() == null || !actor.getSchool().getId().equals(user.getSchool().getId()))) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Você não pode acessar usuários de outra escola.");
+        }
+        return user;
     }
 }

@@ -10,7 +10,9 @@ import pulsoescolar_api.entity.user.SchoolUser;
 public class ClassroomAccessPolicy {
     public void requireAccess(Classroom classroom, SchoolUser user) {
         boolean allowed = switch (user.getRole()) {
-            case ADMIN, PEDAGOGICAL_COORDINATOR -> true;
+            case ADMIN -> true;
+            case PEDAGOGICAL_COORDINATOR -> user.getSchool() == null || classroom.getSchool() == null
+                    || user.getSchool().getId().equals(classroom.getSchool().getId());
             case TEACHER -> isAssigned(classroom, user);
             case STUDENT -> user.getClassroom() != null
                     && user.getClassroom().getId().equals(classroom.getId());
