@@ -1,5 +1,10 @@
 package pulsoescolar_api.controller.classroom;
 
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
+import pulsoescolar_api.dto.classroom.UpdateClassroomRequest;
+import pulsoescolar_api.dto.user.UserResponse;
+
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +24,23 @@ import static org.springframework.http.HttpStatus.CREATED;
 @RequiredArgsConstructor
 public class ClassroomController {
     private final ClassroomService service;
+
+    @GetMapping("/{id}")
+    public ClassroomResponse get(@PathVariable Long id) {
+        return service.get(id);
+    }
+
+    @PatchMapping("/{id}")
+    public ClassroomResponse update(@PathVariable Long id,
+            @Valid @RequestBody UpdateClassroomRequest request) {
+        return service.update(id, request);
+    }
+
+    @GetMapping("/{id}/teachers")
+    public List<UserResponse> teachers(
+            @PathVariable Long id) {
+        return service.teachers(id);
+    }
 
     @PostMapping
     @ResponseStatus(CREATED)
