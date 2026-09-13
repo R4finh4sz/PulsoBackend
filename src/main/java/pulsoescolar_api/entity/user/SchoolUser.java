@@ -1,11 +1,13 @@
 package pulsoescolar_api.entity.user;
 
 import pulsoescolar_api.entity.classroom.Classroom;
+import pulsoescolar_api.entity.school.School;
 import jakarta.persistence.*;
 import lombok.*;
 @Entity @Table(name="school_users")
 @Getter @Setter @NoArgsConstructor
 public class SchoolUser {
+ @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="school_id") private School school;
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
  @Column(nullable=false, length=200) private String fullName;
  @Column(nullable=false, unique=true, length=50) private String ra;
