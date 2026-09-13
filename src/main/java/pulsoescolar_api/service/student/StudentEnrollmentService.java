@@ -1,5 +1,7 @@
 package pulsoescolar_api.service.student;
 
+import pulsoescolar_api.exception.ResourceNotFoundException;
+
 import pulsoescolar_api.service.classroom.ClassroomLookupService;
 import pulsoescolar_api.service.user.UserLookupService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,18 @@ public class StudentEnrollmentService {
     private final CurrentUser currentUser;
     private final UserAccessPolicy accessPolicy;
     private final UserMapper mapper;
+
+    @Transactional
+    public void unenroll(Long classroomId, Long studentId) {
+        accessPolicy.requireManager(currentUser.get().getRole());
+        classrooms.findById(classroomId);
+        var student = users.findByRole(studentId, Role.STUDENT);
+        if (student.getClassroom() == null) return;
+        if (!student.getClassroom().getId().equals(classroomId)) {
+            throw new ResourceNotFoundException("Aluno não vinculado a esta sala.");
+        }
+        student.setClassroom(null);
+    }
 
     @Transactional
     public UserResponse enroll(Long classroomId, Long studentId) {
