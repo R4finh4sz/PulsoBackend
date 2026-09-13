@@ -23,6 +23,8 @@ import pulsoescolar_api.dto.subject.NameRequest;
 import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest @Transactional
 class SchoolFlowTests {
+ @org.springframework.test.context.bean.override.mockito.MockitoBean
+ pulsoescolar_api.service.mail.WelcomeMailService mail;
  @Autowired UserRegistrationService registration;
  @Autowired ClassroomService classrooms;
  @Autowired StudentEnrollmentService enrollment;
@@ -71,7 +73,7 @@ class SchoolFlowTests {
  void login(String email) {
   SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(email,"",java.util.List.of()));
  }
- CreateUser request(String name) { return new CreateUser(name,name,name+"@example.com","password12345"); }
+ CreateUser request(String name) { return new CreateUser(name,name,name+"@example.com"); }
  @Test void studentsInheritSubjectsIncludingLateEnrollmentAndTransfer() {
   var room=classrooms.createClassroom(new CreateClassroomRequest("3 year", "B"));
   var other=classrooms.createClassroom(new CreateClassroomRequest("3 year", "A"));
@@ -102,6 +104,9 @@ class SchoolFlowTests {
   assertThrows(AccessDeniedException.class,()->registration.createUser(request("admin"),Role.ADMIN));
   assertThrows(AccessDeniedException.class,()->registration.createUser(request("coord2"),Role.PEDAGOGICAL_COORDINATOR));
   var teacher=registration.createUser(request("teacher"),Role.TEACHER);
-  assertTrue(encoder.matches("password12345",users.findById(teacher.id()).orElseThrow().getPasswordHash()));
+  var password = org.mockito.ArgumentCaptor.forClass(String.class);
+  org.mockito.Mockito.verify(mail).send(org.mockito.ArgumentMatchers.eq(teacher.email()),
+    org.mockito.ArgumentMatchers.eq(teacher.fullName()), password.capture());
+  assertTrue(encoder.matches(password.getValue(),users.findById(teacher.id()).orElseThrow().getPasswordHash()));
  }
 }
