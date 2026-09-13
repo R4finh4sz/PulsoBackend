@@ -5,8 +5,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
-import pulsoescolar_api.entity.*;
-import pulsoescolar_api.repository.UserRepository;
+import pulsoescolar_api.entity.user.Role;
+import pulsoescolar_api.entity.user.SchoolUser;
+import pulsoescolar_api.repository.user.UserRepository;
 import java.util.Locale;
 @Component @RequiredArgsConstructor
 public class AdminBootstrap implements CommandLineRunner {

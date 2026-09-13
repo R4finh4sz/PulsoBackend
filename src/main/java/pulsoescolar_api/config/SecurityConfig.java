@@ -6,7 +6,7 @@ import org.springframework.security.core.userdetails.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import pulsoescolar_api.repository.UserRepository;
+import pulsoescolar_api.repository.user.UserRepository;
 import java.util.Locale;
 import static org.springframework.security.config.Customizer.withDefaults;
 @Configuration

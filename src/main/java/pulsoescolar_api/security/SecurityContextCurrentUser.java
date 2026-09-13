@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import pulsoescolar_api.entity.SchoolUser;
-import pulsoescolar_api.repository.UserRepository;
+import pulsoescolar_api.entity.user.SchoolUser;
+import pulsoescolar_api.repository.user.UserRepository;
 
 @Component
 @RequiredArgsConstructor

@@ -3,7 +3,7 @@ package pulsoescolar_api;
 import jakarta.validation.Validation;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
-import pulsoescolar_api.dto.CreateClassroomRequest;
+import pulsoescolar_api.dto.classroom.CreateClassroomRequest;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import static org.junit.jupiter.api.Assertions.*;

@@ -7,10 +7,19 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import pulsoescolar_api.service.*;
-import pulsoescolar_api.repository.UserRepository;
-import pulsoescolar_api.entity.*;
-import pulsoescolar_api.dto.*;
+import pulsoescolar_api.service.classroom.ClassroomService;
+import pulsoescolar_api.service.student.StudentEnrollmentService;
+import pulsoescolar_api.service.subject.SubjectService;
+import pulsoescolar_api.service.teacher.TeacherAssignmentService;
+import pulsoescolar_api.service.user.UserRegistrationService;
+import pulsoescolar_api.repository.user.UserRepository;
+import pulsoescolar_api.entity.classroom.Classroom;
+import pulsoescolar_api.entity.user.Role;
+import pulsoescolar_api.entity.user.SchoolUser;
+import pulsoescolar_api.entity.subject.Subject;
+import pulsoescolar_api.dto.classroom.CreateClassroomRequest;
+import pulsoescolar_api.dto.user.CreateUser;
+import pulsoescolar_api.dto.subject.NameRequest;
 import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest @Transactional
 class SchoolFlowTests {
