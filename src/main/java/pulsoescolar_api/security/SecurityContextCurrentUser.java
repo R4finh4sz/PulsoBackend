@@ -1,0 +1,24 @@
+package pulsoescolar_api.security;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import pulsoescolar_api.entity.SchoolUser;
+import pulsoescolar_api.repository.UserRepository;
+
+@Component
+@RequiredArgsConstructor
+public class SecurityContextCurrentUser implements CurrentUser {
+    private final UserRepository users;
+
+    @Override
+    public SchoolUser get() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AccessDeniedException("Necessário estar autenticado");
+        }
+        return users.findByEmail(authentication.getName())
+                .orElseThrow(() -> new AccessDeniedException("Usuario não identificado"));
+    }
+}
