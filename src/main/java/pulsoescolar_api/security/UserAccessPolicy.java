@@ -8,7 +8,7 @@ import pulsoescolar_api.entity.Role;
 public class UserAccessPolicy {
     public void requireManager(Role actorRole) {
         if (actorRole != Role.ADMIN && actorRole != Role.PEDAGOGICAL_COORDINATOR) {
-            throw new AccessDeniedException("Acesso de Coordenador necessario");
+            throw new AccessDeniedException("Esta operação exige acesso de administrador ou coordenador pedagógico.");
         }
     }
 
@@ -17,7 +17,7 @@ public class UserAccessPolicy {
         boolean allowed = requestedRole == Role.STUDENT || requestedRole == Role.TEACHER
                 || (requestedRole == Role.PEDAGOGICAL_COORDINATOR && actorRole == Role.ADMIN);
         if (!allowed) {
-            throw new AccessDeniedException("Cannot create this role");
+            throw new AccessDeniedException("Você não tem permissão para cadastrar usuários com este perfil.");
         }
     }
 }

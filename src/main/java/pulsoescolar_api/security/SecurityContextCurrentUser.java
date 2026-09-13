@@ -16,9 +16,9 @@ public class SecurityContextCurrentUser implements CurrentUser {
     public SchoolUser get() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new AccessDeniedException("Necessário estar autenticado");
+            throw new AccessDeniedException("É necessário estar autenticado.");
         }
         return users.findByEmail(authentication.getName())
-                .orElseThrow(() -> new AccessDeniedException("Usuario não identificado"));
+                .orElseThrow(() -> new AccessDeniedException("Usuário autenticado não encontrado."));
     }
 }
