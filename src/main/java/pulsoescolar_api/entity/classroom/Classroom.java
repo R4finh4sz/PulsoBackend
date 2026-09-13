@@ -1,6 +1,7 @@
 package pulsoescolar_api.entity.classroom;
 
 import pulsoescolar_api.entity.user.SchoolUser;
+import pulsoescolar_api.entity.school.School;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.*;
@@ -8,6 +9,7 @@ import java.util.*;
 @Getter @Setter @NoArgsConstructor
 public class Classroom {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
+ @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="school_id") private School school;
  @Column(nullable=false, length=100) private String name;
  @Column(nullable=false, length=1) private String identifier;
  @ManyToMany

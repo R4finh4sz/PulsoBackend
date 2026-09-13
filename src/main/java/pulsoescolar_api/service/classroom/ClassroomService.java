@@ -48,8 +48,10 @@ public class ClassroomService {
 
     @Transactional
     public ClassroomResponse update(Long id, UpdateClassroomRequest request) {
-        accessPolicy.requireManager(currentUser.get().getRole());
+        var user = currentUser.get();
+        accessPolicy.requireManager(user.getRole());
         var classroom = lookup.findById(id);
+        classroomPolicy.requireAccess(classroom, user);
         if (request.name() != null) classroom.setName(request.name().strip());
         if (request.identifier() != null) classroom.setIdentifier(request.identifier());
         return mapper.toResponse(classrooms.saveAndFlush(classroom));
@@ -57,8 +59,12 @@ public class ClassroomService {
 
     @Transactional
     public ClassroomResponse createClassroom(CreateClassroomRequest request) {
-        accessPolicy.requireManager(currentUser.get().getRole());
+        var user = currentUser.get();
+        accessPolicy.requireManager(user.getRole());
         var classroom = new Classroom();
+        if (user.getRole() == pulsoescolar_api.entity.user.Role.PEDAGOGICAL_COORDINATOR) {
+            classroom.setSchool(user.getSchool());
+        }
         classroom.setName(request.name().strip());
         classroom.setIdentifier(request.identifier());
         return mapper.toResponse(classrooms.saveAndFlush(classroom));
@@ -67,7 +73,9 @@ public class ClassroomService {
     public List<ClassroomResponse> listClassrooms() {
         var user = currentUser.get();
         var result = switch (user.getRole()) {
-            case ADMIN, PEDAGOGICAL_COORDINATOR -> classrooms.findAll();
+            case ADMIN -> classrooms.findAll();
+            case PEDAGOGICAL_COORDINATOR -> user.getSchool() == null
+                    ? List.<Classroom>of() : classrooms.findBySchoolId(user.getSchool().getId());
             case TEACHER -> classrooms.findByTeachersId(user.getId());
             case STUDENT -> user.getClassroom() == null
                     ? List.<Classroom>of() : List.of(user.getClassroom());
