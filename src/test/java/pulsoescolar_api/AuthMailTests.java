@@ -29,12 +29,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuthMailTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
+    @Autowired pulsoescolar_api.repository.school.SchoolRepository schools;
     @Autowired PasswordEncoder encoder;
     @MockitoBean JavaMailSender sender;
     MockMvc mvc;
+    Long schoolId;
 
     @BeforeEach void setup() {
         users.deleteAll();
+        schools.deleteAll();
+        var school = new pulsoescolar_api.entity.school.School();
+        school.setNome("Escola"); school.setCnpj("12345678000190");
+        school.setLogradouro("Rua A"); school.setBairro("Centro"); school.setCidade("Recife");
+        schoolId = schools.saveAndFlush(school).getId();
         var admin = new SchoolUser();
         admin.setFullName("Admin"); admin.setRa("admin"); admin.setEmail("admin@example.com");
         admin.setRole(Role.ADMIN); admin.setPasswordHash(encoder.encode("admin-password-123"));
@@ -44,13 +51,14 @@ class AuthMailTests {
 
     String registration(String name) {
         return "{\"fullName\":\"" + name + "\",\"ra\":\"" + name
-                + "\",\"email\":\"" + name + "@example.com\"}";
+                + "\",\"email\":\"" + name + "@example.com\",\"schoolId\":" + schoolId + "}";
     }
 
     @Test void generatesAndMailsDifferentPasswordsForEveryProfile() throws Exception {
         for (String role : new String[]{"students", "teachers", "coordinators"}) {
+            String body = registration(role);
             mvc.perform(post("/api/" + role).with(user("admin@example.com")).with(csrf())
-                    .contentType("application/json").content(registration(role)))
+                    .contentType("application/json").content(body))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.password").doesNotExist())
                     .andExpect(jsonPath("$.passwordHash").doesNotExist());

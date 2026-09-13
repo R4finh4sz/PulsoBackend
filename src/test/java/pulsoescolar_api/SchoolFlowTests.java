@@ -31,6 +31,7 @@ class SchoolFlowTests {
  @Autowired TeacherAssignmentService assignment;
  @Autowired SubjectService subjects;
  @Autowired UserRepository users;
+ @Autowired pulsoescolar_api.repository.school.SchoolRepository schools;
  @Autowired PasswordEncoder encoder;
  @Autowired org.springframework.web.context.WebApplicationContext context;
 
@@ -64,6 +65,10 @@ class SchoolFlowTests {
  }
  @BeforeEach void setup() {
   var coordinator=new SchoolUser();
+  var school = new pulsoescolar_api.entity.school.School();
+  school.setNome("Escola"); school.setCnpj("12345678000190");
+  school.setLogradouro("Rua A"); school.setBairro("Centro"); school.setCidade("Recife");
+  coordinator.setSchool(schools.saveAndFlush(school));
   coordinator.setFullName("Coordinator"); coordinator.setRa("COORD");
   coordinator.setEmail("coord@example.com"); coordinator.setPasswordHash(encoder.encode("password12345"));
   coordinator.setRole(Role.PEDAGOGICAL_COORDINATOR); users.save(coordinator);
