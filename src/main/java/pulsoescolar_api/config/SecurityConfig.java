@@ -1,5 +1,4 @@
 package pulsoescolar_api.config;
-import java.util.List;
 import java.util.Locale;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
@@ -11,11 +10,9 @@ import org.springframework.security.core.userdetails.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.session.*;
 import org.springframework.security.web.context.*;
-import org.springframework.security.web.csrf.*;
 import pulsoescolar_api.repository.user.UserRepository;
-import static org.springframework.security.config.Customizer.withDefaults;
+import pulsoescolar_api.security.auth.SessionJwtAuthenticationConverter;
 @Configuration
 public class SecurityConfig {
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
@@ -30,27 +27,21 @@ public class SecurityConfig {
         provider.setPasswordEncoder(encoder);
         return new ProviderManager(provider);
     }
-    @Bean SecurityContextRepository securityContextRepository() {
-        return new HttpSessionSecurityContextRepository();
-    }
-    @Bean CsrfTokenRepository csrfTokenRepository() { return new HttpSessionCsrfTokenRepository(); }
-    @Bean SessionAuthenticationStrategy sessionAuthenticationStrategy(CsrfTokenRepository csrf) {
-        return new CompositeSessionAuthenticationStrategy(List.of(
-                new ChangeSessionIdAuthenticationStrategy(), new CsrfAuthenticationStrategy(csrf)));
-    }
     @Bean SecurityFilterChain securityFilterChain(HttpSecurity http,
-            SecurityContextRepository contexts, CsrfTokenRepository csrf) throws Exception {
-        return http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
-                .securityContext(s -> s.securityContextRepository(contexts))
-                .csrf(c -> c.csrfTokenRepository(csrf))
+            SessionJwtAuthenticationConverter converter) throws Exception {
+        return http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(s -> s.securityContextRepository(new RequestAttributeSecurityContextRepository()))
+                .csrf(c -> c.disable())
                 .requestCache(c -> c.disable())
+                .httpBasic(c -> c.disable())
+                .formLogin(c -> c.disable())
+                .logout(c -> c.disable())
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers(HttpMethod.GET, "/api/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .anyRequest().authenticated())
-                .httpBasic(withDefaults())
-                .logout(l -> l.logoutUrl("/api/auth/logout")
-                        .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)))
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/auth/password").authenticated()
+                        .anyRequest().hasAnyRole("ADMIN", "PEDAGOGICAL_COORDINATOR", "TEACHER", "STUDENT"))
+                .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)))
                 .build();
     }
 }
