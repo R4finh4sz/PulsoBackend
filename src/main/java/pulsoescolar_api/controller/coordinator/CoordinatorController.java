@@ -1,6 +1,5 @@
 package pulsoescolar_api.controller.coordinator;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 import lombok.RequiredArgsConstructor;
