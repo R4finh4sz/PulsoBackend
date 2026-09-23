@@ -116,6 +116,35 @@ class JwtAuthenticationTests {
         unauthorized(token);
     }
 
+    @Test void passwordChangeRequiresTokenAndAcceptedTerms() throws Exception {
+        var user = users.findById(userId).orElseThrow();
+        user.setFirstLogin(true);
+        users.saveAndFlush(user);
+        String token = login();
+        String fields = "\"currentPassword\":\"admin-password-123\",\"newPassword\":\"new-password-456\"";
+        mvc.perform(patch("/api/auth/password").contentType("application/json")
+                .content("{" + fields + ",\"termsAccepted\":true}"))
+                .andExpect(status().isUnauthorized());
+        for (String terms : List.of("", ",\"termsAccepted\":null", ",\"termsAccepted\":false")) {
+            mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .contentType("application/json").content("{" + fields + terms + "}"))
+                    .andExpect(status().isBadRequest());
+            var unchanged = users.findById(userId).orElseThrow();
+            assertTrue(unchanged.isFirstLogin());
+            assertFalse(unchanged.isTermsAccepted());
+            assertTrue(passwords.matches("admin-password-123", unchanged.getPasswordHash()));
+        }
+        mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{" + fields + ",\"termsAccepted\":true}"))
+                .andExpect(status().isNoContent());
+        var changed = users.findById(userId).orElseThrow();
+        assertTrue(changed.isTermsAccepted());
+        assertFalse(changed.isFirstLogin());
+        assertTrue(passwords.matches("new-password-456", changed.getPasswordHash()));
+        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
     @Test void rejectsExpiredJwtEvenWhenSessionIsStillActive() throws Exception {
         var jwt = decoder.decode(login());
         unauthorized(sign(JwtClaimsSet.builder().claims(c -> c.putAll(jwt.getClaims()))
