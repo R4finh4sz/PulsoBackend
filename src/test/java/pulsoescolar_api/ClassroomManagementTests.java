@@ -55,23 +55,23 @@ class ClassroomManagementTests {
 
     @Test void patchesOneFieldAndEnforcesValidationAndPermissions() throws Exception {
         String path = "/api/classrooms/" + room.getId();
-        mvc.perform(patch(path).with(user("manager@example.com")).with(csrf())
+        mvc.perform(patch(path).with(user("manager@example.com"))
                 .contentType("application/json").content("{\"identifier\":\"B\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("3 ano"))
                 .andExpect(jsonPath("$.identifier").value("B"));
-        mvc.perform(patch(path).with(user("manager@example.com")).with(csrf())
+        mvc.perform(patch(path).with(user("manager@example.com"))
                 .contentType("application/json").content("{\"identifier\":\"ab\"}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(patch(path).with(user("teacher@example.com")).with(csrf())
+        mvc.perform(patch(path).with(user("teacher@example.com"))
                 .contentType("application/json").content("{}")).andExpect(status().isForbidden());
-        mvc.perform(patch(path).with(user("manager@example.com"))
-                .contentType("application/json").content("{}")).andExpect(status().isForbidden());
+        mvc.perform(patch(path)
+                .contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
     }
 
     @Test void rejectsDuplicateClassroom() throws Exception {
         var other = new Classroom(); other.setName("3 ano"); other.setIdentifier("B");
         classrooms.saveAndFlush(other);
-        mvc.perform(patch("/api/classrooms/" + room.getId()).with(user("manager@example.com")).with(csrf())
+        mvc.perform(patch("/api/classrooms/" + room.getId()).with(user("manager@example.com"))
                 .contentType("application/json").content("{\"identifier\":\"B\"}"))
                 .andExpect(status().isConflict());
     }

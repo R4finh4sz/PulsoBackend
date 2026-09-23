@@ -54,16 +54,16 @@ class UserManagementTests {
 
     @Test void updatesPartiallyAndRejectsInvalidOrConflictingData() throws Exception {
         String path = "/api/students/" + student.getId();
-        mvc.perform(patch(path).with(user("manager@example.com")).with(csrf())
+        mvc.perform(patch(path).with(user("manager@example.com"))
                 .contentType("application/json").content("{\"fullName\":\"Alice Updated\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.fullName").value("Alice Updated"))
                 .andExpect(jsonPath("$.ra").value("Alice"));
         mvc.perform(get(path).with(user("manager@example.com")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.fullName").value("Alice Updated"));
-        mvc.perform(patch(path).with(user("manager@example.com")).with(csrf())
+        mvc.perform(patch(path).with(user("manager@example.com"))
                 .contentType("application/json").content("{\"fullName\":\" \"}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(patch(path).with(user("manager@example.com")).with(csrf())
+        mvc.perform(patch(path).with(user("manager@example.com"))
                 .contentType("application/json").content("{\"email\":\"teacher@example.com\"}"))
                 .andExpect(status().isConflict());
     }
@@ -75,7 +75,7 @@ class UserManagementTests {
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/api/students/999999").with(user("manager@example.com")))
                 .andExpect(status().isNotFound());
-        mvc.perform(patch("/api/students/" + student.getId()).with(user("teacher@example.com")).with(csrf())
+        mvc.perform(patch("/api/students/" + student.getId()).with(user("teacher@example.com"))
                 .contentType("application/json").content("{}")).andExpect(status().isForbidden());
     }
 }
