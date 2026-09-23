@@ -13,6 +13,8 @@ public class SchoolUser {
  @Column(nullable=false, unique=true, length=50) private String ra;
  @Column(nullable=false, unique=true) private String email;
  @Column(nullable=false) private String passwordHash;
+ @Column(nullable=false) private boolean firstLogin;
+ @Column(nullable=false) private boolean termsAccepted;
  @Enumerated(EnumType.STRING) @Column(nullable=false, length=40) private Role role;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="classroom_id") private Classroom classroom;
 }
