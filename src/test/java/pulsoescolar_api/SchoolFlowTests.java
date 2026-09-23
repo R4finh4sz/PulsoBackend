@@ -40,14 +40,13 @@ class SchoolFlowTests {
    .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
    .build();
   var coordinator = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("coord@example.com");
-  var csrf = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf();
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/classrooms")
-    .with(coordinator).with(csrf).contentType("application/json").content("{\"name\":\"3 year\",\"identifier\":\"C\"}"))
+    .with(coordinator).contentType("application/json").content("{\"name\":\"3 year\",\"identifier\":\"C\"}"))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/classrooms").with(coordinator))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/classrooms")
-    .with(coordinator).with(csrf).contentType("application/json").content("{\"name\":\"\"}"))
+    .with(coordinator).contentType("application/json").content("{\"name\":\"\"}"))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/classrooms/999999/subjects")
     .with(coordinator))
@@ -56,7 +55,7 @@ class SchoolFlowTests {
   var teacher = registration.createUser(request("httpTeacher"), Role.TEACHER);
   var room = classrooms.createClassroom(new CreateClassroomRequest("HTTP room", "A"));
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
-     "/api/classrooms/" + room.id() + "/students/" + teacher.id()).with(coordinator).with(csrf))
+     "/api/classrooms/" + room.id() + "/students/" + teacher.id()).with(coordinator))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
      "/api/classrooms/" + room.id() + "/subjects")
