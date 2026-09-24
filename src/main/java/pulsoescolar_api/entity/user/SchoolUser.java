@@ -7,6 +7,7 @@ import lombok.*;
 @Entity @Table(name="school_users")
 @Getter @Setter @NoArgsConstructor
 public class SchoolUser {
+ private java.time.Instant twoFactorResendAvailableAt;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="school_id") private School school;
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
  @Column(nullable=false, length=200) private String fullName;
