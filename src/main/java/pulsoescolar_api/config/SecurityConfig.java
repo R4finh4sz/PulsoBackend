@@ -39,11 +39,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/api/auth/password").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/2fa/verify", "/api/auth/2fa/resend").hasAuthority("TWO_FACTOR_PENDING")
+                        .requestMatchers(HttpMethod.PATCH, "/api/auth/password").hasAnyAuthority("PASSWORD_CHANGE_REQUIRED", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/terms").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/terms").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/terms").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/terms/accept").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/terms").hasAnyAuthority("PASSWORD_CHANGE_REQUIRED", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/terms/accept").hasAnyAuthority("PASSWORD_CHANGE_REQUIRED", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .anyRequest().hasAnyRole("ADMIN", "PEDAGOGICAL_COORDINATOR", "TEACHER", "STUDENT"))
                 .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)))
                 .build();
