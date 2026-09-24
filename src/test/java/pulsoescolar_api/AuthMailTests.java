@@ -94,12 +94,13 @@ class AuthMailTests {
     }
 
     @Test void loginUsesMailedPasswordAndReturnsJwt() throws Exception {
-        mvc.perform(post("/api/students").with(user("admin@example.com"))
+        mvc.perform(post("/api/students").with(user("admin@example.com").roles("ADMIN"))
                 .contentType("application/json").content(registration("newstudent")))
                 .andExpect(status().isCreated());
         var message = org.mockito.ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(sender).send(message.capture());
         String password = message.getValue().getText().split("Senha: ")[1].split("\n")[0];
+        org.mockito.Mockito.clearInvocations(sender);
         var result = mvc.perform(post("/api/auth/login").contentType("application/json")
                 .content("{\"email\":\"NEWSTUDENT@example.com\",\"password\":\"" + password + "\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.user.role").value("STUDENT"))
@@ -109,6 +110,17 @@ class AuthMailTests {
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist()).andReturn();
         String token = tools.jackson.databind.json.JsonMapper.builder().build()
                 .readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+        verify(sender).send(message.capture());
+        String code = message.getValue().getText().split("\n")[0].replaceAll("[^0-9]", "");
+        mvc.perform(post("/api/auth/2fa/verify").header("Authorization", "Bearer " + token)
+                .contentType("application/json").content("{\"code\":\"" + code + "\"}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/auth/password")
+                .header("Authorization", "Bearer " + token).contentType("application/json")
+                .content("{\"currentPassword\":\"" + password + "\",\"newPassword\":\"new-password-123\",\"termsAccepted\":true}"))
+                .andExpect(status().isNoContent());
         mvc.perform(get("/api/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.email").value("newstudent@example.com"));
         mvc.perform(get("/api/students").header("Authorization", "Bearer " + token))

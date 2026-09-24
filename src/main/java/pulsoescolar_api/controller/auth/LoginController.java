@@ -17,6 +17,19 @@ import pulsoescolar_api.dto.auth.ChangePasswordRequest;
 public class LoginController {
     private final LoginService loginService;
     private final ChangePasswordService changePasswordService;
+    private final pulsoescolar_api.service.auth.TwoFactorService twoFactor;
+
+    @PostMapping("/2fa/verify")
+    public ResponseEntity<Void> verify(@AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody pulsoescolar_api.dto.auth.VerifyCodeRequest body) {
+        twoFactor.verify(jwt, body.code());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/2fa/resend")
+    public ResponseEntity<pulsoescolar_api.dto.auth.TwoFactorResponse> resend(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(twoFactor.resend(jwt));
+    }
 
     @PatchMapping("/password")
     public ResponseEntity<Void> changePassword(@AuthenticationPrincipal Jwt jwt,

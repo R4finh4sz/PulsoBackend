@@ -14,6 +14,11 @@ import pulsoescolar_api.entity.user.SchoolUser;
 @Setter
 @NoArgsConstructor
 public class AuthSession {
+    @Column(nullable = false) private boolean twoFactorVerified;
+    private String codeHash;
+    private Instant codeExpiresAt;
+    private Instant resendAvailableAt;
+    @Column(nullable = false) private int codeAttempts;
     @Id
     private UUID id;
 
