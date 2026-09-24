@@ -116,6 +116,55 @@ class JwtAuthenticationTests {
         unauthorized(token);
     }
 
+    @Test void termsRequireAdminAndNewVersionsResetAcceptance() throws Exception {
+        String token = login();
+        String body = "{\"title\":\"Termos de uso\",\"content\":\"Texto dos termos\"}";
+        mvc.perform(post("/api/terms").contentType("application/json").content(body))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content(body))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.version").value(1));
+        mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content(body)).andExpect(status().isConflict());
+        mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"version\":1,\"termsAccepted\":true}"))
+                .andExpect(status().isNoContent());
+        assertTrue(users.findById(userId).orElseThrow().isTermsAccepted());
+        mvc.perform(put("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
+        assertFalse(users.findById(userId).orElseThrow().isTermsAccepted());
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.user.termsAccepted").value(false));
+        mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"version\":1,\"termsAccepted\":true}"))
+                .andExpect(status().isConflict());
+        for (Role role : List.of(Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR)) {
+            var user = users.findById(userId).orElseThrow();
+            user.setRole(role);
+            users.saveAndFlush(user);
+            mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .contentType("application/json").content(body)).andExpect(status().isForbidden());
+            mvc.perform(put("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .contentType("application/json").content(body)).andExpect(status().isForbidden());
+        }
+        var user = users.findById(userId).orElseThrow();
+        user.setFirstLogin(true);
+        users.saveAndFlush(user);
+        mvc.perform(get("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
+        mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"version\":2,\"termsAccepted\":false}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"version\":2,\"termsAccepted\":true}"))
+                .andExpect(status().isNoContent());
+        assertTrue(users.findById(userId).orElseThrow().isTermsAccepted());
+    }
+
     @Test void passwordChangeRequiresTokenAndAcceptedTerms() throws Exception {
         var user = users.findById(userId).orElseThrow();
         user.setFirstLogin(true);

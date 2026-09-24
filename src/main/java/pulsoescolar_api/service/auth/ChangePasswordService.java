@@ -19,9 +19,11 @@ public class ChangePasswordService {
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final AuthSessionRepository sessions;
+    private final pulsoescolar_api.repository.terms.TermsRepository terms;
 
     @Transactional
     public void change(Jwt jwt, ChangePasswordRequest request) {
+        terms.lockCurrent();
         if (!Boolean.TRUE.equals(request.termsAccepted())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "É necessário aceitar os termos.");
         }
