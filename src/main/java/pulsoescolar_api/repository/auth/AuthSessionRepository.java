@@ -10,6 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.entity.auth.AuthSession;
 
 public interface AuthSessionRepository extends JpaRepository<AuthSession, UUID> {
+    @Modifying
+    @Query("DELETE FROM AuthSession s WHERE s.user.id = :userId")
+    void revokeAll(@Param("userId") Long userId);
+
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM AuthSession s WHERE s.id = :id")
     java.util.Optional<AuthSession> lockById(@Param("id") UUID id);

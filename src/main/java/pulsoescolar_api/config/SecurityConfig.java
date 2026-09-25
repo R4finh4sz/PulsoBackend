@@ -19,7 +19,7 @@ public class SecurityConfig {
     @Bean UserDetailsService userDetailsService(UserRepository repository) {
         return email -> repository.findByEmail(email.strip().toLowerCase(Locale.ROOT))
                 .map(u -> User.withUsername(u.getEmail()).password(u.getPasswordHash())
-                        .roles(u.getRole().name()).build())
+                        .disabled(u.getDeletedAt() != null).roles(u.getRole().name()).build())
                 .orElseThrow(() -> new UsernameNotFoundException("Credenciais inválidas."));
     }
     @Bean AuthenticationManager authenticationManager(UserDetailsService users, PasswordEncoder encoder) {

@@ -32,6 +32,7 @@ public class UserManagementService {
         Specification<SchoolUser> filter = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("role"), role));
+            predicates.add(cb.isNull(root.get("deletedAt")));
             if (actor.getRole() == Role.PEDAGOGICAL_COORDINATOR && actor.getSchool() != null) {
                 predicates.add(cb.equal(root.get("school").get("id"), actor.getSchool().getId()));
             }
