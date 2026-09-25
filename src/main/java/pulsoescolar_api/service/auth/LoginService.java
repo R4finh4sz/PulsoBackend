@@ -55,7 +55,7 @@ public class LoginService {
         sessions.save(session);
         var loginUser = new LoginResponse.LoginUser(user.getRole(),
                 user.getClassroom() == null ? null : user.getClassroom().getId(),
-                user.getSchool() == null ? null : user.getSchool().getId(), user.isFirstLogin(), user.isTermsAccepted());
+                user.getSchool() == null ? null : user.getSchool().getId(), user.isFirstLogin(), user.isTermsAccepted(), user.getTermsAcceptedVersions());
         return new LoginResponse(token.getTokenValue(), "Bearer", expiresAt, loginUser);
     }
 

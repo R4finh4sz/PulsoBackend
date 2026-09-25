@@ -42,7 +42,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/auth/password").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/terms").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/terms").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/terms").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/terms", "/api/terms/history", "/api/terms/accepted").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/terms/accept").authenticated()
                         .anyRequest().hasAnyRole("ADMIN", "PEDAGOGICAL_COORDINATOR", "TEACHER", "STUDENT"))
                 .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)))
