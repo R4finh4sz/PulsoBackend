@@ -27,7 +27,6 @@ public class TwoFactorMailService {
         message.setText("Código: " + code + "\n\nVálido por 10 minutos. Não compartilhe este código.");
         try { sender.send(message); }
         catch (MailException ex) {
-            // Log only exception types: transport messages can contain sensitive data.
             Throwable cause = ex.getMostSpecificCause();
             log.warn("Falha no envio de 2FA: tipo={}, causa={}",
                     ex.getClass().getSimpleName(), cause.getClass().getSimpleName());

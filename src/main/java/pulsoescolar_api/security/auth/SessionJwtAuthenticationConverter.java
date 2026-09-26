@@ -45,7 +45,6 @@ public class SessionJwtAuthenticationConverter implements Converter<Jwt, Abstrac
                     List.of(new SimpleGrantedAuthority("TWO_FACTOR_PENDING")), user.getEmail());
         }
         return new JwtAuthenticationToken(jwt,
-                List.of(new SimpleGrantedAuthority(user.isFirstLogin()
-                        ? "PASSWORD_CHANGE_REQUIRED" : "ROLE_" + user.getRole().name())), user.getEmail());
+                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())), user.getEmail());
     }
 }

@@ -56,7 +56,7 @@ class AuthMailTests {
     @Test void generatesAndMailsDifferentPasswordsForEveryProfile() throws Exception {
         for (String role : new String[]{"students", "teachers", "coordinators"}) {
             String body = registration(role);
-            mvc.perform(post("/api/" + role).with(user("admin@example.com"))
+            mvc.perform(post("/api/" + role).with(user("admin@example.com").roles("ADMIN"))
                     .contentType("application/json").content(body))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.password").doesNotExist())
@@ -78,7 +78,7 @@ class AuthMailTests {
 
     @Test void smtpFailureRollsBackRegistrationAndHidesTransportDetails() throws Exception {
         doThrow(new MailSendException("secret SMTP details")).when(sender).send(any(SimpleMailMessage.class));
-        mvc.perform(post("/api/students").with(user("admin@example.com"))
+        mvc.perform(post("/api/students").with(user("admin@example.com").roles("ADMIN"))
                 .contentType("application/json").content(registration("failure")))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("secret"))));
@@ -86,9 +86,9 @@ class AuthMailTests {
     }
 
     @Test void duplicateRegistrationDoesNotSendAnotherEmail() throws Exception {
-        mvc.perform(post("/api/students").with(user("admin@example.com"))
+        mvc.perform(post("/api/students").with(user("admin@example.com").roles("ADMIN"))
                 .contentType("application/json").content(registration("same"))).andExpect(status().isCreated());
-        mvc.perform(post("/api/students").with(user("admin@example.com"))
+        mvc.perform(post("/api/students").with(user("admin@example.com").roles("ADMIN"))
                 .contentType("application/json").content(registration("same"))).andExpect(status().isConflict());
         verify(sender, times(1)).send(any(SimpleMailMessage.class));
     }
@@ -98,12 +98,13 @@ class AuthMailTests {
                 .contentType("application/json").content(registration("newstudent")))
                 .andExpect(status().isCreated());
         var message = org.mockito.ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(sender).send(message.capture());
+        verify(sender, timeout(3000)).send(message.capture());
         String password = message.getValue().getText().split("Senha: ")[1].split("\n")[0];
         org.mockito.Mockito.clearInvocations(sender);
         var result = mvc.perform(post("/api/auth/login").contentType("application/json")
                 .content("{\"email\":\"NEWSTUDENT@example.com\",\"password\":\"" + password + "\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.user.role").value("STUDENT"))
+                .andExpect(jsonPath("$.user.termsAccepted").value(false))
                 .andExpect(jsonPath("$.user.schoolId").value(schoolId))
                 .andExpect(jsonPath("$.user.classroomId").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.user.password").doesNotExist())
@@ -112,15 +113,12 @@ class AuthMailTests {
                 .readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
         mvc.perform(get("/api/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
-        verify(sender).send(message.capture());
+        verify(sender, timeout(3000)).send(message.capture());
         String code = message.getValue().getText().split("\n")[0].replaceAll("[^0-9]", "");
         mvc.perform(post("/api/auth/2fa/verify").header("Authorization", "Bearer " + token)
                 .contentType("application/json").content("{\"code\":\"" + code + "\"}"))
                 .andExpect(status().isNoContent());
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/auth/password")
-                .header("Authorization", "Bearer " + token).contentType("application/json")
-                .content("{\"currentPassword\":\"" + password + "\",\"newPassword\":\"new-password-123\",\"termsAccepted\":true}"))
-                .andExpect(status().isNoContent());
+        assertTrue(encoder.matches(password, users.findByEmail("newstudent@example.com").orElseThrow().getPasswordHash()));
         mvc.perform(get("/api/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.email").value("newstudent@example.com"));
         mvc.perform(get("/api/students").header("Authorization", "Bearer " + token))

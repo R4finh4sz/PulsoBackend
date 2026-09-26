@@ -74,6 +74,8 @@ class JwtAuthenticationTests {
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresAt").exists())
                 .andExpect(jsonPath("$.user.role").value("ADMIN"))
+                .andExpect(jsonPath("$.user.termsAccepted").value(true))
+                .andExpect(jsonPath("$.user.firstLogin").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.user.id").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.user.fullName").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.user.ra").doesNotHaveJsonPath())
@@ -84,7 +86,7 @@ class JwtAuthenticationTests {
         String token = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString())
                 .get("accessToken").asText();
         var code = org.mockito.ArgumentCaptor.forClass(String.class);
-        org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.eq("admin@example.com"), code.capture());
+        org.mockito.Mockito.verify(twoFactorMail, org.mockito.Mockito.timeout(3000)).send(org.mockito.ArgumentMatchers.eq("admin@example.com"), code.capture());
         mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden());
         mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -138,7 +140,7 @@ class JwtAuthenticationTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.twoFactorRequired").value(true)).andReturn();
         String token = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
         var code = org.mockito.ArgumentCaptor.forClass(String.class);
-        org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
+        org.mockito.Mockito.verify(twoFactorMail, org.mockito.Mockito.timeout(3000)).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
         String original = code.getValue();
         for (String path : List.of("/api/me", "/api/terms", "/api/terms/history", "/api/terms/accepted")) {
             mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)).andExpect(status().isForbidden());
@@ -155,7 +157,7 @@ class JwtAuthenticationTests {
         org.mockito.Mockito.clearInvocations(twoFactorMail);
         mvc.perform(post("/api/auth/2fa/resend").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk());
-        org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
+        org.mockito.Mockito.verify(twoFactorMail, org.mockito.Mockito.timeout(3000)).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
         String current = code.getValue();
         var stored = sessions.findById(UUID.fromString(decoder.decode(token).getId())).orElseThrow();
         assertNotEquals(current, stored.getCodeHash());
@@ -176,21 +178,79 @@ class JwtAuthenticationTests {
         org.mockito.Mockito.clearInvocations(twoFactorMail);
         mvc.perform(post("/api/auth/2fa/resend").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk());
-        org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
+        org.mockito.Mockito.verify(twoFactorMail, org.mockito.Mockito.timeout(3000)).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
         when(clock.instant()).thenReturn(now.plusSeconds(960));
         mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content("{\"code\":\"" + code.getValue() + "\"}"))
                 .andExpect(status().isBadRequest());
     }
 
-    @Test void mailFailureDoesNotCreateSessionOrConsumeCooldown() throws Exception {
+    @Test void mailFailureLeavesSessionPendingAndAllowsLaterResend() throws Exception {
         org.mockito.Mockito.doThrow(new pulsoescolar_api.exception.EmailDeliveryException())
                 .when(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
-        mvc.perform(post("/api/auth/login").contentType("application/json")
+        var result = mvc.perform(post("/api/auth/login").contentType("application/json")
                 .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
-                .andExpect(status().isServiceUnavailable());
-        assertEquals(0, sessions.count());
-        assertNull(users.findById(userId).orElseThrow().getTwoFactorResendAvailableAt());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.twoFactorRequired").value(true)).andReturn();
+        org.mockito.Mockito.verify(twoFactorMail, org.mockito.Mockito.timeout(3000))
+                .send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        assertEquals(1, sessions.count());
+        String token = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.doNothing().when(twoFactorMail)
+                .send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        when(clock.instant()).thenReturn(now.plusSeconds(180));
+        mvc.perform(post("/api/auth/2fa/resend").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        var code = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(twoFactorMail, org.mockito.Mockito.timeout(3000).times(2))
+                .send(org.mockito.ArgumentMatchers.anyString(), code.capture());
+        mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"code\":\"" + code.getValue() + "\"}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test void slowMailDoesNotBlockLoginAndOnlyStartsAfterCommit() throws Exception {
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var finished = new java.util.concurrent.CountDownLatch(1);
+        var committed = new java.util.concurrent.atomic.AtomicBoolean();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            try {
+                committed.set(sessions.count() == 1);
+                started.countDown();
+                release.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                return null;
+            } finally {
+                finished.countDown();
+            }
+        }).when(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        try {
+            var result = assertTimeoutPreemptively(java.time.Duration.ofSeconds(5), () ->
+                    mvc.perform(post("/api/auth/login").contentType("application/json")
+                            .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                            .andExpect(status().isOk()).andExpect(jsonPath("$.twoFactorRequired").value(true)).andReturn());
+            assertTrue(started.await(3, java.util.concurrent.TimeUnit.SECONDS));
+            assertTrue(committed.get());
+            assertEquals(1, finished.getCount(), "SMTP is still blocked when login returns");
+            String token = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+            mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isForbidden());
+        } finally {
+            release.countDown();
+            assertTrue(finished.await(3, java.util.concurrent.TimeUnit.SECONDS));
+        }
+    }
+
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Autowired org.springframework.context.ApplicationEventPublisher events;
+
+    @Test void rollbackDoesNotSendCode() {
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            events.publishEvent(new pulsoescolar_api.service.mail.TwoFactorMailRequested("admin@example.com", "123456"));
+            status.setRollbackOnly();
+        });
+        org.mockito.Mockito.verifyNoInteractions(twoFactorMail);
     }
 
     @Test void termsRequireAdminAndNewVersionsResetAcceptance() throws Exception {
@@ -228,7 +288,7 @@ class JwtAuthenticationTests {
         assertFalse(users.findById(userId).orElseThrow().isTermsAccepted());
         mvc.perform(post("/api/auth/login").contentType("application/json")
                 .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.user.termsAccepted").value(false));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.user.termsAccepted").value(true));
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
                 .andExpect(status().isConflict());
@@ -241,9 +301,6 @@ class JwtAuthenticationTests {
             mvc.perform(put("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                     .contentType("application/json").content(body)).andExpect(status().isForbidden());
         }
-        var user = users.findById(userId).orElseThrow();
-        user.setFirstLogin(true);
-        users.saveAndFlush(user);
         mvc.perform(get("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.version").value("1.1"));
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -257,40 +314,27 @@ class JwtAuthenticationTests {
                 .andExpect(status().isOk()).andExpect(content().json("[\"1.0\",\"1.1\"]"));
     }
 
-    @Test void passwordChangeRequiresTokenAndAcceptedTerms() throws Exception {
+    @Test void optionalPasswordChangeDoesNotAcceptTerms() throws Exception {
         String token = login();
         mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content("{\"title\":\"Inicial\",\"content\":\"Texto inicial\"}"))
                 .andExpect(status().isCreated());
-        var user = users.findById(userId).orElseThrow();
-        user.setFirstLogin(true);
-        users.saveAndFlush(user);
-        String fields = "\"currentPassword\":\"admin-password-123\",\"newPassword\":\"new-password-456\"";
-        mvc.perform(patch("/api/auth/password").contentType("application/json")
-                .content("{" + fields + ",\"termsAccepted\":true}"))
+        String body = "{\"currentPassword\":\"admin-password-123\",\"newPassword\":\"new-password-456\"}";
+        mvc.perform(patch("/api/auth/password").contentType("application/json").content(body))
                 .andExpect(status().isUnauthorized());
-        for (String terms : List.of("", ",\"termsAccepted\":null", ",\"termsAccepted\":false")) {
-            mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                    .contentType("application/json").content("{" + fields + terms + "}"))
-                    .andExpect(status().isBadRequest());
-            var unchanged = users.findById(userId).orElseThrow();
-            assertTrue(unchanged.isFirstLogin());
-            assertFalse(unchanged.isTermsAccepted());
-            assertTrue(passwords.matches("admin-password-123", unchanged.getPasswordHash()));
-        }
         mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType("application/json").content("{" + fields + ",\"termsAccepted\":true}"))
+                .contentType("application/json").content(body))
                 .andExpect(status().isNoContent());
         var changed = users.findById(userId).orElseThrow();
-        assertTrue(changed.isTermsAccepted());
-        mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk()).andExpect(content().json("[\"1.0\"]"));
-        assertFalse(changed.isFirstLogin());
+        assertFalse(changed.isTermsAccepted());
         assertTrue(passwords.matches("new-password-456", changed.getPasswordHash()));
-        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk());
+        mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(content().json("[]"));
+        mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
+                .andExpect(status().isNoContent());
+        assertTrue(users.findById(userId).orElseThrow().isTermsAccepted());
     }
-
     @Test void versionsContinueAfterNineEditsAndAcceptanceIsPrivate() throws Exception {
         String token = login();
         String body = "{\"title\":\"Termo\",\"content\":\"Conteudo\"}";
