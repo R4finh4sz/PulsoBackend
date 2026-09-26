@@ -18,6 +18,13 @@ public class SchoolUser {
  @Column(nullable=false) private String passwordHash;
  @Column(nullable=false) private boolean firstLogin;
  @Column(nullable=false) private boolean termsAccepted;
+ @ElementCollection
+ @CollectionTable(name="user_terms_acceptances", joinColumns=@JoinColumn(name="user_id"))
+ @Column(name="version", nullable=false)
+ private java.util.Set<Long> acceptedTermVersions = new java.util.HashSet<>();
+ public java.util.List<String> getTermsAcceptedVersions() {
+  return acceptedTermVersions.stream().sorted().map(pulsoescolar_api.entity.terms.TermsVersion::label).toList();
+ }
  @Enumerated(EnumType.STRING) @Column(nullable=false, length=40) private Role role;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="classroom_id") private Classroom classroom;
 }
