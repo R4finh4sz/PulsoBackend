@@ -28,8 +28,8 @@ public class TwoFactorService {
     public void issue(AuthSession session) {
         String code = String.format(java.util.Locale.ROOT, "%06d", random.nextInt(1_000_000));
         session.setCodeHash(passwords.encode(code));
-        session.setCodeExpiresAt(clock.instant().plusSeconds(600));
-        session.setResendAvailableAt(clock.instant().plusSeconds(10)); 
+        session.setCodeExpiresAt(clock.instant().plusSeconds(600)); // Validade de 10 minutos.
+        session.setResendAvailableAt(clock.instant().plusSeconds(10)); // Reenvio apos 10 segundos.
         session.getUser().setTwoFactorResendAvailableAt(session.getResendAvailableAt());
         session.setCodeAttempts(0);
         mail.send(session.getUser().getEmail(), code);
