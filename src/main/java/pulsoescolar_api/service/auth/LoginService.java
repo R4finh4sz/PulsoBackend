@@ -41,7 +41,8 @@ public class LoginService {
         var user = users.findByEmail(authentication.getName())
                 .orElseThrow(() -> new BadCredentialsException("Credenciais inválidas."));
         var now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
-        entityManager.lock(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (user.getDeletedAt() != null) throw new BadCredentialsException("Conta excluída.");
         if (user.getTwoFactorResendAvailableAt() != null && now.isBefore(user.getTwoFactorResendAvailableAt())) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "Aguarde 3 minutos para solicitar outro código.");
@@ -63,7 +64,7 @@ public class LoginService {
         sessions.save(session);
         var loginUser = new LoginResponse.LoginUser(user.getRole(),
                 user.getClassroom() == null ? null : user.getClassroom().getId(),
-                user.getSchool() == null ? null : user.getSchool().getId(), user.isFirstLogin(), user.isTermsAccepted());
+                user.getSchool() == null ? null : user.getSchool().getId(), user.isFirstLogin(), user.isTermsAccepted(), user.getTermsAcceptedVersions());
         return new LoginResponse(token.getTokenValue(), "Bearer", expiresAt, loginUser,
                 true, session.getCodeExpiresAt(), session.getResendAvailableAt());
     }

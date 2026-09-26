@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class JwtAuthenticationTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired AuthSessionRepository sessions;
     @Autowired PasswordEncoder passwords;
     @Autowired JwtDecoder decoder;
@@ -54,6 +55,8 @@ class JwtAuthenticationTests {
         now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         when(clock.instant()).thenReturn(now);
         users.deleteAll();
+        jdbc.update("DELETE FROM terms_versions");
+        jdbc.update("UPDATE terms_of_use SET version = 0, title = NULL, content = NULL");
         var user = new SchoolUser();
         user.setFullName("Admin"); user.setRa("admin"); user.setEmail("admin@example.com");
         user.setRole(Role.ADMIN); user.setPasswordHash(passwords.encode("admin-password-123"));
@@ -137,7 +140,7 @@ class JwtAuthenticationTests {
         var code = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
         String original = code.getValue();
-        for (String path : List.of("/api/me", "/api/terms")) {
+        for (String path : List.of("/api/me", "/api/terms", "/api/terms/history", "/api/terms/accepted")) {
             mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)).andExpect(status().isForbidden());
         }
         mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -199,22 +202,35 @@ class JwtAuthenticationTests {
                 .andExpect(status().isNotFound());
         mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content(body))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.version").value(1));
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.version").value("1.0"));
         mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content(body)).andExpect(status().isConflict());
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType("application/json").content("{\"version\":1,\"termsAccepted\":true}"))
+                .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
                 .andExpect(status().isNoContent());
         assertTrue(users.findById(userId).orElseThrow().isTermsAccepted());
+        mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(content().json("[\"1.0\"]"));
         mvc.perform(put("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType("application/json").content(body))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
+                .contentType("application/json").content("{\"title\":\"Novo titulo\",\"content\":\"Novo texto\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value("1.1"));
+        mvc.perform(get("/api/terms/history").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].version").value("1.0"))
+                .andExpect(jsonPath("$[0].title").value("Termos de uso"))
+                .andExpect(jsonPath("$[0].content").value("Texto dos termos"))
+                .andExpect(jsonPath("$[1].version").value("1.1"))
+                .andExpect(jsonPath("$[1].title").value("Novo titulo"))
+                .andExpect(jsonPath("$[1].content").value("Novo texto"));
         assertFalse(users.findById(userId).orElseThrow().isTermsAccepted());
         mvc.perform(post("/api/auth/login").contentType("application/json")
                 .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.user.termsAccepted").value(false));
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType("application/json").content("{\"version\":1,\"termsAccepted\":true}"))
+                .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
                 .andExpect(status().isConflict());
         for (Role role : List.of(Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR)) {
             var user = users.findById(userId).orElseThrow();
@@ -229,21 +245,26 @@ class JwtAuthenticationTests {
         user.setFirstLogin(true);
         users.saveAndFlush(user);
         mvc.perform(get("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value("1.1"));
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType("application/json").content("{\"version\":2,\"termsAccepted\":false}"))
+                .contentType("application/json").content("{\"version\":\"1.1\",\"termsAccepted\":false}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType("application/json").content("{\"version\":2,\"termsAccepted\":true}"))
+                .contentType("application/json").content("{\"version\":\"1.1\",\"termsAccepted\":true}"))
                 .andExpect(status().isNoContent());
         assertTrue(users.findById(userId).orElseThrow().isTermsAccepted());
+        mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(content().json("[\"1.0\",\"1.1\"]"));
     }
 
     @Test void passwordChangeRequiresTokenAndAcceptedTerms() throws Exception {
+        String token = login();
+        mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"title\":\"Inicial\",\"content\":\"Texto inicial\"}"))
+                .andExpect(status().isCreated());
         var user = users.findById(userId).orElseThrow();
         user.setFirstLogin(true);
         users.saveAndFlush(user);
-        String token = login();
         String fields = "\"currentPassword\":\"admin-password-123\",\"newPassword\":\"new-password-456\"";
         mvc.perform(patch("/api/auth/password").contentType("application/json")
                 .content("{" + fields + ",\"termsAccepted\":true}"))
@@ -262,10 +283,35 @@ class JwtAuthenticationTests {
                 .andExpect(status().isNoContent());
         var changed = users.findById(userId).orElseThrow();
         assertTrue(changed.isTermsAccepted());
+        mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(content().json("[\"1.0\"]"));
         assertFalse(changed.isFirstLogin());
         assertTrue(passwords.matches("new-password-456", changed.getPasswordHash()));
         mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk());
+    }
+
+    @Test void versionsContinueAfterNineEditsAndAcceptanceIsPrivate() throws Exception {
+        String token = login();
+        String body = "{\"title\":\"Termo\",\"content\":\"Conteudo\"}";
+        mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content(body)).andExpect(status().isCreated());
+        for (int i = 1; i <= 10; i++) {
+            mvc.perform(put("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .contentType("application/json").content(body))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.version").value("1." + i));
+        }
+        mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"version\":\"1.10\",\"termsAccepted\":true}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(content().json("[\"1.10\"]"));
+        mvc.perform(get("/api/terms/accepted")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/terms/history")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.termsAcceptedVersions[0]").value("1.10"));
     }
 
     @Test void rejectsExpiredJwtEvenWhenSessionIsStillActive() throws Exception {

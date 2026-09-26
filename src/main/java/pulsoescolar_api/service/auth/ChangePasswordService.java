@@ -23,7 +23,7 @@ public class ChangePasswordService {
 
     @Transactional
     public void change(Jwt jwt, ChangePasswordRequest request) {
-        terms.lockCurrent();
+        var term = terms.lockCurrent();
         if (!Boolean.TRUE.equals(request.termsAccepted())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "É necessário aceitar os termos.");
         }
@@ -40,7 +40,8 @@ public class ChangePasswordService {
         }
         user.setPasswordHash(encoder.encode(request.newPassword()));
         user.setFirstLogin(false);
-        user.setTermsAccepted(true);
+        if (term.getVersion() > 0) user.getAcceptedTermVersions().add(term.getVersion());
+        user.setTermsAccepted(term.getVersion() > 0);
         sessions.revokeOthers(user.getId(), UUID.fromString(jwt.getId()));
     }
 }

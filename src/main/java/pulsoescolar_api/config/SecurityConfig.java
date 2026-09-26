@@ -19,7 +19,7 @@ public class SecurityConfig {
     @Bean UserDetailsService userDetailsService(UserRepository repository) {
         return email -> repository.findByEmail(email.strip().toLowerCase(Locale.ROOT))
                 .map(u -> User.withUsername(u.getEmail()).password(u.getPasswordHash())
-                        .roles(u.getRole().name()).build())
+                        .disabled(u.getDeletedAt() != null).roles(u.getRole().name()).build())
                 .orElseThrow(() -> new UsernameNotFoundException("Credenciais inválidas."));
     }
     @Bean AuthenticationManager authenticationManager(UserDetailsService users, PasswordEncoder encoder) {
@@ -43,7 +43,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/auth/password").hasAnyAuthority("PASSWORD_CHANGE_REQUIRED", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/terms").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/terms").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/terms").hasAnyAuthority("PASSWORD_CHANGE_REQUIRED", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.GET, "/api/terms", "/api/terms/history", "/api/terms/accepted").hasAnyAuthority("PASSWORD_CHANGE_REQUIRED", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/terms/accept").hasAnyAuthority("PASSWORD_CHANGE_REQUIRED", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .anyRequest().hasAnyRole("ADMIN", "PEDAGOGICAL_COORDINATOR", "TEACHER", "STUDENT"))
                 .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)))

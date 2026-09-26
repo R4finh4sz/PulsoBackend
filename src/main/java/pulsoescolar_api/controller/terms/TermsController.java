@@ -13,6 +13,10 @@ public class TermsController {
     private final TermsService service;
     @GetMapping
     public TermsResponse get() { return service.get(); }
+    @GetMapping("/history")
+    public java.util.List<TermsResponse> history() { return service.history(); }
+    @GetMapping("/accepted")
+    public java.util.List<String> accepted() { return service.acceptedVersions(); }
     @PostMapping
     @ResponseStatus(CREATED)
     public TermsResponse create(@Valid @RequestBody TermsRequest request) {

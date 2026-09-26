@@ -38,6 +38,7 @@ public class SessionJwtAuthenticationConverter implements Converter<Jwt, Abstrac
         }
         var user = users.findById(userId)
                 .orElseThrow(() -> new InvalidBearerTokenException("Sessão inválida."));
+        if (user.getDeletedAt() != null) throw new InvalidBearerTokenException("Conta excluída.");
         var session = sessions.findById(sessionId).orElseThrow(() -> new InvalidBearerTokenException("Sessão inválida."));
         if (!session.isTwoFactorVerified()) {
             return new JwtAuthenticationToken(jwt,

@@ -17,7 +17,9 @@ import pulsoescolar_api.security.CurrentUser;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class TermsService {
+    private final pulsoescolar_api.service.audit.AuditService audit;
     private final TermsRepository terms;
+    private final pulsoescolar_api.repository.terms.TermsVersionRepository versions;
     private final UserRepository users;
     private final CurrentUser currentUser;
 
@@ -41,6 +43,7 @@ public class TermsService {
         term.setContent(request.content());
         term.setVersion(term.getVersion() + 1);
         terms.saveAndFlush(term);
+        versions.saveAndFlush(new pulsoescolar_api.entity.terms.TermsVersion(term.getVersion(), term.getTitle(), term.getContent()));
         users.resetTermsAcceptance();
         return response(term);
     }
@@ -52,10 +55,22 @@ public class TermsService {
         if (!Boolean.TRUE.equals(request.termsAccepted())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "É necessário aceitar os termos.");
         }
-        if (request.version() == null || term.getVersion() != request.version()) {
+        if (request.version() == null || !pulsoescolar_api.entity.terms.TermsVersion.label(term.getVersion()).equals(request.version())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Os termos foram atualizados. Consulte a versão atual.");
         }
-        currentUser.get().setTermsAccepted(true);
+        var user = currentUser.get();
+        boolean firstAcceptance = user.getAcceptedTermVersions().add(term.getVersion());
+        user.setTermsAccepted(true);
+        if (firstAcceptance) audit.record(pulsoescolar_api.service.audit.AuditEvent.TERMS_ACCEPTED);
+    }
+
+    public java.util.List<TermsResponse> history() {
+        return versions.findAllByOrderByVersionAsc().stream().map(t ->
+                new TermsResponse(t.getTitle(), pulsoescolar_api.entity.terms.TermsVersion.label(t.getVersion()), t.getContent())).toList();
+    }
+
+    public java.util.List<String> acceptedVersions() {
+        return currentUser.get().getTermsAcceptedVersions();
     }
 
     private void requirePublished(TermsOfUse term) {
@@ -65,6 +80,6 @@ public class TermsService {
     }
 
     private TermsResponse response(TermsOfUse term) {
-        return new TermsResponse(term.getTitle(), term.getVersion(), term.getContent());
+        return new TermsResponse(term.getTitle(), pulsoescolar_api.entity.terms.TermsVersion.label(term.getVersion()), term.getContent());
     }
 }

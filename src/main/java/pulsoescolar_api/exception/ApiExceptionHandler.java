@@ -5,6 +5,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 @RestControllerAdvice
 public class ApiExceptionHandler {
+ @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+ public ProblemDetail concurrentUpdate(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "O cadastro foi alterado por outra operação. Atualize e tente novamente.");
+ }
  @ExceptionHandler(EmailDeliveryException.class)
  public ProblemDetail mailDelivery(EmailDeliveryException ex) {
   return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());

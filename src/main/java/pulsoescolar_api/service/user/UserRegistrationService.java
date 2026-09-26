@@ -24,6 +24,7 @@ import pulsoescolar_api.service.mail.WelcomeMailService;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class UserRegistrationService {
+    private final pulsoescolar_api.service.audit.AuditService audit;
     private final PasswordGenerator passwords;
     private final WelcomeMailService mail;
     private final UserRepository users;
@@ -65,6 +66,9 @@ public class UserRegistrationService {
         user.setRole(role);
         users.saveAndFlush(user);
         mail.send(user.getEmail(), user.getFullName(), password);
+        if (role == Role.PEDAGOGICAL_COORDINATOR) {
+            audit.record(pulsoescolar_api.service.audit.AuditEvent.COORDINATOR_CREATED);
+        }
         return mapper.toResponse(user);
     }
 }
