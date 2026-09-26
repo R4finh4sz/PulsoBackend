@@ -103,7 +103,6 @@ public class AccountDeletionService {
             requester.setEmail(alias + "@deleted.invalid");
             requester.setPasswordHash(passwords.encode(UUID.randomUUID().toString()));
             requester.setDeletedAt(clock.instant());
-            requester.setFirstLogin(false);
             requester.setTermsAccepted(false);
             requester.setTwoFactorResendAvailableAt(null);
             sessions.revokeAll(requester.getId());

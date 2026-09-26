@@ -16,7 +16,6 @@ public class SchoolUser {
  @Column(nullable=false, unique=true, length=50) private String ra;
  @Column(nullable=false, unique=true) private String email;
  @Column(nullable=false) private String passwordHash;
- @Column(nullable=false) private boolean firstLogin;
  @Column(nullable=false) private boolean termsAccepted;
  @ElementCollection
  @CollectionTable(name="user_terms_acceptances", joinColumns=@JoinColumn(name="user_id"))

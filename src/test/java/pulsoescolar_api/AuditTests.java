@@ -55,7 +55,7 @@ class AuditTests {
 
     @Test @Transactional
     void recordsSchoolAndOnlyCoordinatorRegistration() {
-        actor(Role.ADMIN);
+        var admin = actor(Role.ADMIN);
         var school = schools.create(new CreateSchoolRequest("Private school", "12345678000190", "Street", "Area", "City"));
         assertEquals(1, count(AuditEvent.SCHOOL_CREATED));
         for (Role role : new Role[]{Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR}) {
@@ -63,19 +63,25 @@ class AuditTests {
         }
         assertEquals(1, count(AuditEvent.COORDINATOR_CREATED));
         assertEquals(2L, jdbc.queryForObject("SELECT COUNT(*) FROM audit_events", Long.class));
+        assertEquals(java.util.List.of(admin.getId(), admin.getId()), jdbc.queryForList(
+                "SELECT actor_user_id FROM audit_events", Long.class));
         assertEquals("SCHOOL_CREATED", jdbc.queryForObject(
                 "SELECT event_name FROM audit_events_grafana WHERE event_name = 'SCHOOL_CREATED'", String.class));
+        assertEquals(admin.getId(), jdbc.queryForObject(
+                "SELECT actor_user_id FROM audit_events_grafana WHERE event_name = 'SCHOOL_CREATED'", Long.class));
     }
 
     @Test @Transactional
     void termsAcceptanceIsIdempotentAndInvalidVersionDoesNotLog() {
-        actor(Role.ADMIN);
+        var admin = actor(Role.ADMIN);
         var term = terms.publish(new TermsRequest("Terms", "Content"), true);
         assertThrows(RuntimeException.class, () -> terms.accept(new AcceptTermsRequest("invalid", true)));
         assertEquals(0, count(AuditEvent.TERMS_ACCEPTED));
         terms.accept(new AcceptTermsRequest(term.version(), true));
         terms.accept(new AcceptTermsRequest(term.version(), true));
         assertEquals(1, count(AuditEvent.TERMS_ACCEPTED));
+        assertEquals(admin.getId(), jdbc.queryForObject(
+                "SELECT actor_user_id FROM audit_events WHERE event_type = 1", Long.class));
         var next = terms.publish(new TermsRequest("Terms", "New content"), false);
         terms.accept(new AcceptTermsRequest(next.version(), true));
         assertEquals(2, count(AuditEvent.TERMS_ACCEPTED));
@@ -93,6 +99,8 @@ class AuditTests {
         when(currentUser.get()).thenReturn(admin);
         deletion.review(second.id(), new ReviewDeletionRequest(DeletionStatus.APPROVED, "Private reason"));
         assertEquals(1, count(AuditEvent.ACCOUNT_DELETED));
+        assertEquals(admin.getId(), jdbc.queryForObject(
+                "SELECT actor_user_id FROM audit_events WHERE event_type = 2", Long.class));
         assertThrows(RuntimeException.class, () -> deletion.review(second.id(),
                 new ReviewDeletionRequest(DeletionStatus.APPROVED, "Again")));
         assertEquals(1, count(AuditEvent.ACCOUNT_DELETED));
@@ -115,10 +123,12 @@ class AuditTests {
     }
 
     @Test @Transactional
-    void schemaHasOnlyTimestampAndEventCodeAndRejectsUnknownCodes() {
+    void schemaIncludesActorAllowsLegacyRowsAndRejectsUnknownCodes() {
         var columns = jdbc.queryForList("SELECT column_name FROM information_schema.columns WHERE table_name = 'AUDIT_EVENTS'", String.class);
-        assertEquals(java.util.Set.of("OCCURRED_AT", "EVENT_TYPE"), new java.util.HashSet<>(columns));
+        assertEquals(java.util.Set.of("OCCURRED_AT", "EVENT_TYPE", "ACTOR_USER_ID"), new java.util.HashSet<>(columns));
+        jdbc.update("INSERT INTO audit_events (occurred_at, event_type) VALUES (CURRENT_TIMESTAMP, 1)");
+        assertNull(jdbc.queryForObject("SELECT actor_user_id FROM audit_events WHERE event_type = 1", Long.class));
         assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
-                () -> jdbc.update("INSERT INTO audit_events VALUES (CURRENT_TIMESTAMP, 99)"));
+                () -> jdbc.update("INSERT INTO audit_events (occurred_at, event_type) VALUES (CURRENT_TIMESTAMP, 99)"));
     }
 }

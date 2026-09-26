@@ -62,7 +62,6 @@ public class UserRegistrationService {
         user.setEmail(request.email().strip().toLowerCase(Locale.ROOT));
         String password = passwords.generate();
         user.setPasswordHash(encoder.encode(password));
-        user.setFirstLogin(true);
         user.setRole(role);
         users.saveAndFlush(user);
         mail.send(user.getEmail(), user.getFullName(), password);
