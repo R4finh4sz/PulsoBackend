@@ -19,14 +19,9 @@ public class ChangePasswordService {
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final AuthSessionRepository sessions;
-    private final pulsoescolar_api.repository.terms.TermsRepository terms;
 
     @Transactional
     public void change(Jwt jwt, ChangePasswordRequest request) {
-        var term = terms.lockCurrent();
-        if (!Boolean.TRUE.equals(request.termsAccepted())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "É necessário aceitar os termos.");
-        }
         var user = users.findById(Long.valueOf(jwt.getSubject())).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.UNAUTHORIZED));
         if (!encoder.matches(request.currentPassword(), user.getPasswordHash())) {
@@ -39,9 +34,6 @@ public class ChangePasswordService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A nova senha deve ser diferente da atual.");
         }
         user.setPasswordHash(encoder.encode(request.newPassword()));
-        user.setFirstLogin(false);
-        if (term.getVersion() > 0) user.getAcceptedTermVersions().add(term.getVersion());
-        user.setTermsAccepted(term.getVersion() > 0);
         sessions.revokeOthers(user.getId(), UUID.fromString(jwt.getId()));
     }
 }

@@ -13,14 +13,15 @@ import org.springframework.web.server.ResponseStatusException;
 import pulsoescolar_api.dto.auth.TwoFactorResponse;
 import pulsoescolar_api.entity.auth.AuthSession;
 import pulsoescolar_api.repository.auth.AuthSessionRepository;
-import pulsoescolar_api.service.mail.TwoFactorMailService;
+import org.springframework.context.ApplicationEventPublisher;
+import pulsoescolar_api.service.mail.TwoFactorMailRequested;
 
 @Service
 @RequiredArgsConstructor
 public class TwoFactorService {
     private final AuthSessionRepository sessions;
     private final PasswordEncoder passwords;
-    private final TwoFactorMailService mail;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
     private final jakarta.persistence.EntityManager entityManager;
     private final SecureRandom random = new SecureRandom();
@@ -29,10 +30,10 @@ public class TwoFactorService {
         String code = String.format(java.util.Locale.ROOT, "%06d", random.nextInt(1_000_000));
         session.setCodeHash(passwords.encode(code));
         session.setCodeExpiresAt(clock.instant().plusSeconds(600)); // Validade de 10 minutos.
-        session.setResendAvailableAt(clock.instant().plusSeconds(10)); // Reenvio apos 10 segundos.
+        session.setResendAvailableAt(clock.instant().plusSeconds(180)); // Reenvio apos 3 minutos.
         session.getUser().setTwoFactorResendAvailableAt(session.getResendAvailableAt());
         session.setCodeAttempts(0);
-        mail.send(session.getUser().getEmail(), code);
+        events.publishEvent(new TwoFactorMailRequested(session.getUser().getEmail(), code));
     }
 
     @Transactional(noRollbackFor = ResponseStatusException.class)
