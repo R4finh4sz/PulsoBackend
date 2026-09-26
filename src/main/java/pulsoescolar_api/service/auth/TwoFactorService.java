@@ -29,7 +29,7 @@ public class TwoFactorService {
         String code = String.format(java.util.Locale.ROOT, "%06d", random.nextInt(1_000_000));
         session.setCodeHash(passwords.encode(code));
         session.setCodeExpiresAt(clock.instant().plusSeconds(600));
-        session.setResendAvailableAt(clock.instant().plusSeconds(180)); 
+        session.setResendAvailableAt(clock.instant().plusSeconds(10)); 
         session.getUser().setTwoFactorResendAvailableAt(session.getResendAvailableAt());
         session.setCodeAttempts(0);
         mail.send(session.getUser().getEmail(), code);

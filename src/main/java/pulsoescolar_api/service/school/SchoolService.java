@@ -16,6 +16,7 @@ import pulsoescolar_api.security.CurrentUser;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SchoolService {
+    private final pulsoescolar_api.service.audit.AuditService audit;
     private final SchoolRepository schools;
     private final CurrentUser currentUser;
 
@@ -34,7 +35,9 @@ public class SchoolService {
         school.setLogradouro(request.logradouro().strip());
         school.setBairro(request.bairro().strip());
         school.setCidade(request.cidade().strip());
-        return response(schools.saveAndFlush(school));
+        var result = response(schools.saveAndFlush(school));
+        audit.record(pulsoescolar_api.service.audit.AuditEvent.SCHOOL_CREATED);
+        return result;
     }
 
     public List<SchoolResponse> list() {
