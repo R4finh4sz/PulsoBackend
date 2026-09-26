@@ -18,6 +18,7 @@ import pulsoescolar_api.config.JwtProperties;
 import pulsoescolar_api.dto.auth.LoginRequest;
 import pulsoescolar_api.dto.auth.LoginResponse;
 import pulsoescolar_api.entity.auth.AuthSession;
+import pulsoescolar_api.entity.user.Role;
 import pulsoescolar_api.repository.auth.AuthSessionRepository;
 import pulsoescolar_api.repository.user.UserRepository;
 
@@ -62,9 +63,10 @@ public class LoginService {
         session.setExpiresAt(expiresAt);
         twoFactor.issue(session);
         sessions.save(session);
+        boolean termsSatisfied = user.getRole() == Role.ADMIN || user.isTermsAccepted();
         var loginUser = new LoginResponse.LoginUser(user.getRole(),
                 user.getClassroom() == null ? null : user.getClassroom().getId(),
-                user.getSchool() == null ? null : user.getSchool().getId(), user.isFirstLogin(), user.isTermsAccepted(), user.getTermsAcceptedVersions());
+                user.getSchool() == null ? null : user.getSchool().getId(), termsSatisfied, user.getTermsAcceptedVersions());
         return new LoginResponse(token.getTokenValue(), "Bearer", expiresAt, loginUser,
                 true, session.getCodeExpiresAt(), session.getResendAvailableAt());
     }
