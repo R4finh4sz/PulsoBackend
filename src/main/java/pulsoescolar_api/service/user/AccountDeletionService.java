@@ -26,6 +26,7 @@ import pulsoescolar_api.security.CurrentUser;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AccountDeletionService {
+    private final pulsoescolar_api.service.audit.AuditService audit;
     private final AccountDeletionRepository requests;
     private final AuthSessionRepository sessions;
     private final CurrentUser currentUser;
@@ -106,6 +107,7 @@ public class AccountDeletionService {
             requester.setTermsAccepted(false);
             requester.setTwoFactorResendAvailableAt(null);
             sessions.revokeAll(requester.getId());
+            audit.record(pulsoescolar_api.service.audit.AuditEvent.ACCOUNT_DELETED);
             // Free text can contain personal information, including in previous rejected requests.
             for (var history : requests.findByRequesterIdOrderByRequestedAtDesc(requester.getId())) {
                 history.setReason(alias);

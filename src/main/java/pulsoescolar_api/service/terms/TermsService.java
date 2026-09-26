@@ -17,6 +17,7 @@ import pulsoescolar_api.security.CurrentUser;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class TermsService {
+    private final pulsoescolar_api.service.audit.AuditService audit;
     private final TermsRepository terms;
     private final pulsoescolar_api.repository.terms.TermsVersionRepository versions;
     private final UserRepository users;
@@ -58,8 +59,9 @@ public class TermsService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Os termos foram atualizados. Consulte a versão atual.");
         }
         var user = currentUser.get();
-        user.getAcceptedTermVersions().add(term.getVersion());
+        boolean firstAcceptance = user.getAcceptedTermVersions().add(term.getVersion());
         user.setTermsAccepted(true);
+        if (firstAcceptance) audit.record(pulsoescolar_api.service.audit.AuditEvent.TERMS_ACCEPTED);
     }
 
     public java.util.List<TermsResponse> history() {
