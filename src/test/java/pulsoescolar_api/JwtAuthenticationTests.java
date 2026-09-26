@@ -46,6 +46,7 @@ class JwtAuthenticationTests {
     @Autowired JwtDecoder decoder;
     @Autowired JwtEncoder encoder;
     @MockitoBean Clock clock;
+    @MockitoBean pulsoescolar_api.service.mail.TwoFactorMailService twoFactorMail;
     MockMvc mvc;
     Instant now;
     Long userId;
@@ -64,6 +65,7 @@ class JwtAuthenticationTests {
     }
 
     String login() throws Exception {
+        org.mockito.Mockito.clearInvocations(twoFactorMail);
         var result = mvc.perform(post("/api/auth/login").contentType("application/json")
                 .content("{\"email\":\"ADMIN@example.com\",\"password\":\"admin-password-123\"}"))
                 .andExpect(status().isOk())
@@ -79,8 +81,19 @@ class JwtAuthenticationTests {
                 .andExpect(jsonPath("$.user.password").doesNotExist())
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist()).andReturn();
         assertNull(result.getRequest().getSession(false));
-        return JsonMapper.builder().build().readTree(result.getResponse().getContentAsString())
+        String token = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString())
                 .get("accessToken").asText();
+        var code = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.eq("admin@example.com"), code.capture());
+        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"code\":\"" + code.getValue() + "\"}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"code\":\"" + code.getValue() + "\"}"))
+                .andExpect(status().isForbidden());
+        return token;
     }
 
     void unauthorized(String token) throws Exception {
@@ -117,6 +130,67 @@ class JwtAuthenticationTests {
         String token = login();
         when(clock.instant()).thenReturn(now.plusSeconds(1800));
         unauthorized(token);
+    }
+
+    @Test void twoFactorResendCooldownExpiryAndAttemptLimit() throws Exception {
+        var result = mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.twoFactorRequired").value(true)).andReturn();
+        String token = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+        var code = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
+        String original = code.getValue();
+        for (String path : List.of("/api/me", "/api/terms", "/api/terms/history", "/api/terms/accepted")) {
+            mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)).andExpect(status().isForbidden());
+        }
+        mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{}" )).andExpect(status().isForbidden());
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isTooManyRequests());
+        when(clock.instant()).thenReturn(now.plusSeconds(179));
+        mvc.perform(post("/api/auth/2fa/resend").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isTooManyRequests());
+        when(clock.instant()).thenReturn(now.plusSeconds(180));
+        org.mockito.Mockito.clearInvocations(twoFactorMail);
+        mvc.perform(post("/api/auth/2fa/resend").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
+        String current = code.getValue();
+        var stored = sessions.findById(UUID.fromString(decoder.decode(token).getId())).orElseThrow();
+        assertNotEquals(current, stored.getCodeHash());
+        assertTrue(passwords.matches(current, stored.getCodeHash()));
+        if (!original.equals(current)) {
+            assertFalse(passwords.matches(original, stored.getCodeHash()));
+        }
+        String wrong = current.equals("000000") ? "111111" : "000000";
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .contentType("application/json").content("{\"code\":\"" + wrong + "\"}"))
+                    .andExpect(status().isBadRequest());
+        }
+        mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"code\":\"" + current + "\"}"))
+                .andExpect(status().isBadRequest());
+        when(clock.instant()).thenReturn(now.plusSeconds(360));
+        org.mockito.Mockito.clearInvocations(twoFactorMail);
+        mvc.perform(post("/api/auth/2fa/resend").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
+        when(clock.instant()).thenReturn(now.plusSeconds(960));
+        mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"code\":\"" + code.getValue() + "\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test void mailFailureDoesNotCreateSessionOrConsumeCooldown() throws Exception {
+        org.mockito.Mockito.doThrow(new pulsoescolar_api.exception.EmailDeliveryException())
+                .when(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isServiceUnavailable());
+        assertEquals(0, sessions.count());
+        assertNull(users.findById(userId).orElseThrow().getTwoFactorResendAvailableAt());
     }
 
     @Test void termsRequireAdminAndNewVersionsResetAcceptance() throws Exception {
@@ -320,6 +394,6 @@ class JwtAuthenticationTests {
         mvc.perform(post("/api/auth/login").contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest());
         assertFalse(new LoginRequest("admin@example.com", "secret").toString().contains("secret"));
-        assertFalse(new LoginResponse("secret", "Bearer", now, null).toString().contains("secret"));
+        assertFalse(new LoginResponse("secret", "Bearer", now, null, true, now, now).toString().contains("secret"));
     }
 }

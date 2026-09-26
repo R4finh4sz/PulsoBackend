@@ -19,6 +19,7 @@ public class SecurityContextCurrentUser implements CurrentUser {
             throw new AccessDeniedException("É necessário estar autenticado.");
         }
         return users.findByEmail(authentication.getName())
+                .filter(user -> user.getDeletedAt() == null)
                 .orElseThrow(() -> new AccessDeniedException("Usuário autenticado não encontrado."));
     }
 }
