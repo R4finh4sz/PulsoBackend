@@ -7,6 +7,8 @@ import lombok.*;
 @Entity @Table(name="school_users")
 @Getter @Setter @NoArgsConstructor
 public class SchoolUser {
+ private java.time.LocalDate birthDate;
+ @Column(columnDefinition="bytea") private byte[] profilePhoto;
  @Column private java.time.Instant deletedAt;
  @Version private long version;
  private java.time.Instant twoFactorResendAvailableAt;
