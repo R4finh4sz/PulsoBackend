@@ -1,4 +1,4 @@
-package pulsoescolar_api.controller.subject;
+package pulsoescolar_api.controller.schoolcourse;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -10,25 +10,25 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import pulsoescolar_api.dto.subject.NameRequest;
-import pulsoescolar_api.dto.subject.SubjectResponse;
-import pulsoescolar_api.service.subject.SubjectService;
+import pulsoescolar_api.dto.schoolcourse.NameRequest;
+import pulsoescolar_api.dto.schoolcourse.SchoolCourseResponse;
+import pulsoescolar_api.service.schoolcourse.SchoolCourseService;
 import static org.springframework.http.HttpStatus.CREATED;
 
 @RestController
-@RequestMapping("/api/classrooms/{id}/subjects")
+@RequestMapping("/api/classrooms/{id}/school-courses")
 @RequiredArgsConstructor
-public class SubjectController {
-    private final SubjectService service;
+public class SchoolCourseController {
+    private final SchoolCourseService service;
 
     @PostMapping
     @ResponseStatus(CREATED)
-    public SubjectResponse subject(@PathVariable Long id, @Valid @RequestBody NameRequest request) {
-        return service.createSubject(id, request);
+    public SchoolCourseResponse schoolCourse(@PathVariable Long id, @Valid @RequestBody NameRequest request) {
+        return service.createSchoolCourse(id, request);
     }
 
     @GetMapping
-    public List<SubjectResponse> subjects(@PathVariable Long id) {
-        return service.subjects(id);
+    public List<SchoolCourseResponse> schoolCourses(@PathVariable Long id) {
+        return service.schoolCourses(id);
     }
 }
