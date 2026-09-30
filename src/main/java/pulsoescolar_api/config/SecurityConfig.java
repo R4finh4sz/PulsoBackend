@@ -38,6 +38,8 @@ public class SecurityConfig {
                 .logout(c -> c.disable())
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students", "/api/teachers", "/api/coordinators").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/schools/search", "/api/terms").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/auth/2fa/verify", "/api/auth/2fa/resend").hasAuthority("TWO_FACTOR_PENDING")
                         .requestMatchers(HttpMethod.PATCH, "/api/auth/password").hasAnyAuthority("ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
