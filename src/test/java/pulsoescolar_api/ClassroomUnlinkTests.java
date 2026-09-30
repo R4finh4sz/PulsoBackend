@@ -10,10 +10,10 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import pulsoescolar_api.entity.user.*;
 import pulsoescolar_api.entity.classroom.Classroom;
-import pulsoescolar_api.entity.subject.Subject;
+import pulsoescolar_api.entity.schoolcourse.SchoolCourse;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.repository.classroom.ClassroomRepository;
-import pulsoescolar_api.repository.subject.SubjectRepository;
+import pulsoescolar_api.repository.schoolcourse.SchoolCourseRepository;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
@@ -26,7 +26,7 @@ class ClassroomUnlinkTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
     @Autowired ClassroomRepository classrooms;
-    @Autowired SubjectRepository subjects;
+    @Autowired SchoolCourseRepository schoolCourses;
     @Autowired EntityManager entityManager;
     MockMvc mvc;
     Classroom room;
@@ -52,11 +52,11 @@ class ClassroomUnlinkTests {
 
     @Test void removesStudentPersistentlyAndRevokesAccess() throws Exception {
         String path = "/api/classrooms/" + room.getId() + "/students/" + student.getId();
-        mvc.perform(delete(path).with(user("manager@example.com"))).andExpect(status().isNoContent());
+        mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
         entityManager.flush(); entityManager.clear();
         assertNull(users.findById(student.getId()).orElseThrow().getClassroom());
-        mvc.perform(delete(path).with(user("manager@example.com"))).andExpect(status().isNoContent());
-        mvc.perform(get("/api/classrooms/" + room.getId() + "/subjects").with(user("student@example.com")))
+        mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses").with(user("student@example.com").roles("STUDENT")))
                 .andExpect(status().isForbidden());
     }
 
@@ -64,35 +64,35 @@ class ClassroomUnlinkTests {
         var other = new Classroom(); other.setName("4 ano"); other.setIdentifier("A");
         classrooms.saveAndFlush(other);
         String path = "/api/classrooms/" + room.getId() + "/students/" + student.getId();
-        mvc.perform(delete(path).with(user("teacher@example.com"))).andExpect(status().isForbidden());
+        mvc.perform(delete(path).with(user("teacher@example.com").roles("TEACHER"))).andExpect(status().isForbidden());
         mvc.perform(delete(path)).andExpect(status().isUnauthorized());
         mvc.perform(delete("/api/classrooms/" + other.getId() + "/students/" + student.getId())
-                .with(user("manager@example.com"))).andExpect(status().isNotFound());
+                .with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNotFound());
         assertEquals(room.getId(), student.getClassroom().getId());
         mvc.perform(delete("/api/classrooms/" + room.getId() + "/students/" + teacher.getId())
-                .with(user("manager@example.com"))).andExpect(status().isBadRequest());
+                .with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isBadRequest());
         mvc.perform(delete("/api/classrooms/999999/students/" + student.getId())
-                .with(user("manager@example.com"))).andExpect(status().isNotFound());
+                .with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNotFound());
     }
 
     @Test void removesTeacherPersistentlyAndRevokesAccess() throws Exception {
         String path = "/api/classrooms/" + room.getId() + "/teachers/" + teacher.getId();
-        mvc.perform(delete(path).with(user("teacher@example.com"))).andExpect(status().isForbidden());
-        mvc.perform(delete(path).with(user("manager@example.com"))).andExpect(status().isNoContent());
+        mvc.perform(delete(path).with(user("teacher@example.com").roles("TEACHER"))).andExpect(status().isForbidden());
+        mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
         entityManager.flush(); entityManager.clear();
         assertTrue(classrooms.findById(room.getId()).orElseThrow().getTeachers().isEmpty());
-        mvc.perform(delete(path).with(user("manager@example.com"))).andExpect(status().isNoContent());
-        mvc.perform(get("/api/classrooms/" + room.getId() + "/subjects").with(user("teacher@example.com")))
+        mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses").with(user("teacher@example.com").roles("TEACHER")))
                 .andExpect(status().isForbidden());
     }
 
-    @Test void preservesTeacherResponsibleForSubjects() throws Exception {
-        var subject = new Subject(); subject.setName("Math"); subject.setClassroom(room); subject.setTeacher(teacher);
-        subjects.saveAndFlush(subject);
+    @Test void preservesTeacherResponsibleForSchoolCourses() throws Exception {
+        var schoolCourse = new SchoolCourse(); schoolCourse.setName("Math"); schoolCourse.setClassroom(room); schoolCourse.setTeacher(teacher);
+        schoolCourses.saveAndFlush(schoolCourse);
         mvc.perform(delete("/api/classrooms/" + room.getId() + "/teachers/" + teacher.getId())
-                .with(user("manager@example.com"))).andExpect(status().isConflict());
+                .with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isConflict());
         entityManager.flush(); entityManager.clear();
         assertEquals(1, classrooms.findById(room.getId()).orElseThrow().getTeachers().size());
-        assertTrue(subjects.existsById(subject.getId()));
+        assertTrue(schoolCourses.existsById(schoolCourse.getId()));
     }
 }

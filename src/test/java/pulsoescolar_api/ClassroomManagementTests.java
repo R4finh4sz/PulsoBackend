@@ -44,25 +44,25 @@ class ClassroomManagementTests {
 
     @Test void readsDetailsAndTeacherRosterWithScopedAccess() throws Exception {
         String path = "/api/classrooms/" + room.getId();
-        mvc.perform(get(path).with(user("student@example.com")))
+        mvc.perform(get(path).with(user("student@example.com").roles("STUDENT")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.identifier").value("A"));
-        mvc.perform(get(path + "/teachers").with(user("teacher@example.com")))
+        mvc.perform(get(path + "/teachers").with(user("teacher@example.com").roles("TEACHER")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].email").value("teacher@example.com"));
-        mvc.perform(get(path + "/teachers").with(user("student@example.com"))).andExpect(status().isForbidden());
-        mvc.perform(get(path).with(user("outsider@example.com"))).andExpect(status().isForbidden());
-        mvc.perform(get("/api/classrooms/999999").with(user("manager@example.com"))).andExpect(status().isNotFound());
+        mvc.perform(get(path + "/teachers").with(user("student@example.com").roles("STUDENT"))).andExpect(status().isForbidden());
+        mvc.perform(get(path).with(user("outsider@example.com").roles("TEACHER"))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/classrooms/999999").with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNotFound());
     }
 
     @Test void patchesOneFieldAndEnforcesValidationAndPermissions() throws Exception {
         String path = "/api/classrooms/" + room.getId();
-        mvc.perform(patch(path).with(user("manager@example.com"))
+        mvc.perform(patch(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))
                 .contentType("application/json").content("{\"identifier\":\"B\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("3 ano"))
                 .andExpect(jsonPath("$.identifier").value("B"));
-        mvc.perform(patch(path).with(user("manager@example.com"))
+        mvc.perform(patch(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))
                 .contentType("application/json").content("{\"identifier\":\"ab\"}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(patch(path).with(user("teacher@example.com"))
+        mvc.perform(patch(path).with(user("teacher@example.com").roles("TEACHER"))
                 .contentType("application/json").content("{}")).andExpect(status().isForbidden());
         mvc.perform(patch(path)
                 .contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
@@ -71,7 +71,7 @@ class ClassroomManagementTests {
     @Test void rejectsDuplicateClassroom() throws Exception {
         var other = new Classroom(); other.setName("3 ano"); other.setIdentifier("B");
         classrooms.saveAndFlush(other);
-        mvc.perform(patch("/api/classrooms/" + room.getId()).with(user("manager@example.com"))
+        mvc.perform(patch("/api/classrooms/" + room.getId()).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))
                 .contentType("application/json").content("{\"identifier\":\"B\"}"))
                 .andExpect(status().isConflict());
     }

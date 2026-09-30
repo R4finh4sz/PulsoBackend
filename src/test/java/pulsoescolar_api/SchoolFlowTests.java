@@ -8,18 +8,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import pulsoescolar_api.service.classroom.ClassroomService;
-import pulsoescolar_api.service.student.StudentEnrollmentService;
-import pulsoescolar_api.service.subject.SubjectService;
-import pulsoescolar_api.service.teacher.TeacherAssignmentService;
+import pulsoescolar_api.service.user.student.StudentEnrollmentService;
+import pulsoescolar_api.service.schoolcourse.SchoolCourseService;
+import pulsoescolar_api.service.user.teacher.TeacherAssignmentService;
 import pulsoescolar_api.service.user.UserRegistrationService;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.entity.user.Role;
 import pulsoescolar_api.entity.user.SchoolUser;
-import pulsoescolar_api.entity.subject.Subject;
+import pulsoescolar_api.entity.schoolcourse.SchoolCourse;
 import pulsoescolar_api.dto.classroom.CreateClassroomRequest;
 import pulsoescolar_api.dto.user.CreateUser;
-import pulsoescolar_api.dto.subject.NameRequest;
+import pulsoescolar_api.dto.schoolcourse.NameRequest;
 import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest @Transactional
 class SchoolFlowTests {
@@ -29,7 +29,7 @@ class SchoolFlowTests {
  @Autowired ClassroomService classrooms;
  @Autowired StudentEnrollmentService enrollment;
  @Autowired TeacherAssignmentService assignment;
- @Autowired SubjectService subjects;
+ @Autowired SchoolCourseService schoolCourses;
  @Autowired UserRepository users;
  @Autowired pulsoescolar_api.repository.school.SchoolRepository schools;
  @Autowired PasswordEncoder encoder;
@@ -39,7 +39,7 @@ class SchoolFlowTests {
   var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
    .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
    .build();
-  var coordinator = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("coord@example.com");
+  var coordinator = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("coord@example.com").roles("PEDAGOGICAL_COORDINATOR");
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/classrooms")
     .with(coordinator).contentType("application/json").content("{\"name\":\"3 year\",\"identifier\":\"C\"}"))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated());
@@ -48,7 +48,7 @@ class SchoolFlowTests {
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/classrooms")
     .with(coordinator).contentType("application/json").content("{\"name\":\"\"}"))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
-  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/classrooms/999999/subjects")
+  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/classrooms/999999/school-courses")
     .with(coordinator))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound());
   login("coord@example.com");
@@ -58,8 +58,8 @@ class SchoolFlowTests {
      "/api/classrooms/" + room.id() + "/students/" + teacher.id()).with(coordinator))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
-     "/api/classrooms/" + room.id() + "/subjects")
-    .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(teacher.email())))
+     "/api/classrooms/" + room.id() + "/school-courses")
+    .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(teacher.email()).roles("TEACHER")))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
  }
  @BeforeEach void setup() {
@@ -78,7 +78,7 @@ class SchoolFlowTests {
   SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(email,"",java.util.List.of()));
  }
  CreateUser request(String name) { return new CreateUser(name,name,name+"@example.com"); }
- @Test void studentsInheritSubjectsIncludingLateEnrollmentAndTransfer() {
+ @Test void studentsInheritSchoolCoursesIncludingLateEnrollmentAndTransfer() {
   var room=classrooms.createClassroom(new CreateClassroomRequest("3 year", "B"));
   var other=classrooms.createClassroom(new CreateClassroomRequest("3 year", "A"));
   var teacher=registration.createUser(request("teacher"),Role.TEACHER);
@@ -86,22 +86,22 @@ class SchoolFlowTests {
   assignment.assign(room.id(),teacher.id()); assignment.assign(other.id(),teacher.id());
   login(teacher.email());
   assertEquals(2,classrooms.listClassrooms().size());
-  subjects.createSubject(room.id(),new NameRequest("Mathematics"));
+  schoolCourses.createSchoolCourse(room.id(),new NameRequest("Mathematics"));
   login("coord@example.com"); enrollment.enroll(room.id(),student.id());
-  login(student.email()); assertEquals(1,subjects.subjects(room.id()).size());
-  assertThrows(AccessDeniedException.class,()->subjects.subjects(other.id()));
-  assertThrows(AccessDeniedException.class,()->subjects.createSubject(room.id(),new NameRequest("History")));
+  login(student.email()); assertEquals(1,schoolCourses.schoolCourses(room.id()).size());
+  assertThrows(AccessDeniedException.class,()->schoolCourses.schoolCourses(other.id()));
+  assertThrows(AccessDeniedException.class,()->schoolCourses.createSchoolCourse(room.id(),new NameRequest("History")));
   login("coord@example.com"); enrollment.enroll(other.id(),student.id());
-  login(student.email()); assertTrue(subjects.subjects(other.id()).isEmpty());
-  assertThrows(AccessDeniedException.class,()->subjects.subjects(room.id()));
+  login(student.email()); assertTrue(schoolCourses.schoolCourses(other.id()).isEmpty());
+  assertThrows(AccessDeniedException.class,()->schoolCourses.schoolCourses(room.id()));
  }
- @Test void unassignedTeachersCannotAccessOrCreateSubjects() {
+ @Test void unassignedTeachersCannotAccessOrCreateSchoolCourses() {
   var room=classrooms.createClassroom(new CreateClassroomRequest("3 year", "B"));
   var teacher=registration.createUser(request("teacher"),Role.TEACHER);
   login(teacher.email());
   assertTrue(classrooms.listClassrooms().isEmpty());
-  assertThrows(AccessDeniedException.class,()->subjects.subjects(room.id()));
-  assertThrows(AccessDeniedException.class,()->subjects.createSubject(room.id(),new NameRequest("Math")));
+  assertThrows(AccessDeniedException.class,()->schoolCourses.schoolCourses(room.id()));
+  assertThrows(AccessDeniedException.class,()->schoolCourses.createSchoolCourse(room.id(),new NameRequest("Math")));
   assertThrows(AccessDeniedException.class,()->registration.createUser(request("student"),Role.STUDENT));
  }
  @Test void coordinatorCannotCreateAdminOrCoordinatorAndPasswordsAreHashed() {

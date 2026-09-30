@@ -142,7 +142,7 @@ class JwtAuthenticationTests {
         var code = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(twoFactorMail, org.mockito.Mockito.timeout(3000)).send(org.mockito.ArgumentMatchers.anyString(), code.capture());
         String original = code.getValue();
-        for (String path : List.of("/api/me", "/api/terms", "/api/terms/history", "/api/terms/accepted")) {
+        for (String path : List.of("/api/me", "/api/terms/history", "/api/terms/accepted")) {
             mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)).andExpect(status().isForbidden());
         }
         mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)

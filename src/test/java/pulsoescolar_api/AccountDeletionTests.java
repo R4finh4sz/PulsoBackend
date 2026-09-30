@@ -36,7 +36,7 @@ class AccountDeletionTests {
     @Autowired AuthSessionRepository sessions;
     @Autowired JwtEncoder encoder;
     @Autowired ClassroomRepository classrooms;
-    @Autowired pulsoescolar_api.repository.subject.SubjectRepository subjects;
+    @Autowired pulsoescolar_api.repository.schoolcourse.SchoolCourseRepository schoolCourses;
     @Autowired jakarta.persistence.EntityManager entityManager;
     MockMvc mvc;
     SchoolUser student;
@@ -144,15 +144,15 @@ class AccountDeletionTests {
         assertEquals("DeletedUser_" + student.getId(), requests.findById(id).orElseThrow().getReviewReason());
     }
 
-    @Test void teacherUsesSameFlowAndPreservesClassesAndSubjects() throws Exception {
+    @Test void teacherUsesSameFlowAndPreservesClassesAndSchoolCourses() throws Exception {
         var teacher = users.findByEmail("teacher@example.com").orElseThrow();
         var classroom = new Classroom();
         classroom.setName("Turma"); classroom.setIdentifier("A"); classroom.setSchool(teacher.getSchool());
         classroom.getTeachers().add(teacher);
         classrooms.saveAndFlush(classroom);
-        var subject = new pulsoescolar_api.entity.subject.Subject();
-        subject.setName("Matemática"); subject.setClassroom(classroom); subject.setTeacher(teacher);
-        subjects.saveAndFlush(subject);
+        var schoolCourse = new pulsoescolar_api.entity.schoolcourse.SchoolCourse();
+        schoolCourse.setName("Matemática"); schoolCourse.setClassroom(classroom); schoolCourse.setTeacher(teacher);
+        schoolCourses.saveAndFlush(schoolCourse);
         var session = new AuthSession();
         session.setId(UUID.randomUUID()); session.setUser(teacher);
         session.setCreatedAt(Instant.now()); session.setExpiresAt(Instant.now().plusSeconds(600));
@@ -201,7 +201,7 @@ class AccountDeletionTests {
         assertEquals("DeletedUser_" + teacher.getId(), deleted.getRa());
         assertEquals("DeletedUser_" + teacher.getId() + "@deleted.invalid", deleted.getEmail());
         assertFalse(sessions.existsById(session.getId()));
-        assertEquals(teacher.getId(), subjects.findById(subject.getId()).orElseThrow().getTeacher().getId());
+        assertEquals(teacher.getId(), schoolCourses.findById(schoolCourse.getId()).orElseThrow().getTeacher().getId());
         assertTrue(classrooms.findById(classroom.getId()).orElseThrow().getTeachers().stream()
                 .anyMatch(t -> t.getId().equals(teacher.getId())));
         assertEquals(deleted.getRa(), requests.findById(firstId).orElseThrow().getReason());
