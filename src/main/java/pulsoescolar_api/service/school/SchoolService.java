@@ -35,6 +35,8 @@ public class SchoolService {
         school.setLogradouro(request.logradouro().strip());
         school.setBairro(request.bairro().strip());
         school.setCidade(request.cidade().strip());
+        school.setCep(request.cep() == null ? null : request.cep().replace("-", ""));
+        school.setUf(request.uf() == null ? null : request.uf().toUpperCase(java.util.Locale.ROOT));
         var result = response(schools.saveAndFlush(school));
         audit.record(pulsoescolar_api.service.audit.AuditEvent.SCHOOL_CREATED);
         return result;
@@ -46,8 +48,18 @@ public class SchoolService {
                 .map(this::response).toList();
     }
 
+    @Transactional
+    public SchoolResponse updateLocation(Long id, UpdateSchoolLocationRequest request) {
+        requireAdmin();
+        var school = schools.findById(id).orElseThrow(() ->
+                new pulsoescolar_api.exception.ResourceNotFoundException("Escola não encontrada."));
+        school.setCep(request.cep().replace("-", ""));
+        school.setUf(request.uf().toUpperCase(java.util.Locale.ROOT));
+        return response(school);
+    }
+
     private SchoolResponse response(School school) {
         return new SchoolResponse(school.getId(), school.getNome(), school.getCnpj(),
-                school.getLogradouro(), school.getBairro(), school.getCidade());
+                school.getLogradouro(), school.getBairro(), school.getCidade(), school.getCep(), school.getUf());
     }
 }

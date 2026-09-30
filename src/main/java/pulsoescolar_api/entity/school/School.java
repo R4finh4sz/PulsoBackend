@@ -13,4 +13,6 @@ public class School {
     @Column(nullable = false, length = 255) private String logradouro;
     @Column(nullable = false, length = 100) private String bairro;
     @Column(nullable = false, length = 100) private String cidade;
+    @Column(length = 8) private String cep;
+    @Column(length = 2) private String uf;
 }

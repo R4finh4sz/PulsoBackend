@@ -28,6 +28,7 @@ import pulsoescolar_api.security.CurrentUser;
 public class AccountDeletionService {
     private final pulsoescolar_api.service.audit.AuditService audit;
     private final AccountDeletionRepository requests;
+    private final pulsoescolar_api.repository.user.RegistrationRepository registrations;
     private final AuthSessionRepository sessions;
     private final CurrentUser currentUser;
     private final EntityManager entityManager;
@@ -103,6 +104,17 @@ public class AccountDeletionService {
             requester.setEmail(alias + "@deleted.invalid");
             requester.setPasswordHash(passwords.encode(UUID.randomUUID().toString()));
             requester.setDeletedAt(clock.instant());
+            requester.setBirthDate(null);
+            requester.setProfilePhoto(null);
+            registrations.findByUserId(requester.getId()).ifPresent(registration -> {
+                registration.setFullName(alias);
+                registration.setRa(alias);
+                registration.setEmail(alias + "@deleted.invalid");
+                registration.setBirthDate(null);
+                registration.setProfilePhoto(null);
+                registration.setPasswordHash(null);
+                registration.setReviewReason(null);
+            });
             requester.setTermsAccepted(false);
             requester.setTwoFactorResendAvailableAt(null);
             sessions.revokeAll(requester.getId());
