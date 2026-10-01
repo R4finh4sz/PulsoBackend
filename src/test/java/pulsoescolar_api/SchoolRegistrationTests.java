@@ -54,6 +54,25 @@ class SchoolRegistrationTests {
         }
     }
 
+    @Test void schoolsReturnOnlyTheirActiveCoordinator() throws Exception {
+        mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
+                        .contentType("application/json").content(SCHOOL))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.coordinator").value(org.hamcrest.Matchers.nullValue()));
+        var school = schools.findAll().getFirst();
+        var coordinator = users.findByEmail("PEDAGOGICAL_COORDINATOR@school.test").orElseThrow();
+        coordinator.setSchool(school);
+        users.saveAndFlush(coordinator);
+        mvc.perform(get("/api/schools").with(user("ADMIN@school.test").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].coordinator.id").value(coordinator.getId()))
+                .andExpect(jsonPath("$[0].coordinator.fullName").value(coordinator.getFullName()))
+                .andExpect(jsonPath("$[0].coordinator.email").value(coordinator.getEmail()))
+                .andExpect(jsonPath("$[0].coordinator.passwordHash").doesNotExist());
+        coordinator.setDeletedAt(java.time.Instant.now());
+        users.saveAndFlush(coordinator);
+        mvc.perform(get("/api/schools").with(user("ADMIN@school.test").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].coordinator").value(org.hamcrest.Matchers.nullValue()));
+    }
+
     @Test void onlyAdminCanManageSchools() throws Exception {
         for (Role role : new Role[]{Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR}) {
             mvc.perform(post("/api/schools").with(user(role + "@school.test").roles(role.name()))

@@ -1,11 +1,12 @@
 package pulsoescolar_api.controller.auth;
 
+import pulsoescolar_api.exception.BusinessValidationException;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.json.JsonMapper;
 import pulsoescolar_api.dto.user.*;
 import pulsoescolar_api.entity.user.Role;
@@ -34,9 +35,9 @@ public class SelfRegistrationController {
         try {
             input = json.readValue(data, SelfRegistrationRequest.class);
         } catch (tools.jackson.core.JacksonException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Dados de cadastro inválidos.");
+            throw new BusinessValidationException("Dados de cadastro inválidos.");
         }
-        if (input == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe os dados do cadastro.");
+        if (input == null) throw new BusinessValidationException("Informe os dados do cadastro.");
         return submit(input, photos.read(photo));
     }
 

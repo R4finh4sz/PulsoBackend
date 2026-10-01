@@ -1,16 +1,17 @@
 package pulsoescolar_api.service.user;
 
+import pulsoescolar_api.exception.BusinessConflictException;
+import pulsoescolar_api.exception.BusinessValidationException;
+import pulsoescolar_api.exception.ResourceNotFoundException;
+
 import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import pulsoescolar_api.dto.user.*;
 import pulsoescolar_api.entity.user.*;
-import pulsoescolar_api.exception.ResourceNotFoundException;
 import pulsoescolar_api.repository.terms.TermsRepository;
 import pulsoescolar_api.repository.user.*;
 import pulsoescolar_api.security.CurrentUser;
@@ -26,6 +27,7 @@ public class RegistrationReviewService {
     private final CurrentUser currentUser;
     private final RegistrationAccessPolicy policy;
     private final Clock clock;
+    private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
 
     public RegistrationPageResponse list(RegistrationStatus status, Role role, Long schoolId, int page, int size) {
         var actor = currentUser.get();
@@ -53,19 +55,22 @@ public class RegistrationReviewService {
         var actor = currentUser.get();
         policy.requireReviewer(actor);
         if (input.status() != RegistrationStatus.APPROVED && input.status() != RegistrationStatus.REJECTED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe APPROVED ou REJECTED.");
+            throw new BusinessValidationException("Informe APPROVED ou REJECTED.");
         }
         var request = requests.findForReview(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitação não encontrada."));
         policy.requireAccess(actor, request);
         if (request.getStatus() != RegistrationStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta solicitação já foi analisada.");
+            throw new BusinessConflictException("Esta solicitação já foi analisada.");
         }
         if (input.status() == RegistrationStatus.APPROVED) {
             // Same lock order as registration: terms before persisting a user.
             var term = terms.lockCurrent();
+            if (request.getRole() == Role.PEDAGOGICAL_COORDINATOR) {
+                coordinators.requireVacancy(request.getSchool().getId());
+            }
             if (users.existsByEmailOrRa(request.getEmail(), request.getRa())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Já existe uma conta com este e-mail ou RA.");
+                throw new BusinessConflictException("Já existe uma conta com este e-mail ou RA.");
             }
             var user = new SchoolUser();
             user.setFullName(request.getFullName());

@@ -111,7 +111,8 @@ class SelfRegistrationTests {
     @Test void scopesQueuesAndReviewsByRoleAndSchool() throws Exception {
         long student = submit("101", Role.STUDENT, school.getId());
         long teacher = pending("102", Role.TEACHER, school);
-        long coord = pending("103", Role.PEDAGOGICAL_COORDINATOR, school);
+        var vacant = school("33333333333333", "70000000", "PE");
+        long coord = pending("103", Role.PEDAGOGICAL_COORDINATOR, vacant);
         long outsider = pending("104", Role.TEACHER, other);
         mvc.perform(get("/api/registration-requests").with(user("coordinator@test.com").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2));

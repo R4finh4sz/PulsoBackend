@@ -319,7 +319,7 @@ class JwtAuthenticationTests {
         mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content("{\"title\":\"Inicial\",\"content\":\"Texto inicial\"}"))
                 .andExpect(status().isCreated());
-        String body = "{\"currentPassword\":\"admin-password-123\",\"newPassword\":\"new-password-456\"}";
+        String body = "{\"currentPassword\":\"admin-password-123\",\"newPassword\":\"Nova1234\"}";
         mvc.perform(patch("/api/auth/password").contentType("application/json").content(body))
                 .andExpect(status().isUnauthorized());
         mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -327,13 +327,28 @@ class JwtAuthenticationTests {
                 .andExpect(status().isNoContent());
         var changed = users.findById(userId).orElseThrow();
         assertFalse(changed.isTermsAccepted());
-        assertTrue(passwords.matches("new-password-456", changed.getPasswordHash()));
+        assertTrue(passwords.matches("Nova1234", changed.getPasswordHash()));
         mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(content().json("[]"));
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
                 .andExpect(status().isNoContent());
         assertTrue(users.findById(userId).orElseThrow().isTermsAccepted());
+    }
+
+    @Test void passwordChangeEnforcesMobileRulesAndPreservesPasswordOnFailure() throws Exception {
+        String token = login();
+        for (String invalid : new String[]{"Abc1234", "abcdefgh1", "Abcdefgh", "A1" + "a".repeat(71),
+                "A1" + "á".repeat(36)}) {
+            mvc.perform(patch("/api/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                            .contentType("application/json")
+                            .content("{\"currentPassword\":\"admin-password-123\",\"newPassword\":\"" + invalid + "\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value(invalid.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72
+                            ? "A senha é muito longa. Use uma senha mais curta."
+                            : "A senha deve ter pelo menos 8 caracteres, uma letra maiúscula e um número."));
+            assertTrue(passwords.matches("admin-password-123", users.findById(userId).orElseThrow().getPasswordHash()));
+        }
     }
     @Test void versionsContinueAfterNineEditsAndAcceptanceIsPrivate() throws Exception {
         String token = login();
