@@ -79,6 +79,20 @@ class SelfRegistrationTests {
                 .andExpect(status().is(expected));
     }
 
+    long pending(String ra, Role role, School school) {
+        var request = new RegistrationRequest();
+        request.setFullName("Pessoa Teste");
+        request.setRa(ra);
+        request.setEmail("person" + ra + "@example.com");
+        request.setPasswordHash(passwords.encode("chosen-password-123"));
+        request.setRole(role);
+        request.setSchool(school);
+        request.setTermsVersion(1L);
+        request.setStatus(RegistrationStatus.PENDING);
+        request.setRequestedAt(java.time.Instant.now());
+        return requests.saveAndFlush(request).getId();
+    }
+
     @Test void pendingCannotLoginAndApprovalPreservesPasswordAndTerms() throws Exception {
         long id = submit("100", Role.STUDENT, school.getId());
         assertTrue(users.findByEmail("person100@example.com").isEmpty());
@@ -96,9 +110,9 @@ class SelfRegistrationTests {
 
     @Test void scopesQueuesAndReviewsByRoleAndSchool() throws Exception {
         long student = submit("101", Role.STUDENT, school.getId());
-        long teacher = submit("102", Role.TEACHER, school.getId());
-        long coord = submit("103", Role.PEDAGOGICAL_COORDINATOR, school.getId());
-        long outsider = submit("104", Role.TEACHER, other.getId());
+        long teacher = pending("102", Role.TEACHER, school);
+        long coord = pending("103", Role.PEDAGOGICAL_COORDINATOR, school);
+        long outsider = pending("104", Role.TEACHER, other);
         mvc.perform(get("/api/registration-requests").with(user("coordinator@test.com").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2));
         mvc.perform(get("/api/registration-requests").param("role", "TEACHER").param("size", "1")
@@ -125,13 +139,13 @@ class SelfRegistrationTests {
 
     @Test void rejectsDuplicateEmailOrRaAndAdminRole() throws Exception {
         submit("106", Role.STUDENT, school.getId());
-        for (String body : new String[]{payload("106", Role.TEACHER, school.getId()),
+        for (String body : new String[]{payload("106", Role.STUDENT, school.getId()),
                 payload("107", Role.STUDENT, school.getId()).replace("person107", "PERSON106"),
                 payload("107", Role.STUDENT, school.getId()).replace("person107@example.com", "admin@test.com")}) {
             mvc.perform(post("/api/auth/register").contentType("application/json").content(body)).andExpect(status().isConflict());
         }
         mvc.perform(post("/api/auth/register").contentType("application/json").content(payload("108", Role.ADMIN, school.getId())))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden());
     }
 
     @Test void validatesAgePasswordTermsAndSchool() throws Exception {
@@ -175,14 +189,24 @@ class SelfRegistrationTests {
         }
     }
 
-    @Test void profileRoutesRemainPublicAndCannotChangeTheirRole() throws Exception {
-        String[] routes = {"students", "teachers", "coordinators"};
-        Role[] roles = {Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR};
+    @Test void onlyStudentsCanRegisterDirectly() throws Exception {
+        mvc.perform(post("/api/students").contentType("application/json")
+                        .content(payload("120", Role.STUDENT, school.getId())))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"));
+        mvc.perform(post("/api/students").contentType("application/json")
+                        .content(payload("130", Role.ADMIN, school.getId())))
+                .andExpect(status().isBadRequest());
+        String[] routes = {"teachers", "coordinators"};
+        Role[] roles = {Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR};
         for (int i = 0; i < routes.length; i++) {
             mvc.perform(post("/api/" + routes[i]).contentType("application/json").content(payload("12" + i, roles[i], school.getId())))
-                    .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"));
-            mvc.perform(post("/api/" + routes[i]).contentType("application/json").content(payload("13" + i, Role.ADMIN, school.getId())))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isUnauthorized());
+            mvc.perform(post("/api/" + routes[i]).with(user("admin@test.com").roles("ADMIN"))
+                            .contentType("application/json").content(payload("13" + i, roles[i], school.getId())))
+                    .andExpect(status().isForbidden());
+            mvc.perform(post("/api/auth/register").contentType("application/json")
+                            .content(payload("14" + i, roles[i], school.getId())))
+                    .andExpect(status().isForbidden());
         }
     }
 

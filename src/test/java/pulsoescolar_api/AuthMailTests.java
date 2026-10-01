@@ -4,9 +4,9 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.MailSendException;
-import org.springframework.mail.javamail.JavaMailSender;
+import com.resend.services.emails.Emails;
+import com.resend.services.emails.model.CreateEmailOptions;
+import com.resend.core.exception.ResendException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -23,20 +23,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:authmail;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
-        "management.health.mail.enabled=false"})
+        "app.resend.api-key=re_test_fake_key"})
 class AuthMailTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
     @Autowired RegistrationRepository requests;
+    @Autowired UserInvitationRepository invitations;
     @Autowired TermsRepository terms;
     @Autowired TermsVersionRepository versions;
     @Autowired pulsoescolar_api.repository.school.SchoolRepository schools;
     @Autowired PasswordEncoder encoder;
-    @MockitoBean JavaMailSender sender;
+    @MockitoBean Emails sender;
     MockMvc mvc;
     Long schoolId;
 
     @BeforeEach void setup() {
+        invitations.deleteAll();
         requests.deleteAll();
         users.deleteAll();
         schools.deleteAll();
@@ -61,18 +63,16 @@ class AuthMailTests {
                 """.formatted(name, Math.abs((long) name.hashCode()), name, schoolId);
     }
 
-    @Test void everyProfileUsesChosenPasswordAndDoesNotEmailIt() throws Exception {
-        for (String role : new String[]{"students", "teachers", "coordinators"}) {
-            mvc.perform(post("/api/" + role).contentType("application/json").content(registration(role)))
-                    .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"))
-                    .andExpect(jsonPath("$.password").doesNotExist()).andExpect(jsonPath("$.passwordHash").doesNotExist());
-        }
+    @Test void studentUsesChosenPasswordAndDoesNotEmailIt() throws Exception {
+        mvc.perform(post("/api/students").contentType("application/json").content(registration("students")))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.password").doesNotExist()).andExpect(jsonPath("$.passwordHash").doesNotExist());
         verifyNoInteractions(sender);
         for (var request : requests.findAll()) assertTrue(encoder.matches("chosen-password-123", request.getPasswordHash()));
     }
 
-    @Test void smtpFailureDoesNotPreventSubmittingRegistration() throws Exception {
-        doThrow(new MailSendException("secret SMTP details")).when(sender).send(any(SimpleMailMessage.class));
+    @Test void providerFailureDoesNotPreventSubmittingRegistration() throws Exception {
+        doThrow(new ResendException("secret provider details")).when(sender).send(any(CreateEmailOptions.class));
         mvc.perform(post("/api/students").contentType("application/json").content(registration("failure")))
                 .andExpect(status().isCreated());
         assertTrue(users.findByEmail("failure@example.com").isEmpty());
@@ -83,6 +83,18 @@ class AuthMailTests {
         mvc.perform(post("/api/students").contentType("application/json").content(registration("same"))).andExpect(status().isCreated());
         mvc.perform(post("/api/students").contentType("application/json").content(registration("same"))).andExpect(status().isConflict());
         verifyNoInteractions(sender);
+    }
+
+    @Test void resendFailureRollsBackInvitationAndReturnsSafeError() throws Exception {
+        doThrow(new ResendException(403, "{\"message\":\"secret provider details\"}"))
+                .when(sender).send(any(CreateEmailOptions.class));
+        var result = mvc.perform(post("/api/invitations/teachers")
+                        .with(user("coordinator@example.com").roles("PEDAGOGICAL_COORDINATOR"))
+                        .contentType("application/json").content("{\"email\":\"invited@example.com\"}"))
+                .andExpect(status().isServiceUnavailable()).andReturn();
+        assertFalse(result.getResponse().getContentAsString().contains("secret provider details"));
+        assertEquals(0, invitations.count());
+        verify(sender).send(any(CreateEmailOptions.class));
     }
 
     @Test void approvedUserLogsInWithChosenPasswordAndStillRequiresEmailTwoFactor() throws Exception {
@@ -103,9 +115,9 @@ class AuthMailTests {
                 .andExpect(jsonPath("$.user.schoolId").value(schoolId))
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist()).andReturn();
         String token = tools.jackson.databind.json.JsonMapper.builder().build()
-                .readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+                .readTree(result.getResponse().getContentAsString()).get("accessToken").asString();
         mvc.perform(get("/api/me").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
-        var message = org.mockito.ArgumentCaptor.forClass(SimpleMailMessage.class);
+        var message = org.mockito.ArgumentCaptor.forClass(CreateEmailOptions.class);
         verify(sender, timeout(3000)).send(message.capture());
         assertFalse(message.getValue().getText().contains("chosen-password-123"));
         String code = message.getValue().getText().split("\n")[0].replaceAll("[^0-9]", "");
