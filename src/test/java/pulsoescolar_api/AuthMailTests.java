@@ -108,7 +108,8 @@ class AuthMailTests {
                         .with(user("coordinator@example.com").roles("PEDAGOGICAL_COORDINATOR"))
                         .contentType("application/json").content("{\"status\":\"APPROVED\"}"))
                 .andExpect(status().isOk());
-        verifyNoInteractions(sender);
+        verify(sender, timeout(3000)).send(any(CreateEmailOptions.class));
+        clearInvocations(sender);
         var result = mvc.perform(post("/api/auth/login").contentType("application/json").content(login))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.user.role").value("STUDENT"))
                 .andExpect(jsonPath("$.user.termsAccepted").value(true))
