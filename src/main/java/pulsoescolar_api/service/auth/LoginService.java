@@ -1,5 +1,7 @@
 package pulsoescolar_api.service.auth;
 
+import pulsoescolar_api.exception.VerificationCooldownException;
+
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -45,8 +47,7 @@ public class LoginService {
         entityManager.refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (user.getDeletedAt() != null) throw new BadCredentialsException("Conta excluída.");
         if (user.getTwoFactorResendAvailableAt() != null && now.isBefore(user.getTwoFactorResendAvailableAt())) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "Aguarde 3 minutos para solicitar outro código.");
+            throw new VerificationCooldownException("Aguarde 3 minutos para solicitar outro código.");
         }
         var expiresAt = now.plus(properties.sessionTtl()).truncatedTo(ChronoUnit.SECONDS);
         var sessionId = UUID.randomUUID();

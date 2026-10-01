@@ -8,5 +8,7 @@ public interface UserRepository extends JpaRepository<SchoolUser,Long>, org.spri
  void resetTermsAcceptance();
  Optional<SchoolUser> findByEmail(String email);
  boolean existsByEmailOrRa(String email, String ra);
+ boolean existsBySchoolIdAndRoleAndDeletedAtIsNull(Long schoolId, pulsoescolar_api.entity.user.Role role);
+ List<SchoolUser> findByRoleAndDeletedAtIsNullAndSchoolIdIn(pulsoescolar_api.entity.user.Role role, Collection<Long> schoolIds);
  List<SchoolUser> findByClassroomId(Long classroomId);
 }

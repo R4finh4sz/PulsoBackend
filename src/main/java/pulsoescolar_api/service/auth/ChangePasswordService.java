@@ -1,17 +1,18 @@
 package pulsoescolar_api.service.auth;
 
-import java.nio.charset.StandardCharsets;
+import pulsoescolar_api.exception.BusinessValidationException;
+import pulsoescolar_api.exception.SessionUnavailableException;
+
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import pulsoescolar_api.dto.auth.ChangePasswordRequest;
 import pulsoescolar_api.repository.auth.AuthSessionRepository;
 import pulsoescolar_api.repository.user.UserRepository;
+import pulsoescolar_api.security.user.PasswordPolicy;
 
 @Service
 @RequiredArgsConstructor
@@ -19,19 +20,18 @@ public class ChangePasswordService {
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final AuthSessionRepository sessions;
+    private final PasswordPolicy passwordPolicy;
 
     @Transactional
     public void change(Jwt jwt, ChangePasswordRequest request) {
         var user = users.findById(Long.valueOf(jwt.getSubject())).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+                new SessionUnavailableException());
         if (!encoder.matches(request.currentPassword(), user.getPasswordHash())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Senha atual incorreta.");
+            throw new BusinessValidationException("Senha atual incorreta.");
         }
-        if (request.newPassword().getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A nova senha deve ter no máximo 72 bytes.");
-        }
+        passwordPolicy.requireValidNewPassword(request.newPassword());
         if (encoder.matches(request.newPassword(), user.getPasswordHash())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A nova senha deve ser diferente da atual.");
+            throw new BusinessValidationException("A nova senha deve ser diferente da atual.");
         }
         user.setPasswordHash(encoder.encode(request.newPassword()));
         sessions.revokeOthers(user.getId(), UUID.fromString(jwt.getId()));
