@@ -37,7 +37,9 @@ public class SecurityConfig {
                 .formLogin(c -> c.disable())
                 .logout(c -> c.disable())
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login",
+                                "/api/auth/password-recovery/request", "/api/auth/password-recovery/verify",
+                                "/api/auth/password-recovery/reset").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/invitations/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/invitations/*/verify", "/api/invitations/*/resend", "/api/invitations/*/complete").permitAll()
