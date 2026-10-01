@@ -1,8 +1,8 @@
 package pulsoescolar_api.service.user.teacher;
 
-import org.springframework.http.HttpStatus;
+import pulsoescolar_api.exception.BusinessConflictException;
+
 import pulsoescolar_api.repository.subject.SubjectRepository;
-import org.springframework.web.server.ResponseStatusException;
 
 import pulsoescolar_api.service.classroom.ClassroomLookupService;
 import pulsoescolar_api.service.user.UserLookupService;
@@ -33,9 +33,7 @@ public class TeacherAssignmentService {
         var classroom = classrooms.findById(classroomId);
         users.findByRole(teacherId, Role.TEACHER);
         if (subjects.existsByClassroomIdAndTeacherId(classroomId, teacherId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "O professor ainda é responsável por disciplinas desta sala.");
+            throw new BusinessConflictException("O professor ainda é responsável por disciplinas desta sala.");
         }
         classroom.getTeachers().removeIf(teacher -> teacher.getId().equals(teacherId));
     }

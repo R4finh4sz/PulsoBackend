@@ -19,6 +19,7 @@ public class SchoolService {
     private final pulsoescolar_api.service.audit.AuditService audit;
     private final SchoolRepository schools;
     private final CurrentUser currentUser;
+    private final pulsoescolar_api.repository.user.UserRepository users;
 
     private void requireAdmin() {
         if (currentUser.get().getRole() != Role.ADMIN) {
@@ -44,8 +45,13 @@ public class SchoolService {
 
     public List<SchoolResponse> list() {
         requireAdmin();
-        return schools.findAll(Sort.by("nome").ascending().and(Sort.by("id"))).stream()
-                .map(this::response).toList();
+        var result = schools.findAll(Sort.by("nome").ascending().and(Sort.by("id")));
+        if (result.isEmpty()) return List.of();
+        var coordinators = users.findByRoleAndDeletedAtIsNullAndSchoolIdIn(Role.PEDAGOGICAL_COORDINATOR,
+                result.stream().map(School::getId).toList()).stream().collect(java.util.stream.Collectors.toMap(
+                        u -> u.getSchool().getId(),
+                        u -> new SchoolResponse.Coordinator(u.getId(), u.getFullName(), u.getEmail())));
+        return result.stream().map(s -> response(s, coordinators.get(s.getId()))).toList();
     }
 
     @Transactional
@@ -59,7 +65,14 @@ public class SchoolService {
     }
 
     private SchoolResponse response(School school) {
+        var coordinator = users.findByRoleAndDeletedAtIsNullAndSchoolIdIn(Role.PEDAGOGICAL_COORDINATOR,
+                List.of(school.getId())).stream().findFirst()
+                .map(u -> new SchoolResponse.Coordinator(u.getId(), u.getFullName(), u.getEmail())).orElse(null);
+        return response(school, coordinator);
+    }
+
+    private SchoolResponse response(School school, SchoolResponse.Coordinator coordinator) {
         return new SchoolResponse(school.getId(), school.getNome(), school.getCnpj(),
-                school.getLogradouro(), school.getBairro(), school.getCidade(), school.getCep(), school.getUf());
+                school.getLogradouro(), school.getBairro(), school.getCidade(), school.getCep(), school.getUf(), coordinator);
     }
 }

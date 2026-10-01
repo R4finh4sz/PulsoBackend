@@ -1,15 +1,19 @@
 package pulsoescolar_api.service.auth;
 
+import pulsoescolar_api.exception.InvalidVerificationCodeException;
+import pulsoescolar_api.exception.SessionUnavailableException;
+import pulsoescolar_api.exception.VerificationAlreadyCompletedException;
+import pulsoescolar_api.exception.VerificationCodeUnavailableException;
+import pulsoescolar_api.exception.VerificationCooldownException;
+
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import pulsoescolar_api.dto.auth.TwoFactorResponse;
 import pulsoescolar_api.entity.auth.AuthSession;
 import pulsoescolar_api.repository.auth.AuthSessionRepository;
@@ -37,15 +41,15 @@ public class TwoFactorService {
         events.publishEvent(new TwoFactorMailRequested(session.getUser().getEmail(), code));
     }
 
-    @Transactional(noRollbackFor = ResponseStatusException.class)
+    @Transactional(noRollbackFor = InvalidVerificationCodeException.class)
     public void verify(Jwt jwt, String code) {
         var session = pending(jwt);
         if (session.getCodeAttempts() >= 5 || !session.getCodeExpiresAt().isAfter(clock.instant())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código expirado ou limite de tentativas atingido. Solicite reenvio.");
+            throw new VerificationCodeUnavailableException();
         }
         session.setCodeAttempts(session.getCodeAttempts() + 1);
         if (!passwords.matches(code, session.getCodeHash())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código inválido.");
+            throw new InvalidVerificationCodeException();
         }
         session.setTwoFactorVerified(true);
         session.setCodeHash(null);
@@ -57,7 +61,7 @@ public class TwoFactorService {
         var session = pending(jwt);
         var nextSend = session.getUser().getTwoFactorResendAvailableAt();
         if (clock.instant().isBefore(session.getResendAvailableAt()) || (nextSend != null && clock.instant().isBefore(nextSend))) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Aguarde 3 minutos entre os envios.");
+            throw new VerificationCooldownException("Aguarde 3 minutos entre os envios.");
         }
         issue(session);
         return new TwoFactorResponse(true, session.getCodeExpiresAt(), session.getResendAvailableAt());
@@ -67,11 +71,11 @@ public class TwoFactorService {
         entityManager.find(pulsoescolar_api.entity.user.SchoolUser.class, Long.valueOf(jwt.getSubject()),
                 jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         var session = sessions.lockById(UUID.fromString(jwt.getId())).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+                new SessionUnavailableException());
         if (!session.getUser().getId().toString().equals(jwt.getSubject()) || !session.getExpiresAt().isAfter(clock.instant())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+            throw new SessionUnavailableException();
         }
-        if (session.isTwoFactorVerified()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Código já confirmado.");
+        if (session.isTwoFactorVerified()) throw new VerificationAlreadyCompletedException();
         return session;
     }
 }

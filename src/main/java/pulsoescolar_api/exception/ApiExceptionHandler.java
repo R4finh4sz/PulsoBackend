@@ -5,6 +5,34 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 @RestControllerAdvice
 public class ApiExceptionHandler {
+ @ExceptionHandler(BusinessValidationException.class)
+ public ProblemDetail businessValidation(BusinessValidationException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+ }
+ @ExceptionHandler(BusinessConflictException.class)
+ public ProblemDetail businessConflict(BusinessConflictException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+ }
+ @ExceptionHandler(OperationNotAllowedException.class)
+ public ProblemDetail operationNotAllowed(OperationNotAllowedException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+ }
+ @ExceptionHandler(VerificationCooldownException.class)
+ public ProblemDetail verificationCooldown(VerificationCooldownException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+ }
+ @ExceptionHandler(InvitationUnavailableException.class)
+ public ProblemDetail invitationUnavailable(InvitationUnavailableException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.GONE, ex.getMessage());
+ }
+ @ExceptionHandler(RegistrationPhotoTooLargeException.class)
+ public ProblemDetail photoTooLarge(RegistrationPhotoTooLargeException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.CONTENT_TOO_LARGE, ex.getMessage());
+ }
+ @ExceptionHandler(SessionUnavailableException.class)
+ public ProblemDetail sessionUnavailable(SessionUnavailableException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+ }
  @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
  public ProblemDetail concurrentUpdate(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
   return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "O cadastro foi alterado por outra operação. Atualize e tente novamente.");

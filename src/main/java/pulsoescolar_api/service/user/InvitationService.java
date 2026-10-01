@@ -1,21 +1,26 @@
 package pulsoescolar_api.service.user;
 
+import pulsoescolar_api.exception.BusinessConflictException;
+import pulsoescolar_api.exception.BusinessValidationException;
+import pulsoescolar_api.exception.InvalidVerificationCodeException;
+import pulsoescolar_api.exception.InvitationUnavailableException;
+import pulsoescolar_api.exception.OperationNotAllowedException;
+import pulsoescolar_api.exception.ResourceNotFoundException;
+import pulsoescolar_api.exception.TermsVersionChangedException;
+
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Locale;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import pulsoescolar_api.dto.user.*;
 import pulsoescolar_api.entity.school.School;
 import pulsoescolar_api.entity.terms.TermsVersion;
 import pulsoescolar_api.entity.user.*;
-import pulsoescolar_api.exception.ResourceNotFoundException;
 import pulsoescolar_api.repository.school.SchoolRepository;
 import pulsoescolar_api.repository.terms.TermsRepository;
 import pulsoescolar_api.repository.user.*;
@@ -40,12 +45,14 @@ public class InvitationService {
     private final InvitationMailService mail;
     private final Validator validator;
     private final Clock clock;
+    private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
 
     @Transactional
     public InvitationReceipt createCoordinator(CreateCoordinatorInvitationRequest input) {
         var actor = currentUser.get();
         accessPolicy.requireCoordinatorInvitation(actor);
         validate(input);
+        coordinators.requireVacancy(input.schoolId());
         var school = schools.findById(input.schoolId())
                 .orElseThrow(() -> new ResourceNotFoundException("Escola não encontrada."));
         return create(input.email(), Role.PEDAGOGICAL_COORDINATOR, school, actor);
@@ -64,8 +71,7 @@ public class InvitationService {
         var now = clock.instant();
         if (users.findByEmail(email).isPresent() || registrations.existsByEmail(email)
                 || invitations.existsByEmailAndUsedAtIsNullAndExpiresAtAfter(email, now)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Já existe uma conta ou solicitação para este e-mail.");
+            throw new BusinessConflictException("Já existe uma conta ou solicitação para este e-mail.");
         }
         String token = tokens.generate();
         var invitation = new UserInvitation();
@@ -89,7 +95,7 @@ public class InvitationService {
     }
 
     // Invalid codes must commit the attempt counter, as in TwoFactorService.
-    @Transactional(noRollbackFor = ResponseStatusException.class)
+    @Transactional(noRollbackFor = InvalidVerificationCodeException.class)
     public InvitationDetails verify(String token, VerifyInvitationRequest input) {
         validate(input);
         var invitation = valid(token);
@@ -109,25 +115,25 @@ public class InvitationService {
         validate(input);
         var invitation = valid(token);
         if (invitation.getVerifiedAt() == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Valide o código enviado por e-mail antes de continuar.");
+            throw new OperationNotAllowedException("Valide o código enviado por e-mail antes de continuar.");
         }
         String ra = input.ra().strip();
         if (users.existsByEmailOrRa(invitation.getEmail(), ra)
                 || registrations.existsByEmailOrRa(invitation.getEmail(), ra)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Já existe uma conta ou solicitação com este e-mail ou matrícula.");
+            throw new BusinessConflictException("Já existe uma conta ou solicitação com este e-mail ou matrícula.");
         }
         if (input.password().getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A senha deve ter no máximo 72 bytes.");
+            throw new BusinessValidationException("A senha deve ter no máximo 72 bytes.");
         }
         var term = terms.lockCurrent();
+        if (invitation.getRole() == Role.PEDAGOGICAL_COORDINATOR) {
+            coordinators.requireVacancy(invitation.getSchool().getId());
+        }
         if (term == null || term.getVersion() == 0) {
             throw new ResourceNotFoundException("Nenhum termo publicado.");
         }
         if (!TermsVersion.label(term.getVersion()).equals(input.termsVersion())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Os termos foram atualizados. Consulte a versão atual.");
+            throw new TermsVersionChangedException();
         }
         var request = new RegistrationRequest();
         request.setFullName(input.name().strip());
@@ -147,9 +153,9 @@ public class InvitationService {
 
     private UserInvitation valid(String token) {
         var invitation = invitations.findForUpdate(tokens.hash(token))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Convite inválido."));
+                .orElseThrow(() -> new ResourceNotFoundException("Convite inválido."));
         if (invitation.getUsedAt() != null || !invitation.getExpiresAt().isAfter(clock.instant())) {
-            throw new ResponseStatusException(HttpStatus.GONE, "Este convite expirou ou já foi utilizado.");
+            throw new InvitationUnavailableException();
         }
         return invitation;
     }
@@ -162,7 +168,7 @@ public class InvitationService {
 
     private void validate(Object input) {
         if (input == null || !validator.validate(input).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Confira os dados obrigatórios do convite.");
+            throw new BusinessValidationException("Confira os dados obrigatórios do convite.");
         }
     }
 }

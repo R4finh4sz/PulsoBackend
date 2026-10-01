@@ -1,5 +1,9 @@
 package pulsoescolar_api.service.user;
 
+import pulsoescolar_api.exception.BusinessConflictException;
+import pulsoescolar_api.exception.BusinessValidationException;
+import pulsoescolar_api.exception.ResourceNotFoundException;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.time.Clock;
@@ -9,15 +13,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import pulsoescolar_api.dto.user.*;
 import pulsoescolar_api.entity.user.*;
-import pulsoescolar_api.exception.ResourceNotFoundException;
 import pulsoescolar_api.repository.auth.AuthSessionRepository;
 import pulsoescolar_api.repository.user.AccountDeletionRepository;
 import pulsoescolar_api.security.CurrentUser;
@@ -41,7 +42,7 @@ public class AccountDeletionService {
         entityManager.refresh(requester, LockModeType.PESSIMISTIC_WRITE);
         requireActive(requester);
         if (requests.existsByRequesterIdAndStatus(requester.getId(), DeletionStatus.PENDING)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Já existe um pedido de exclusão pendente.");
+            throw new BusinessConflictException("Já existe um pedido de exclusão pendente.");
         }
         var request = new AccountDeletionRequest();
         request.setRequester(requester);
@@ -73,7 +74,7 @@ public class AccountDeletionService {
     public DeletionResponse review(Long id, ReviewDeletionRequest input) {
         var actor = requireReviewer();
         if (input.status() != DeletionStatus.APPROVED && input.status() != DeletionStatus.REJECTED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe APPROVED ou REJECTED.");
+            throw new BusinessValidationException("Informe APPROVED ou REJECTED.");
         }
         var request = requests.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido de exclusão não encontrado."));
@@ -90,7 +91,7 @@ public class AccountDeletionService {
             throw new AccessDeniedException("Você não pode analisar pedidos de outra escola.");
         }
         if (request.getStatus() != DeletionStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este pedido já foi analisado.");
+            throw new BusinessConflictException("Este pedido já foi analisado.");
         }
         requireActive(requester);
         request.setStatus(input.status());
@@ -150,6 +151,6 @@ public class AccountDeletionService {
     }
 
     private void requireActive(SchoolUser user) {
-        if (user.getDeletedAt() != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "Conta já excluída.");
+        if (user.getDeletedAt() != null) throw new BusinessConflictException("Conta já excluída.");
     }
 }
