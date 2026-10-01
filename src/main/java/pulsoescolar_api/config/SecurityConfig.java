@@ -38,7 +38,9 @@ public class SecurityConfig {
                 .logout(c -> c.disable())
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students", "/api/teachers", "/api/coordinators").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/invitations/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/invitations/*/verify", "/api/invitations/*/resend", "/api/invitations/*/complete").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/schools/search", "/api/terms").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/auth/2fa/verify", "/api/auth/2fa/resend").hasAuthority("TWO_FACTOR_PENDING")

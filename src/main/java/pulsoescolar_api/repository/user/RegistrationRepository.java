@@ -8,6 +8,7 @@ import pulsoescolar_api.entity.user.RegistrationRequest;
 public interface RegistrationRepository extends JpaRepository<RegistrationRequest, Long>,
         JpaSpecificationExecutor<RegistrationRequest> {
     boolean existsByEmailOrRa(String email, String ra);
+    boolean existsByEmail(String email);
     Optional<RegistrationRequest> findByUserId(Long userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

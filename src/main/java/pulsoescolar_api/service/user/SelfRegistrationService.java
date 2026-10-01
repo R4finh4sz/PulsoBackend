@@ -36,8 +36,9 @@ public class SelfRegistrationService {
         if (!validator.validate(input).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Confira os dados obrigatórios do cadastro.");
         }
-        if (role != Role.STUDENT && role != Role.TEACHER && role != Role.PEDAGOGICAL_COORDINATOR) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Perfil de cadastro inválido.");
+        if (role != Role.STUDENT) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Coordenadores e professores só podem se cadastrar por convite.");
         }
         if (input.role() != null && input.role() != role) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O perfil deve corresponder à rota de cadastro.");
