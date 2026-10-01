@@ -87,7 +87,7 @@ class InvitationTests {
                                 .roles(coordinator ? "ADMIN" : "PEDAGOGICAL_COORDINATOR"))
                         .contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andReturn();
-        return json.readTree(result.getResponse().getContentAsString()).get("token").asText();
+        return json.readTree(result.getResponse().getContentAsString()).get("token").asString();
     }
 
     private String open(String token) throws Exception {
@@ -179,7 +179,101 @@ class InvitationTests {
     }
 
     @Test void coordinatorInvitationPreservesPasswordRoleSchoolAndTermsThroughApproval() throws Exception {
+        transactions.executeWithoutResult(status -> users.findByEmail("coordinator@example.com")
+                .orElseThrow().setSchool(null));
         completeAndApprove(true);
+    }
+
+    @Test void cannotInviteCoordinatorToOccupiedSchool() throws Exception {
+        mvc.perform(post("/api/invitations/coordinators").with(user("admin@example.com").roles("ADMIN"))
+                        .contentType("application/json")
+                        .content("{\"email\":\"second@example.com\",\"schoolId\":" + schoolId + "}"))
+                .andExpect(status().isConflict());
+        assertEquals(0, invitations.count());
+        verifyNoInteractions(mail);
+    }
+
+    @Test void oldCoordinatorInvitationCannotCompleteAfterVacancyIsFilled() throws Exception {
+        transactions.executeWithoutResult(status -> users.findByEmail("coordinator@example.com")
+                .orElseThrow().setSchool(null));
+        String token = create(true);
+        verifyCode(token, open(token), 200);
+        transactions.executeWithoutResult(status -> users.findByEmail("coordinator@example.com")
+                .orElseThrow().setSchool(schools.findById(schoolId).orElseThrow()));
+        mvc.perform(post("/api/invitations/" + token + "/complete")
+                        .contentType("application/json").content(completion()))
+                .andExpect(status().isConflict());
+        assertEquals(0, registrations.count());
+        assertNull(invitations.findAll().getFirst().getUsedAt());
+    }
+
+    @Test void approvalRejectsSecondCoordinatorAndDeletionFreesVacancy() throws Exception {
+        long requestId = transactions.execute(status -> {
+            var request = new RegistrationRequest();
+            request.setFullName("Outro Coordenador"); request.setRa("9876");
+            request.setEmail("second@example.com"); request.setPasswordHash(passwords.encode("Password123"));
+            request.setRole(Role.PEDAGOGICAL_COORDINATOR); request.setSchool(schools.findById(schoolId).orElseThrow());
+            request.setTermsVersion(1L); request.setStatus(RegistrationStatus.PENDING); request.setRequestedAt(NOW);
+            return registrations.saveAndFlush(request).getId();
+        });
+        mvc.perform(patch("/api/registration-requests/" + requestId)
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .contentType("application/json").content("{\"status\":\"APPROVED\"}"))
+                .andExpect(status().isConflict());
+        assertEquals(RegistrationStatus.PENDING, registrations.findById(requestId).orElseThrow().getStatus());
+        transactions.executeWithoutResult(status -> users.findByEmail("coordinator@example.com")
+                .orElseThrow().setDeletedAt(NOW));
+        mvc.perform(patch("/api/registration-requests/" + requestId)
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .contentType("application/json").content("{\"status\":\"APPROVED\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test void databaseRejectsDuplicateCoordinatorWithoutServiceValidation() {
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () ->
+                transactions.executeWithoutResult(status -> actor("duplicate", Role.PEDAGOGICAL_COORDINATOR,
+                        schools.findById(schoolId).orElseThrow())));
+        assertTrue(users.findByEmail("duplicate@example.com").isEmpty());
+    }
+
+    @Test void concurrentApprovalsOnlyCreateOneCoordinator() throws Exception {
+        var ids = transactions.execute(status -> {
+            users.findByEmail("coordinator@example.com").orElseThrow().setSchool(null);
+            var result = new java.util.ArrayList<Long>();
+            for (int i = 0; i < 2; i++) {
+                var request = new RegistrationRequest();
+                request.setFullName("Coordenador Teste"); request.setRa("800" + i);
+                request.setEmail("candidate" + i + "@example.com"); request.setPasswordHash("unused");
+                request.setRole(Role.PEDAGOGICAL_COORDINATOR);
+                request.setSchool(schools.findById(schoolId).orElseThrow());
+                request.setTermsVersion(1L); request.setStatus(RegistrationStatus.PENDING); request.setRequestedAt(NOW);
+                result.add(registrations.saveAndFlush(request).getId());
+            }
+            return result;
+        });
+        var ready = new java.util.concurrent.CountDownLatch(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+            for (Long id : ids) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    assertTrue(start.await(10, java.util.concurrent.TimeUnit.SECONDS));
+                    return mvc.perform(patch("/api/registration-requests/" + id)
+                                    .with(user("admin@example.com").roles("ADMIN"))
+                                    .contentType("application/json").content("{\"status\":\"APPROVED\"}"))
+                            .andReturn().getResponse().getStatus();
+                }));
+            }
+            assertTrue(ready.await(10, java.util.concurrent.TimeUnit.SECONDS));
+            start.countDown();
+            var statuses = new java.util.ArrayList<Integer>();
+            for (var future : futures) statuses.add(future.get(15, java.util.concurrent.TimeUnit.SECONDS));
+            statuses.sort(Integer::compareTo);
+            assertEquals(java.util.List.of(200, 409), statuses);
+        }
+        assertEquals(1, users.findByRoleAndDeletedAtIsNullAndSchoolIdIn(Role.PEDAGOGICAL_COORDINATOR,
+                java.util.List.of(schoolId)).size());
     }
 
     private void completeAndApprove(boolean coordinator) throws Exception {
