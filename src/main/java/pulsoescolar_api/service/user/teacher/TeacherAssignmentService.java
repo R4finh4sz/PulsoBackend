@@ -2,7 +2,7 @@ package pulsoescolar_api.service.user.teacher;
 
 import pulsoescolar_api.exception.BusinessConflictException;
 
-import pulsoescolar_api.repository.subject.SubjectRepository;
+import pulsoescolar_api.repository.schoolcourse.SchoolCourseRepository;
 
 import pulsoescolar_api.service.classroom.ClassroomLookupService;
 import pulsoescolar_api.service.user.UserLookupService;
@@ -20,7 +20,7 @@ import pulsoescolar_api.security.user.UserAccessPolicy;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class TeacherAssignmentService {
-    private final SubjectRepository subjects;
+    private final SchoolCourseRepository subjects;
     private final ClassroomLookupService classrooms;
     private final UserLookupService users;
     private final CurrentUser currentUser;

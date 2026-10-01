@@ -27,6 +27,7 @@ public class RegistrationReviewService {
     private final CurrentUser currentUser;
     private final RegistrationAccessPolicy policy;
     private final Clock clock;
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
 
     public RegistrationPageResponse list(RegistrationStatus status, Role role, Long schoolId, int page, int size) {
@@ -91,6 +92,8 @@ public class RegistrationReviewService {
         request.setReviewedBy(actor);
         request.setReviewReason(input.reason() == null ? null : input.reason().strip());
         requests.flush();
+        events.publishEvent(pulsoescolar_api.service.mail.AccountMailMessages.reviewed(
+                request.getEmail(), request.getRole(), request.getStatus(), request.getReviewReason()));
         return RegistrationResponse.from(request);
     }
 
