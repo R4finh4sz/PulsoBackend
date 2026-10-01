@@ -10,7 +10,7 @@ public class InvitationMailService {
     private final String from;
 
     public InvitationMailService(EmailSender sender,
-            @Value("${app.invitation.base-url:http://localhost:8080/api/invitations}") String baseUrl,
+            @Value("${app.invitation.base-url:http://localhost:8080/api/convite}") String baseUrl,
             @Value("${app.invitation.from:}") String from) {
         this.sender = sender;
         this.baseUrl = baseUrl;
@@ -19,7 +19,9 @@ public class InvitationMailService {
 
     public void sendInvitation(String email, String token) {
         sender.send(email, "Convite para o Pulso Escolar",
-                "Acesse seu convite para criar a conta: " + baseUrl + "/" + token);
+                "Acesse seu convite para criar a conta: " + baseUrl + "/" + token
+                        + "\n\nEste link é válido por 48 horas a partir do envio do convite."
+                        + " Após esse prazo, entre em contato com suportePulso@gmail.com para solicitar um novo convite.");
     }
 
     public void sendCode(String email, String code) {
