@@ -1,4 +1,4 @@
-package pulsoescolar_api.controller.teacher;
+package pulsoescolar_api.controller.user.teacher;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pulsoescolar_api.dto.classroom.ClassroomResponse;
-import pulsoescolar_api.service.teacher.TeacherAssignmentService;
+import pulsoescolar_api.service.user.teacher.TeacherAssignmentService;
 
 @RestController
 @RequestMapping("/api/classrooms/{id}/teachers")

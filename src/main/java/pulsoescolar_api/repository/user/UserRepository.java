@@ -7,5 +7,6 @@ public interface UserRepository extends JpaRepository<SchoolUser,Long>, org.spri
  @org.springframework.data.jpa.repository.Query("UPDATE SchoolUser u SET u.termsAccepted = false")
  void resetTermsAcceptance();
  Optional<SchoolUser> findByEmail(String email);
+ boolean existsByEmailOrRa(String email, String ra);
  List<SchoolUser> findByClassroomId(Long classroomId);
 }

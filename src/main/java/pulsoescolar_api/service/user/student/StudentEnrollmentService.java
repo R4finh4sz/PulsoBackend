@@ -1,4 +1,4 @@
-package pulsoescolar_api.service.student;
+package pulsoescolar_api.service.user.student;
 
 import pulsoescolar_api.exception.ResourceNotFoundException;
 

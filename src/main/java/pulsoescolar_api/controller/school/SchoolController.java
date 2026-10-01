@@ -24,4 +24,9 @@ public class SchoolController {
     public List<SchoolResponse> list() {
         return service.list();
     }
+
+    @PatchMapping("/{id}/location")
+    public SchoolResponse updateLocation(@PathVariable Long id, @Valid @RequestBody UpdateSchoolLocationRequest request) {
+        return service.updateLocation(id, request);
+    }
 }

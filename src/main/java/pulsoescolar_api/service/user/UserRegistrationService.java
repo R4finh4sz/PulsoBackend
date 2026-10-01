@@ -1,9 +1,10 @@
 package pulsoescolar_api.service.user;
+
+import pulsoescolar_api.exception.BusinessValidationException;
+import pulsoescolar_api.exception.ResourceNotFoundException;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
-import pulsoescolar_api.exception.ResourceNotFoundException;
 import pulsoescolar_api.repository.school.SchoolRepository;
 
 import java.util.Locale;
@@ -33,6 +34,7 @@ public class UserRegistrationService {
     private final UserAccessPolicy accessPolicy;
     private final UserMapper mapper;
     private final SchoolRepository schools;
+    private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
 
     @Transactional
     public UserResponse createUser(CreateUser request, Role role) {
@@ -41,21 +43,21 @@ public class UserRegistrationService {
         var user = new SchoolUser();
         if (actor.getRole() == Role.ADMIN) {
             if (request.schoolId() == null || request.schoolId() <= 0) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "schoolId é obrigatório para cadastros feitos pelo administrador.");
+                throw new BusinessValidationException("schoolId é obrigatório para cadastros feitos pelo administrador.");
             }
             user.setSchool(schools.findById(request.schoolId()).orElseThrow(() ->
                     new ResourceNotFoundException("Escola não encontrada.")));
         } else {
             if (actor.getSchool() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "O coordenador precisa estar vinculado a uma escola para cadastrar usuários.");
+                throw new BusinessValidationException("O coordenador precisa estar vinculado a uma escola para cadastrar usuários.");
             }
             if (request.schoolId() != null && !request.schoolId().equals(actor.getSchool().getId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "O cadastro deve usar a escola do coordenador.");
+                throw new BusinessValidationException("O cadastro deve usar a escola do coordenador.");
             }
             user.setSchool(actor.getSchool());
+        }
+        if (role == Role.PEDAGOGICAL_COORDINATOR) {
+            coordinators.requireVacancy(user.getSchool().getId());
         }
         user.setFullName(request.fullName().strip());
         user.setRa(request.ra().strip());

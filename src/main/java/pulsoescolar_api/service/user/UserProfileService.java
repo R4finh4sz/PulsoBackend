@@ -17,4 +17,10 @@ public class UserProfileService {
     public UserResponse me() {
         return mapper.toResponse(currentUser.get());
     }
+
+    public byte[] photo() {
+        var photo = currentUser.get().getProfilePhoto();
+        if (photo == null) throw new pulsoescolar_api.exception.ResourceNotFoundException("Foto não encontrada.");
+        return photo;
+    }
 }

@@ -1,4 +1,4 @@
-package pulsoescolar_api.service.teacher;
+package pulsoescolar_api.service.user.teacher;
 
 import org.springframework.http.HttpStatus;
 import pulsoescolar_api.repository.subject.SubjectRepository;

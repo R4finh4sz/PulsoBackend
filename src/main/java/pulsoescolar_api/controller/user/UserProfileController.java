@@ -17,4 +17,10 @@ public class UserProfileController {
     public UserResponse me() {
         return service.me();
     }
+
+    @GetMapping(value = "/photo", produces = org.springframework.http.MediaType.IMAGE_PNG_VALUE)
+    public org.springframework.http.ResponseEntity<byte[]> photo() {
+        return org.springframework.http.ResponseEntity.ok()
+                .cacheControl(org.springframework.http.CacheControl.noStore()).body(service.photo());
+    }
 }

@@ -216,7 +216,7 @@ class AccountDeletionTests {
     @org.junit.jupiter.params.provider.ValueSource(strings = {"coordinator", "unassigned"})
     void coordinatorRequestsAreReviewedOnlyByAdmin(String name) throws Exception {
         var coordinator = users.findByEmail(name + "@example.com").orElseThrow();
-        create("peer", Role.PEDAGOGICAL_COORDINATOR, student.getSchool());
+        create("peer", Role.PEDAGOGICAL_COORDINATOR, school("33333333333333"));
         var session = new AuthSession();
         session.setId(UUID.randomUUID()); session.setUser(coordinator);
         session.setCreatedAt(Instant.now()); session.setExpiresAt(Instant.now().plusSeconds(600));

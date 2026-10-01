@@ -8,15 +8,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import pulsoescolar_api.service.classroom.ClassroomService;
-import pulsoescolar_api.service.student.StudentEnrollmentService;
+import pulsoescolar_api.service.user.student.StudentEnrollmentService;
 import pulsoescolar_api.service.subject.SubjectService;
-import pulsoescolar_api.service.teacher.TeacherAssignmentService;
+import pulsoescolar_api.service.user.teacher.TeacherAssignmentService;
 import pulsoescolar_api.service.user.UserRegistrationService;
 import pulsoescolar_api.repository.user.UserRepository;
-import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.entity.user.Role;
 import pulsoescolar_api.entity.user.SchoolUser;
-import pulsoescolar_api.entity.subject.Subject;
 import pulsoescolar_api.dto.classroom.CreateClassroomRequest;
 import pulsoescolar_api.dto.user.CreateUser;
 import pulsoescolar_api.dto.subject.NameRequest;
@@ -39,7 +37,7 @@ class SchoolFlowTests {
   var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
    .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
    .build();
-  var coordinator = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("coord@example.com");
+  var coordinator = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("coord@example.com").roles("PEDAGOGICAL_COORDINATOR");
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/classrooms")
     .with(coordinator).contentType("application/json").content("{\"name\":\"3 year\",\"identifier\":\"C\"}"))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated());
@@ -59,7 +57,7 @@ class SchoolFlowTests {
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
      "/api/classrooms/" + room.id() + "/subjects")
-    .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(teacher.email())))
+    .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(teacher.email()).roles("TEACHER")))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
  }
  @BeforeEach void setup() {
