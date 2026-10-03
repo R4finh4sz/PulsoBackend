@@ -42,9 +42,11 @@ class PasswordRecoveryTests {
     @Autowired JsonMapper json;
     @MockitoBean EmailSender sender;
     MockMvc mvc;
+    String recoveryRoute;
     SchoolUser account;
 
     @BeforeEach void setup() {
+        recoveryRoute = "/api/auth/password-recovery";
         sessions.deleteAll(); recoveries.deleteAll(); registrations.deleteAll(); users.deleteAll(); schools.deleteAll();
         account = new SchoolUser();
         account.setFullName("Nome que não deve aparecer"); account.setRa("recovery-user");
@@ -57,7 +59,7 @@ class PasswordRecoveryTests {
     }
 
     String requestCode() throws Exception {
-        mvc.perform(post("/api/auth/password-recovery/request").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/request").contentType("application/json")
                 .content("{\"email\":\"PERSON@EXAMPLE.COM\"}"))
                 .andExpect(status().isAccepted()).andExpect(header().string("Cache-Control", "no-store"));
         var capture = org.mockito.ArgumentCaptor.forClass(String.class);
@@ -70,7 +72,7 @@ class PasswordRecoveryTests {
     }
 
     String verifyCode(String code) throws Exception {
-        var response = mvc.perform(post("/api/auth/password-recovery/verify").contentType("application/json")
+        var response = mvc.perform(post(recoveryRoute + "/verify").contentType("application/json")
                 .content(json.writeValueAsString(java.util.Map.of("email", account.getEmail(), "code", code))))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andReturn();
         return json.readTree(response.getResponse().getContentAsString()).get("resetToken").asString();
@@ -81,24 +83,27 @@ class PasswordRecoveryTests {
                 "newPassword", password, "confirmPassword", confirmation));
     }
 
-    @Test void anonymousFlowRequiresVerificationChangesPasswordAndRevokesSessions() throws Exception {
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"/api/auth/password-recovery", "/api/auth/password-reset"})
+    void anonymousFlowRequiresVerificationChangesPasswordAndRevokesSessions(String route) throws Exception {
+        recoveryRoute = route;
         var session = new AuthSession(); session.setId(UUID.randomUUID()); session.setUser(account);
         session.setCreatedAt(Instant.now()); session.setExpiresAt(Instant.now().plusSeconds(3600));
         sessions.saveAndFlush(session);
         String code = requestCode();
-        mvc.perform(post("/api/auth/password-recovery/reset").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/reset").contentType("application/json")
                 .content(resetBody("A".repeat(43), "Changed123", "Changed123"))).andExpect(status().isBadRequest());
         String token = verifyCode(code);
-        mvc.perform(post("/api/auth/password-recovery/verify").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/verify").contentType("application/json")
                 .content(json.writeValueAsString(java.util.Map.of("email", account.getEmail(), "code", code))))
                 .andExpect(status().isBadRequest());
         assertFalse(recoveries.findById(account.getId()).orElseThrow().getResetTokenHash().contains(token));
-        mvc.perform(post("/api/auth/password-recovery/reset").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/reset").contentType("application/json")
                 .content(resetBody(token, "Changed123", "Changed123"))).andExpect(status().isNoContent());
         assertTrue(passwords.matches("Changed123", users.findById(account.getId()).orElseThrow().getPasswordHash()));
         assertEquals(0, sessions.count());
         verify(sender, timeout(3000)).send(eq(account.getEmail()), contains("foi alterada"), contains("Equipe PulsoEscolar"));
-        mvc.perform(post("/api/auth/password-recovery/reset").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/reset").contentType("application/json")
                 .content(resetBody(token, "Another123", "Another123"))).andExpect(status().isBadRequest());
     }
 
@@ -106,15 +111,15 @@ class PasswordRecoveryTests {
         String code = requestCode();
         String wrong = code.equals("000000") ? "111111" : "000000";
         for (int i = 0; i < 5; i++) {
-            mvc.perform(post("/api/auth/password-recovery/verify").contentType("application/json")
+            mvc.perform(post(recoveryRoute + "/verify").contentType("application/json")
                     .content(json.writeValueAsString(java.util.Map.of("email", account.getEmail(), "code", wrong))))
                     .andExpect(status().isBadRequest());
         }
         assertEquals(5, recoveries.findById(account.getId()).orElseThrow().getCodeAttempts());
-        mvc.perform(post("/api/auth/password-recovery/request").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/request").contentType("application/json")
                 .content("{\"email\":\"person@example.com\"}")).andExpect(status().isAccepted());
         assertEquals(5, recoveries.findById(account.getId()).orElseThrow().getCodeAttempts());
-        mvc.perform(post("/api/auth/password-recovery/verify").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/verify").contentType("application/json")
                 .content(json.writeValueAsString(java.util.Map.of("email", account.getEmail(), "code", code))))
                 .andExpect(status().isBadRequest());
         verify(sender, times(1)).send(anyString(), anyString(), anyString());
@@ -124,14 +129,14 @@ class PasswordRecoveryTests {
         String code = requestCode();
         var recovery = recoveries.findById(account.getId()).orElseThrow();
         recovery.setCodeExpiresAt(Instant.now().minusSeconds(1)); recoveries.saveAndFlush(recovery);
-        mvc.perform(post("/api/auth/password-recovery/verify").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/verify").contentType("application/json")
                 .content(json.writeValueAsString(java.util.Map.of("email", account.getEmail(), "code", code))))
                 .andExpect(status().isBadRequest());
         recovery.setCodeExpiresAt(Instant.now().plusSeconds(600)); recoveries.saveAndFlush(recovery);
         String token = verifyCode(code);
         recovery = recoveries.findById(account.getId()).orElseThrow();
         recovery.setResetExpiresAt(Instant.now().minusSeconds(1)); recoveries.saveAndFlush(recovery);
-        mvc.perform(post("/api/auth/password-recovery/reset").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/reset").contentType("application/json")
                 .content(resetBody(token, "Changed123", "Changed123"))).andExpect(status().isBadRequest());
         assertTrue(passwords.matches("Original123", users.findById(account.getId()).orElseThrow().getPasswordHash()));
     }
@@ -139,18 +144,18 @@ class PasswordRecoveryTests {
     @Test void validatesConfirmationAndPasswordPolicyWithoutConsumingValidToken() throws Exception {
         String token = verifyCode(requestCode());
         for (String[] values : new String[][]{{"Changed123", "Other123"}, {"weak", "weak"}, {"Original123", "Original123"}}) {
-            mvc.perform(post("/api/auth/password-recovery/reset").contentType("application/json")
+            mvc.perform(post(recoveryRoute + "/reset").contentType("application/json")
                     .content(resetBody(token, values[0], values[1]))).andExpect(status().isBadRequest());
         }
-        mvc.perform(post("/api/auth/password-recovery/reset").contentType("application/json")
+        mvc.perform(post(recoveryRoute + "/reset").contentType("application/json")
                 .content(resetBody(token, "Changed123", "Changed123"))).andExpect(status().isNoContent());
     }
 
     @Test void unknownAndDeletedAccountsReceiveSamePublicResponseWithoutEmail() throws Exception {
-        var absent = mvc.perform(post("/api/auth/password-recovery/request").contentType("application/json")
+        var absent = mvc.perform(post(recoveryRoute + "/request").contentType("application/json")
                 .content("{\"email\":\"absent@example.com\"}")).andExpect(status().isAccepted()).andReturn();
         account.setDeletedAt(Instant.now()); users.saveAndFlush(account);
-        var deleted = mvc.perform(post("/api/auth/password-recovery/request").contentType("application/json")
+        var deleted = mvc.perform(post(recoveryRoute + "/request").contentType("application/json")
                 .content("{\"email\":\"person@example.com\"}")).andExpect(status().isAccepted()).andReturn();
         assertEquals(absent.getResponse().getContentAsString(), deleted.getResponse().getContentAsString());
         verifyNoInteractions(sender); assertEquals(0, recoveries.count());

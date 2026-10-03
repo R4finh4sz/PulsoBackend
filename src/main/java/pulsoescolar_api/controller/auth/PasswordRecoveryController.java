@@ -9,7 +9,7 @@ import pulsoescolar_api.dto.auth.*;
 import pulsoescolar_api.service.auth.PasswordRecoveryService;
 
 @RestController
-@RequestMapping("/api/auth/password-recovery")
+@RequestMapping({"/api/auth/password-recovery", "/api/auth/password-reset"})
 @RequiredArgsConstructor
 public class PasswordRecoveryController {
     private final PasswordRecoveryService recovery;
