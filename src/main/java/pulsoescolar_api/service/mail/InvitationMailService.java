@@ -7,14 +7,11 @@ import org.springframework.stereotype.Service;
 public class InvitationMailService {
     private final EmailSender sender;
     private final String baseUrl;
-    private final String from;
 
     public InvitationMailService(EmailSender sender,
-            @Value("${app.invitation.base-url:http://localhost:8080/api/convite}") String baseUrl,
-            @Value("${app.invitation.from:}") String from) {
+            @Value("${app.invitation.base-url:http://localhost:8080/api/invite}") String baseUrl) {
         this.sender = sender;
         this.baseUrl = baseUrl;
-        this.from = from;
     }
 
     public void sendInvitation(String email, String token) {
