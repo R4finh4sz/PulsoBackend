@@ -21,7 +21,7 @@ class ResendEmailSenderTests {
 
     @Test void mapsAllMessageTypesToResendWithoutChangingTheirContent() throws Exception {
         new TwoFactorMailService(sender).send("person@example.com", "123456");
-        var invitations = new InvitationMailService(sender, "https://app.example.com/invitations", "");
+        var invitations = new InvitationMailService(sender, "https://app.example.com/invitations");
         invitations.sendInvitation("person@example.com", "invitation-token");
         invitations.sendCode("person@example.com", "654321");
         new WelcomeMailService(sender).send("person@example.com", "Pessoa Teste", "initial-password");
@@ -33,7 +33,7 @@ class ResendEmailSenderTests {
             assertEquals(java.util.List.of("person@example.com"), message.getTo());
             assertNull(message.getHtml());
         }
-        assertEquals("Código de autenticação - Pulso Escolar", messages.get(0).getSubject());
+        assertEquals("Código de autenticação PulsoEscolar", messages.get(0).getSubject());
         assertTrue(messages.get(0).getText().contains("123456"));
         assertTrue(messages.get(1).getText().contains("https://app.example.com/invitations/invitation-token"));
         assertTrue(messages.get(2).getText().contains("654321"));

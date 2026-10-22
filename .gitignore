@@ -39,3 +39,6 @@ build/
 
 ### Local API documentation ###
 /docs/
+
+### Local test logs ###
+/logs/
