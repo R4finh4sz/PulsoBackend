@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.integration.user;
 
 import java.time.Clock;
 import java.time.Instant;

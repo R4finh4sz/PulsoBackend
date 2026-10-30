@@ -1,6 +1,7 @@
-package pulsoescolar_api;
+package pulsoescolar_api.integration.audit;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,7 +14,10 @@ import pulsoescolar_api.dto.terms.*;
 import pulsoescolar_api.dto.user.*;
 import pulsoescolar_api.entity.user.*;
 import pulsoescolar_api.repository.user.UserRepository;
-import pulsoescolar_api.security.CurrentUser;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import pulsoescolar_api.exception.BusinessConflictException;
+import pulsoescolar_api.exception.TermsVersionChangedException;
 import pulsoescolar_api.service.audit.*;
 import pulsoescolar_api.service.mail.WelcomeMailService;
 import pulsoescolar_api.service.school.SchoolService;
@@ -21,7 +25,6 @@ import pulsoescolar_api.service.terms.TermsService;
 import pulsoescolar_api.service.user.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
 
 @SpringBootTest
 class AuditTests {
@@ -33,8 +36,17 @@ class AuditTests {
     @Autowired AccountDeletionService deletion;
     @Autowired UserRepository users;
     @Autowired PlatformTransactionManager transactions;
-    @MockitoBean CurrentUser currentUser;
     @MockitoBean WelcomeMailService mail;
+
+    private void login(SchoolUser user) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user.getEmail(), "", java.util.List.of()));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     private SchoolUser actor(Role role) {
         var user = new SchoolUser();
@@ -44,7 +56,7 @@ class AuditTests {
         user.setPasswordHash("hash");
         user.setRole(role);
         users.saveAndFlush(user);
-        when(currentUser.get()).thenReturn(user);
+        login(user);
         return user;
     }
 
@@ -75,7 +87,7 @@ class AuditTests {
     void termsAcceptanceIsIdempotentAndInvalidVersionDoesNotLog() {
         var admin = actor(Role.ADMIN);
         var term = terms.publish(new TermsRequest("Terms", "Content"), true);
-        assertThrows(RuntimeException.class, () -> terms.accept(new AcceptTermsRequest("invalid", true)));
+        assertThrows(TermsVersionChangedException.class, () -> terms.accept(new AcceptTermsRequest("invalid", true)));
         assertEquals(0, count(AuditEvent.TERMS_ACCEPTED));
         terms.accept(new AcceptTermsRequest(term.version(), true));
         terms.accept(new AcceptTermsRequest(term.version(), true));
@@ -94,14 +106,14 @@ class AuditTests {
         var admin = actor(Role.ADMIN);
         deletion.review(first.id(), new ReviewDeletionRequest(DeletionStatus.REJECTED, "Private reason"));
         assertEquals(0, count(AuditEvent.ACCOUNT_DELETED));
-        when(currentUser.get()).thenReturn(student);
+        login(student);
         var second = deletion.create(new CreateDeletionRequest("Private reason"));
-        when(currentUser.get()).thenReturn(admin);
+        login(admin);
         deletion.review(second.id(), new ReviewDeletionRequest(DeletionStatus.APPROVED, "Private reason"));
         assertEquals(1, count(AuditEvent.ACCOUNT_DELETED));
         assertEquals(admin.getId(), jdbc.queryForObject(
                 "SELECT actor_user_id FROM audit_events WHERE event_type = 2", Long.class));
-        assertThrows(RuntimeException.class, () -> deletion.review(second.id(),
+        assertThrows(BusinessConflictException.class, () -> deletion.review(second.id(),
                 new ReviewDeletionRequest(DeletionStatus.APPROVED, "Again")));
         assertEquals(1, count(AuditEvent.ACCOUNT_DELETED));
     }

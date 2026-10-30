@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.service.mail;
 
 import com.resend.core.exception.ResendException;
 import com.resend.services.emails.Emails;

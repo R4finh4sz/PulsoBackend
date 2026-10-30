@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.migration;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;

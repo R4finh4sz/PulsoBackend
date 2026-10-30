@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.integration.auth;
 
 import java.time.Instant;
 import java.util.UUID;

@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.security.user;
 
 import org.junit.jupiter.api.Test;
 import pulsoescolar_api.security.user.PasswordPolicy;

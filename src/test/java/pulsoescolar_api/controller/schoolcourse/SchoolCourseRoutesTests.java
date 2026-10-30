@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.controller.schoolcourse;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;

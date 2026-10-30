@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.exception;
 
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -7,7 +7,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import pulsoescolar_api.exception.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
