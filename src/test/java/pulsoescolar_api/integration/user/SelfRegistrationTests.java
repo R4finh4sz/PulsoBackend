@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.integration.user;
 
 import java.time.LocalDate;
 import org.junit.jupiter.api.*;
@@ -62,8 +62,7 @@ class SelfRegistrationTests {
         return """
                 {"name":"Pessoa Teste","birthDate":"2000-01-01","ra":"%s",
                  "email":"person%s@example.com","password":"chosen-password-123","schoolId":%d,
-                 "termsAccepted":true,"termsVersion":"1.0","role":"%s",
-                 "cep":"50000-000","city":"Recife","state":"PE"}
+                 "termsAccepted":true,"termsVersion":"1.0","role":"%s"}
                 """.formatted(ra, ra, schoolId, role);
     }
     long submit(String ra, Role role, Long schoolId) throws Exception {
@@ -167,7 +166,8 @@ class SelfRegistrationTests {
         var bytes = new java.io.ByteArrayOutputStream();
         javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", bytes);
         var photo = new MockMultipartFile("photo", "avatar.png", "image/png", bytes.toByteArray());
-        String body = payload("110", Role.STUDENT, school.getId()).replace(",\"role\":\"STUDENT\"", "");
+        String body = payload("110", Role.STUDENT, school.getId()).replace(",\"role\":\"STUDENT\"", "")
+                .replace("}", ",\"cep\":\"50000-000\",\"city\":\"Recife\",\"state\":\"PE\"}");
         var result = mvc.perform(multipart("/api/auth/register").file(photo).param("data", body)).andExpect(status().isCreated()).andReturn();
         long id = json.readTree(result.getResponse().getContentAsString()).get("id").asLong();
         assertEquals(Role.STUDENT, requests.findById(id).orElseThrow().getRole());

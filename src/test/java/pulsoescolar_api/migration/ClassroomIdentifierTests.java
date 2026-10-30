@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.migration;
 
 import jakarta.validation.Validation;
 import org.flywaydb.core.Flyway;

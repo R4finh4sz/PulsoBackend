@@ -1,8 +1,9 @@
-package pulsoescolar_api;
+package pulsoescolar_api.integration.school;
 
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -22,6 +23,7 @@ class SchoolRegistrationTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
     @Autowired SchoolRepository schools;
+    @Autowired JdbcTemplate jdbc;
 
     MockMvc mvc;
     static final String SCHOOL = """
@@ -40,10 +42,16 @@ class SchoolRegistrationTests {
 
     @Test void rejectsDuplicateCnpjWithDifferentFormatting() throws Exception {
         mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
-                .contentType("application/json").content(SCHOOL)).andExpect(status().isCreated());
+                .contentType("application/json").content(SCHOOL)).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cnpj").value("12345678000190"));
         mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
                 .contentType("application/json").content(SCHOOL.replace("12.345.678/0001-90", "12345678000190")))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").isNotEmpty());
+        // Após violar unicidade, não reutilizar a sessão Hibernate para outra consulta.
+        org.junit.jupiter.api.Assertions.assertEquals(1L, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM schools WHERE cnpj = ?", Long.class, "12345678000190"));
     }
 
     @Test void validatesAllFields() throws Exception {

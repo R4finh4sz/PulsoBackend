@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.integration.classroom;
 
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
@@ -52,12 +52,15 @@ class ClassroomUnlinkTests {
 
     @Test void removesStudentPersistentlyAndRevokesAccess() throws Exception {
         String path = "/api/classrooms/" + room.getId() + "/students/" + student.getId();
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses")
+                        .with(user("student@example.com").roles("STUDENT")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
         mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
         entityManager.flush(); entityManager.clear();
         assertNull(users.findById(student.getId()).orElseThrow().getClassroom());
         mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
-        mvc.perform(get("/api/classrooms/" + room.getId() + "/subjects").with(user("student@example.com").roles("STUDENT")))
-                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses").with(user("student@example.com").roles("STUDENT")))
+                .andExpect(status().isForbidden());
     }
 
     @Test void preservesOtherClassroomAndChecksPermissionsAndRoles() throws Exception {
@@ -77,13 +80,16 @@ class ClassroomUnlinkTests {
 
     @Test void removesTeacherPersistentlyAndRevokesAccess() throws Exception {
         String path = "/api/classrooms/" + room.getId() + "/teachers/" + teacher.getId();
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses")
+                        .with(user("teacher@example.com").roles("TEACHER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
         mvc.perform(delete(path).with(user("teacher@example.com").roles("TEACHER"))).andExpect(status().isForbidden());
         mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
         entityManager.flush(); entityManager.clear();
         assertTrue(classrooms.findById(room.getId()).orElseThrow().getTeachers().isEmpty());
         mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
-        mvc.perform(get("/api/classrooms/" + room.getId() + "/subjects").with(user("teacher@example.com").roles("TEACHER")))
-                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses").with(user("teacher@example.com").roles("TEACHER")))
+                .andExpect(status().isForbidden());
     }
 
     @Test void preservesTeacherResponsibleForSubjects() throws Exception {

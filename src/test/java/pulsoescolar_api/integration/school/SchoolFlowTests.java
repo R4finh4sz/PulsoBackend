@@ -1,4 +1,4 @@
-package pulsoescolar_api;
+package pulsoescolar_api.integration.school;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -46,9 +46,10 @@ class SchoolFlowTests {
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/classrooms")
     .with(coordinator).contentType("application/json").content("{\"name\":\"\"}"))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
-  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/classrooms/999999/subjects")
+  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/classrooms/999999/school-courses")
     .with(coordinator))
-   .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound());
+   .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound())
+   .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.detail").value("Sala não encontrada."));
   login("coord@example.com");
   var teacher = registration.createUser(request("httpTeacher"), Role.TEACHER);
   var room = classrooms.createClassroom(new CreateClassroomRequest("HTTP room", "A"));
@@ -56,9 +57,9 @@ class SchoolFlowTests {
      "/api/classrooms/" + room.id() + "/students/" + teacher.id()).with(coordinator))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
-     "/api/classrooms/" + room.id() + "/subjects")
+     "/api/classrooms/" + room.id() + "/school-courses")
     .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(teacher.email()).roles("TEACHER")))
-   .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound());
+   .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
  }
  @BeforeEach void setup() {
   var coordinator=new SchoolUser();
