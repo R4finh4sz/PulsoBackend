@@ -19,7 +19,7 @@ import pulsoescolar_api.dto.auth.LoginResponse;
 import pulsoescolar_api.dto.classroom.ClassroomResponse;
 import pulsoescolar_api.entity.user.*;
 import pulsoescolar_api.repository.classroom.ClassroomRepository;
-import pulsoescolar_api.repository.schoolcourse.SchoolCourseRepository;
+import pulsoescolar_api.repository.subject.SubjectRepository;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.service.mail.EmailSender;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +33,7 @@ public abstract class HttpIntegrationSupport {
     @Autowired UserRepository users;
     @Autowired PasswordEncoder passwords;
     @Autowired protected ClassroomRepository classrooms;
-    @Autowired protected SchoolCourseRepository courses;
+    @Autowired protected SubjectRepository subjects;
     @MockitoBean EmailSender emailSender;
     protected RestClient client;
     protected String managerToken;

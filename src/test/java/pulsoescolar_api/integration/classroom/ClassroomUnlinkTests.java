@@ -10,10 +10,10 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import pulsoescolar_api.entity.user.*;
 import pulsoescolar_api.entity.classroom.Classroom;
-import pulsoescolar_api.entity.schoolcourse.SchoolCourse;
+import pulsoescolar_api.entity.subject.Subject;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.repository.classroom.ClassroomRepository;
-import pulsoescolar_api.repository.schoolcourse.SchoolCourseRepository;
+import pulsoescolar_api.repository.subject.SubjectRepository;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
@@ -26,7 +26,7 @@ class ClassroomUnlinkTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
     @Autowired ClassroomRepository classrooms;
-    @Autowired SchoolCourseRepository subjects;
+    @Autowired SubjectRepository subjects;
     @Autowired EntityManager entityManager;
     MockMvc mvc;
     Classroom room;
@@ -52,14 +52,14 @@ class ClassroomUnlinkTests {
 
     @Test void removesStudentPersistentlyAndRevokesAccess() throws Exception {
         String path = "/api/classrooms/" + room.getId() + "/students/" + student.getId();
-        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses")
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/subjects")
                         .with(user("student@example.com").roles("STUDENT")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
         mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
         entityManager.flush(); entityManager.clear();
         assertNull(users.findById(student.getId()).orElseThrow().getClassroom());
         mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
-        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses").with(user("student@example.com").roles("STUDENT")))
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/subjects").with(user("student@example.com").roles("STUDENT")))
                 .andExpect(status().isForbidden());
     }
 
@@ -80,7 +80,7 @@ class ClassroomUnlinkTests {
 
     @Test void removesTeacherPersistentlyAndRevokesAccess() throws Exception {
         String path = "/api/classrooms/" + room.getId() + "/teachers/" + teacher.getId();
-        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses")
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/subjects")
                         .with(user("teacher@example.com").roles("TEACHER")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
         mvc.perform(delete(path).with(user("teacher@example.com").roles("TEACHER"))).andExpect(status().isForbidden());
@@ -88,12 +88,12 @@ class ClassroomUnlinkTests {
         entityManager.flush(); entityManager.clear();
         assertTrue(classrooms.findById(room.getId()).orElseThrow().getTeachers().isEmpty());
         mvc.perform(delete(path).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
-        mvc.perform(get("/api/classrooms/" + room.getId() + "/school-courses").with(user("teacher@example.com").roles("TEACHER")))
+        mvc.perform(get("/api/classrooms/" + room.getId() + "/subjects").with(user("teacher@example.com").roles("TEACHER")))
                 .andExpect(status().isForbidden());
     }
 
     @Test void preservesTeacherResponsibleForSubjects() throws Exception {
-        var subject = new SchoolCourse(); subject.setName("Math"); subject.setClassroom(room); subject.setTeacher(teacher);
+        var subject = new Subject(); subject.setName("Math"); subject.setClassroom(room); subject.setTeacher(teacher);
         subjects.saveAndFlush(subject);
         mvc.perform(delete("/api/classrooms/" + room.getId() + "/teachers/" + teacher.getId())
                 .with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isConflict());

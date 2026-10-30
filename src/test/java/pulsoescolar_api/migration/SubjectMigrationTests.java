@@ -7,10 +7,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import static org.junit.jupiter.api.Assertions.*;
 
-class SchoolCourseMigrationTests {
+class SubjectMigrationTests {
     @Test
     void renamesExistingTablePreservingDataAndConstraints() throws Exception {
-        String url = "jdbc:h2:mem:school_course_migration;MODE=PostgreSQL;DB_CLOSE_DELAY=-1";
+        String url = "jdbc:h2:mem:subject_migration;MODE=PostgreSQL;DB_CLOSE_DELAY=-1";
         try (var connection = DriverManager.getConnection(url, "sa", "");
              var statement = connection.createStatement()) {
             var dataSource = new SingleConnectionDataSource(connection, true);
@@ -28,23 +28,39 @@ class SchoolCourseMigrationTests {
                 originalId = result.getLong(1);
             }
 
+            Flyway.configure().dataSource(dataSource).target("21").load().migrate();
+            try (var result = statement.executeQuery("SELECT id FROM school_courses")) {
+                assertTrue(result.next());
+                assertEquals(originalId, result.getLong("id"));
+            }
             Flyway.configure().dataSource(dataSource).load().migrate();
+            statement.execute("INSERT INTO subject_topics VALUES (" + originalId + ", 0, 'Fractions', 'Operations', 'Book')");
+            statement.execute("INSERT INTO subject_themes VALUES (" + originalId + ", 'Fractions')");
 
-            try (var result = statement.executeQuery("SELECT * FROM school_courses")) {
+            try (var result = statement.executeQuery("SELECT * FROM subjects")) {
                 assertTrue(result.next());
                 assertEquals(originalId, result.getLong("id"));
                 assertEquals("Math", result.getString("name"));
+                assertEquals("", result.getString("syllabus"));
                 assertEquals(1, result.getLong("classroom_id"));
                 assertEquals(1, result.getLong("teacher_id"));
                 assertFalse(result.next());
             }
-            assertThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM subjects"));
+            assertThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM school_courses"));
+            try (var result = statement.executeQuery("SELECT title FROM subject_topics WHERE subject_id = " + originalId)) {
+                assertTrue(result.next());
+                assertEquals("Fractions", result.getString("title"));
+            }
+            try (var result = statement.executeQuery("SELECT name FROM subject_themes WHERE subject_id = " + originalId)) {
+                assertTrue(result.next());
+                assertEquals("Fractions", result.getString("name"));
+            }
             assertThrows(SQLException.class, () -> statement.execute(
-                    "INSERT INTO school_courses(name, classroom_id, teacher_id) VALUES ('Math', 1, 1)"));
+                    "INSERT INTO subjects(name, classroom_id, teacher_id) VALUES ('Math', 1, 1)"));
             assertThrows(SQLException.class, () -> statement.execute(
-                    "INSERT INTO school_courses(name, classroom_id, teacher_id) VALUES ('History', 1, 999)"));
-            statement.execute("INSERT INTO school_courses(name, classroom_id, teacher_id) VALUES ('History', 1, 1)");
-            try (var result = statement.executeQuery("SELECT id FROM school_courses WHERE name = 'History'")) {
+                    "INSERT INTO subjects(name, classroom_id, teacher_id) VALUES ('History', 1, 999)"));
+            statement.execute("INSERT INTO subjects(name, classroom_id, teacher_id) VALUES ('History', 1, 1)");
+            try (var result = statement.executeQuery("SELECT id FROM subjects WHERE name = 'History'")) {
                 assertTrue(result.next());
                 assertNotEquals(originalId, result.getLong(1));
             }
