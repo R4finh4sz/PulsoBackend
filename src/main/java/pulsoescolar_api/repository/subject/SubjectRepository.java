@@ -6,6 +6,8 @@ public interface SubjectRepository extends JpaRepository<Subject,Long> {
  @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
  @org.springframework.data.jpa.repository.Query("select c from Subject c where c.id = :id")
  java.util.Optional<Subject> findLockedById(Long id);
- boolean existsByClassroomIdAndTeacherId(Long classroomId, Long teacherId);
+ @org.springframework.data.jpa.repository.Query("select count(s) > 0 from Subject s left join s.collaborators c "
+         + "where s.classroom.id = :classroomId and (s.teacher.id = :teacherId or c.id = :teacherId)")
+ boolean hasTeacherInClassroom(Long classroomId, Long teacherId);
  List<Subject> findByClassroomId(Long classroomId);
 }

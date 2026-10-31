@@ -21,4 +21,12 @@ public class Subject {
  private java.util.Set<String> themes = new java.util.HashSet<>();
  @ManyToOne(fetch=FetchType.LAZY, optional=false) @JoinColumn(name="classroom_id") private Classroom classroom;
  @ManyToOne(fetch=FetchType.LAZY, optional=false) @JoinColumn(name="teacher_id") private SchoolUser teacher;
+ @ManyToMany
+ @JoinTable(name="subject_teachers", joinColumns=@JoinColumn(name="subject_id"),
+         inverseJoinColumns=@JoinColumn(name="teacher_id"))
+ private java.util.Set<SchoolUser> collaborators = new java.util.HashSet<>();
+
+ public boolean hasTeacher(Long userId) {
+  return teacher.getId().equals(userId) || collaborators.stream().anyMatch(t -> t.getId().equals(userId));
+ }
 }

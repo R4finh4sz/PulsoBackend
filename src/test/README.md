@@ -29,10 +29,38 @@ Para avaliar a feature de disciplinas e temas na branch `feature-subjects`:
 `GET/POST /api/classrooms/{classroomId}/subjects` lista e cria disciplinas com
 ementa e de 1 a 15 tópicos. `GET/POST/DELETE` no caminho
 `/api/classrooms/{classroomId}/subjects/{subjectId}/themes` gerencia os temas;
-a remoção recebe `?name=...`. Apenas o professor responsável, vinculado à turma e
-à mesma escola, pode alterar temas. A API utiliza somente `/subjects` para disciplinas.
+a remoção recebe `?name=...`. O responsável e os professores que aceitaram convite,
+vinculados à turma e à mesma escola, podem alterar temas. A API utiliza somente `/subjects` para disciplinas.
 A migração V22 acrescenta o conteúdo e padroniza
 as tabelas como `subjects`, `subject_topics` e `subject_themes`, preservando os dados.
+
+Na branch `feature-subject-invitations`, a migração V23 adiciona compartilhamento
+de disciplinas, convites internos e notificações. Executar os testes desse fluxo:
+
+```powershell
+.\mvnw.cmd test '-Dtest=SubjectInvitationIntegrationTest'
+```
+
+| Método | Rota | Resultado |
+|---|---|---|
+| POST | `/api/classrooms/{classroomId}/subjects/{subjectId}/invitations` | 201; recebe `{ "email": "professor@exemplo.com" }` |
+| GET | `/api/subject-invitations` | 200; somente convites do destinatário autenticado |
+| PATCH | `/api/subject-invitations/{id}` | 200; recebe `{ "status": "ACCEPTED" }` ou `{ "status": "REJECTED" }` |
+| GET | `/api/notifications` | 200; somente notificações do usuário autenticado |
+| PATCH | `/api/notifications/{id}/read` | 204; marca como lida, sem aceitar o convite |
+
+O remetente precisa participar da disciplina e estar vinculado à turma. O destinatário
+deve ser um professor cadastrado, ativo e da mesma escola. Não existe cadastro por
+convite neste fluxo e nenhum e-mail é enviado. Conta inexistente ou excluída retorna
+404; perfil ou escola incompatível retorna 403; participante existente ou convite
+pendente retorna 409. E-mails são normalizados para minúsculas e sem espaços externos.
+
+Somente o destinatário pode responder. A aceitação revalida escola, conta e vínculo
+do remetente, vincula o professor à turma e à disciplina na mesma transação e inclui
+seu ID em `teacherIds`. A recusa não concede acesso; um novo convite pode ser enviado
+depois dela. Responder novamente retorna 409. Envio e resposta usam bloqueios no
+banco para impedir notificações duplicadas ou duas decisões concorrentes. A leitura
+da notificação é idempotente e a resposta ao convite também a marca como lida.
 
 As regras de Disciplina e Tema acompanham o resumo dos schemas do frontend:
 os textos são normalizados antes de verificar os limites; título de tópico e nome
