@@ -23,11 +23,12 @@ public class StudentEnrollmentService {
     private final CurrentUser currentUser;
     private final UserAccessPolicy accessPolicy;
     private final UserMapper mapper;
+    private final pulsoescolar_api.security.classroom.ClassroomAccessPolicy classroomPolicy;
 
     @Transactional
     public void unenroll(Long classroomId, Long studentId) {
         accessPolicy.requireManager(currentUser.get().getRole());
-        classrooms.findById(classroomId);
+        classroomPolicy.requireAccess(classrooms.findById(classroomId), currentUser.get());
         var student = users.findByRole(studentId, Role.STUDENT);
         if (student.getClassroom() == null) return;
         if (!student.getClassroom().getId().equals(classroomId)) {
@@ -40,7 +41,11 @@ public class StudentEnrollmentService {
     public UserResponse enroll(Long classroomId, Long studentId) {
         accessPolicy.requireManager(currentUser.get().getRole());
         var classroom = classrooms.findById(classroomId);
+        classroomPolicy.requireAccess(classroom, currentUser.get());
         var student = users.findByRole(studentId, Role.STUDENT);
+        if (classroom.getSchool() != null && !student.belongsToSchool(classroom.getSchool().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException("O aluno deve pertencer à escola da turma.");
+        }
         student.setClassroom(classroom);
         return mapper.toResponse(student);
     }

@@ -92,10 +92,11 @@ public class ClassroomService {
             case PEDAGOGICAL_COORDINATOR -> user.getSchool() == null
                     ? List.<Classroom>of() : classrooms.findBySchoolId(user.getSchool().getId());
             case TEACHER -> classrooms.findByTeachersId(user.getId());
-            case STUDENT -> user.getClassroom() == null
-                    ? List.<Classroom>of() : List.of(user.getClassroom());
+            case STUDENT -> user.getActiveClassroom() == null
+                    ? List.<Classroom>of() : List.of(user.getActiveClassroom());
         };
         return result.stream().filter(classroom -> classroom.getDeletedAt() == null)
+                .filter(classroom -> user.getRole() == pulsoescolar_api.entity.user.Role.ADMIN || user.isInActiveSchool(classroom))
                 .map(mapper::toResponse).toList();
     }
 }

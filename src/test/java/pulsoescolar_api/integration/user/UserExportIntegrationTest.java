@@ -60,6 +60,7 @@ class UserExportIntegrationTest extends HttpIntegrationSupport {
         school.setCidade("Cidade");
         schools.saveAndFlush(school);
         teacher = users.findById(teacher.getId()).orElseThrow();
+        teacher.setSchools(new java.util.HashSet<>());
         teacher.setSchool(school);
         teacher.setBirthDate(LocalDate.of(1990, 1, 1));
         teacher.setProfilePhoto(new byte[] {1, 2, 3});
@@ -79,6 +80,9 @@ class UserExportIntegrationTest extends HttpIntegrationSupport {
         registration.setPasswordHash("registration-secret");
         registrations.saveAndFlush(registration);
         var room = vincularProfessor(criarSala());
+        var schoolRoom = classrooms.findById(room.id()).orElseThrow();
+        schoolRoom.setSchool(school);
+        classrooms.saveAndFlush(schoolRoom);
         criarSala();
         var outsider = criarUsuario(Role.TEACHER);
         var outsiderNotification = notification(outsider, "other-private-notification");

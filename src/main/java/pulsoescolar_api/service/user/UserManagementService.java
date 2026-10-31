@@ -34,7 +34,7 @@ public class UserManagementService {
             predicates.add(cb.equal(root.get("role"), role));
             predicates.add(cb.isNull(root.get("deletedAt")));
             if (actor.getRole() == Role.PEDAGOGICAL_COORDINATOR && actor.getSchool() != null) {
-                predicates.add(cb.equal(root.get("school").get("id"), actor.getSchool().getId()));
+                predicates.add(cb.isMember(actor.getSchool(), root.get("schools")));
             }
             if (q != null && !q.isBlank()) {
                 String term = "%" + q.strip().toLowerCase(Locale.ROOT)
@@ -74,7 +74,7 @@ public class UserManagementService {
 
     private SchoolUser requireSameSchool(SchoolUser user, SchoolUser actor) {
         if (actor.getRole() == Role.PEDAGOGICAL_COORDINATOR && actor.getSchool() != null
-                && (user.getSchool() == null || !actor.getSchool().getId().equals(user.getSchool().getId()))) {
+                && !user.belongsToSchool(actor.getSchool().getId())) {
             throw new org.springframework.security.access.AccessDeniedException(
                     "Você não pode acessar usuários de outra escola.");
         }

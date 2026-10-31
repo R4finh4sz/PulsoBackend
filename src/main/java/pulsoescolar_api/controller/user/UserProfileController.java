@@ -13,6 +13,12 @@ import pulsoescolar_api.service.user.UserProfileService;
 public class UserProfileController {
     private final UserProfileService service;
 
+    @org.springframework.web.bind.annotation.PatchMapping("/active-school")
+    public UserResponse activeSchool(@jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+            pulsoescolar_api.dto.user.ActiveSchoolRequest request) {
+        return service.activeSchool(request.schoolId());
+    }
+
     @GetMapping
     public UserResponse me() {
         return service.me();

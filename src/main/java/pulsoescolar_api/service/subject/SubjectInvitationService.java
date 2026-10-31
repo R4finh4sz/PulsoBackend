@@ -38,13 +38,14 @@ public class SubjectInvitationService {
             throw new ResourceNotFoundException("Disciplina não encontrada nesta turma.");
         }
         var inviter = currentUser.get();
+        access.requireAssignedTeacher(subject.getClassroom(), inviter);
         requireParticipant(subject, inviter);
         var recipient = users.findByEmail(input.email())
                 .orElseThrow(() -> new ResourceNotFoundException("Professor cadastrado não encontrado."));
         entityManager.refresh(recipient, LockModeType.PESSIMISTIC_READ);
         if (recipient.getDeletedAt() != null) throw new ResourceNotFoundException("Professor cadastrado não encontrado.");
         requireTeacher(recipient);
-        requireSchool(subject, recipient);
+        requireMembership(subject, recipient);
         if (subject.hasTeacher(recipient.getId())) {
             throw new BusinessConflictException("Este professor já participa da disciplina.");
         }
@@ -112,10 +113,17 @@ public class SubjectInvitationService {
 
     private void requireParticipant(Subject subject, SchoolUser user) {
         requireTeacher(user);
-        requireSchool(subject, user);
-        access.requireAssignedTeacher(subject.getClassroom(), user);
-        if (!subject.hasTeacher(user.getId())) {
+        requireMembership(subject, user);
+        if (!subject.hasTeacher(user.getId()) || subject.getClassroom().getTeachers().stream()
+                .noneMatch(teacher -> teacher.getId().equals(user.getId()))) {
             throw new AccessDeniedException("Somente os professores da disciplina podem enviar convites.");
+        }
+    }
+
+    private void requireMembership(Subject subject, SchoolUser user) {
+        var school = subject.getClassroom().getSchool();
+        if (school == null || !user.belongsToSchool(school.getId())) {
+            throw new AccessDeniedException("O professor deve pertencer à escola da disciplina.");
         }
     }
 

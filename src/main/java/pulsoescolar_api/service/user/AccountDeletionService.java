@@ -63,7 +63,7 @@ public class AccountDeletionService {
             var state = cb.equal(root.get("status"), status);
             return actor.getRole() == Role.ADMIN ? state : cb.and(state,
                     root.get("requester").get("role").in(Role.STUDENT, Role.TEACHER),
-                    cb.equal(root.get("requester").get("school").get("id"), actor.getSchool().getId()));
+                    cb.isMember(actor.getSchool(), root.get("requester").get("schools")));
         };
         return DeletionPageResponse.from(requests.findAll(filter,
                 PageRequest.of(page, size, Sort.by("requestedAt").ascending().and(Sort.by("id"))))
@@ -86,8 +86,7 @@ public class AccountDeletionService {
                 && requester.getRole() != Role.STUDENT && requester.getRole() != Role.TEACHER) {
             throw new AccessDeniedException("Somente administradores podem analisar pedidos de coordenadores.");
         }
-        if (actor.getRole() != Role.ADMIN && (requester.getSchool() == null
-                || !actor.getSchool().getId().equals(requester.getSchool().getId()))) {
+        if (actor.getRole() != Role.ADMIN && !requester.belongsToSchool(actor.getSchool().getId())) {
             throw new AccessDeniedException("Você não pode analisar pedidos de outra escola.");
         }
         if (request.getStatus() != DeletionStatus.PENDING) {
