@@ -46,6 +46,7 @@ public class InvitationService {
     private final Validator validator;
     private final Clock clock;
     private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
+    private final SchoolInvitationService schoolInvitations;
 
     @Transactional
     public InvitationReceipt createCoordinator(CreateCoordinatorInvitationRequest input) {
@@ -63,6 +64,8 @@ public class InvitationService {
         var actor = currentUser.get();
         accessPolicy.requireTeacherInvitation(actor);
         validate(input);
+        var existing = users.findByEmail(input.email().strip().toLowerCase(Locale.ROOT));
+        if (existing.isPresent()) return schoolInvitations.create(existing.get());
         return create(input.email(), Role.TEACHER, actor.getSchool(), actor);
     }
 

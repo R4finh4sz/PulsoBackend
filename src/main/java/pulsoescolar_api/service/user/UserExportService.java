@@ -23,6 +23,7 @@ public class UserExportService {
     private final AccountDeletionRepository deletions;
     private final UserNotificationRepository notifications;
     private final SubjectInvitationRepository invitations;
+    private final pulsoescolar_api.repository.user.SchoolInvitationRepository schoolInvitations;
 
     public UserExportResponse export() {
         var user = currentUser.get();
@@ -42,6 +43,8 @@ public class UserExportService {
                         .map(NotificationResponse::from).toList(),
                 invitations.findByRecipientIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
                         .map(i -> new UserExportResponse.Invitation(i.getId(), i.getSubject().getId(),
-                                i.getStatus(), i.getCreatedAt(), i.getRespondedAt())).toList());
+                                i.getStatus(), i.getCreatedAt(), i.getRespondedAt())).toList(),
+                schoolInvitations.findByRecipientIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
+                        .map(pulsoescolar_api.dto.user.SchoolInvitationResponse::from).toList());
     }
 }
