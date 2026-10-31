@@ -8,4 +8,5 @@ public interface AccountDeletionRepository extends JpaRepository<AccountDeletion
         JpaSpecificationExecutor<AccountDeletionRequest> {
     boolean existsByRequesterIdAndStatus(Long studentId, DeletionStatus status);
     List<AccountDeletionRequest> findByRequesterIdOrderByRequestedAtDesc(Long studentId);
+    java.util.Optional<AccountDeletionRequest> findFirstByRequesterIdOrderByRequestedAtDescIdDesc(Long requesterId);
 }
