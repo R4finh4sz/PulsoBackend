@@ -26,11 +26,13 @@ public class TeacherAssignmentService {
     private final CurrentUser currentUser;
     private final UserAccessPolicy accessPolicy;
     private final ClassroomMapper mapper;
+    private final pulsoescolar_api.security.classroom.ClassroomAccessPolicy classroomPolicy;
 
     @Transactional
     public void unassign(Long classroomId, Long teacherId) {
         accessPolicy.requireManager(currentUser.get().getRole());
         var classroom = classrooms.findById(classroomId);
+        classroomPolicy.requireAccess(classroom, currentUser.get());
         users.findByRole(teacherId, Role.TEACHER);
         if (subjects.hasTeacherInClassroom(classroomId, teacherId)) {
             throw new BusinessConflictException("O professor ainda é responsável por disciplinas desta sala.");
@@ -42,7 +44,12 @@ public class TeacherAssignmentService {
     public ClassroomResponse assign(Long classroomId, Long teacherId) {
         accessPolicy.requireManager(currentUser.get().getRole());
         var classroom = classrooms.findById(classroomId);
-        classroom.getTeachers().add(users.findByRole(teacherId, Role.TEACHER));
+        classroomPolicy.requireAccess(classroom, currentUser.get());
+        var teacher = users.findByRole(teacherId, Role.TEACHER);
+        if (classroom.getSchool() != null && !teacher.belongsToSchool(classroom.getSchool().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException("O professor deve pertencer à escola da turma.");
+        }
+        classroom.getTeachers().add(teacher);
         return mapper.toResponse(classroom);
     }
 }

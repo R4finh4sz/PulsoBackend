@@ -12,10 +12,9 @@ public class ClassroomAccessPolicy {
         requireActive(classroom);
         boolean allowed = switch (user.getRole()) {
             case ADMIN -> true;
-            case PEDAGOGICAL_COORDINATOR -> user.getSchool() == null || classroom.getSchool() == null
-                    || user.getSchool().getId().equals(classroom.getSchool().getId());
-            case TEACHER -> isAssigned(classroom, user);
-            case STUDENT -> user.getClassroom() != null
+            case PEDAGOGICAL_COORDINATOR -> user.isInActiveSchool(classroom);
+            case TEACHER -> user.isInActiveSchool(classroom) && isAssigned(classroom, user);
+            case STUDENT -> user.isInActiveSchool(classroom) && user.getClassroom() != null
                     && user.getClassroom().getId().equals(classroom.getId());
         };
         if (!allowed) {
@@ -32,7 +31,7 @@ public class ClassroomAccessPolicy {
 
     public void requireAssignedTeacher(Classroom classroom, SchoolUser user) {
         requireActive(classroom);
-        if (user.getRole() != Role.TEACHER || !isAssigned(classroom, user)) {
+        if (user.getRole() != Role.TEACHER || !user.isInActiveSchool(classroom) || !isAssigned(classroom, user)) {
             throw new AccessDeniedException("Esta operação exige um professor vinculado à sala.");
         }
     }

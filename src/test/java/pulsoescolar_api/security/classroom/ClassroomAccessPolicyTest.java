@@ -40,6 +40,7 @@ class ClassroomAccessPolicyTest {
     void devePermitirAdministradorProfessorVinculadoEAlunoDaSala(Role role) {
         // Arrange
         var user = usuario(role);
+        user.setSchool(classroom.getSchool());
         user.setClassroom(sala(1L));
         var professor = usuario(Role.TEACHER);
         classroom.getTeachers().add(professor);
@@ -62,14 +63,14 @@ class ClassroomAccessPolicyTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void devePermitirCoordenadorQuandoUmaEscolaForNula(boolean escolaDoUsuarioNula) {
+    void deveNegarCoordenadorQuandoUmaEscolaForNula(boolean escolaDoUsuarioNula) {
         // Arrange
         var user = usuario(Role.PEDAGOGICAL_COORDINATOR);
         if (escolaDoUsuarioNula) user.setSchool(null);
         else classroom.setSchool(null);
         // Act
         // Assert
-        assertDoesNotThrow(() -> policy.requireAccess(classroom, user));
+        assertThrows(AccessDeniedException.class, () -> policy.requireAccess(classroom, user));
     }
 
     @Test
@@ -87,6 +88,7 @@ class ClassroomAccessPolicyTest {
         // Arrange
         var user = usuario(Role.STUDENT);
         user.setClassroom(classroom);
+        user.setSchool(classroom.getSchool());
         // Act
         var erro = assertThrows(AccessDeniedException.class, () -> policy.requireRosterAccess(classroom, user));
         // Assert

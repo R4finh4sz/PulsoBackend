@@ -49,7 +49,7 @@ public class SchoolService {
         if (result.isEmpty()) return List.of();
         var coordinators = users.findByRoleAndDeletedAtIsNullAndSchoolIdIn(Role.PEDAGOGICAL_COORDINATOR,
                 result.stream().map(School::getId).toList()).stream().collect(java.util.stream.Collectors.toMap(
-                        u -> u.getSchool().getId(),
+                        u -> u.getEnrollmentSchool().getId(),
                         u -> new SchoolResponse.Coordinator(u.getId(), u.getFullName(), u.getEmail())));
         return result.stream().map(s -> response(s, coordinators.get(s.getId()))).toList();
     }

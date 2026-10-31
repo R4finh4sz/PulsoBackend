@@ -29,18 +29,30 @@ public class UserProfileService {
         return mapper.toResponse(currentUser.get());
     }
 
+    @Transactional
+    public UserResponse activeSchool(Long schoolId) {
+        var user = currentUser.get();
+        var school = user.getSchools().stream().filter(value -> value.getId().equals(schoolId)).findFirst()
+                .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
+                        "Você não possui vínculo com esta escola."));
+        user.setActiveSchool(school);
+        return mapper.toResponse(user);
+    }
+
     public UserProfileResponse profile() {
         var user = currentUser.get();
         var rooms = switch (user.getRole()) {
             case TEACHER -> classrooms.findByTeachersId(user.getId());
-            case STUDENT -> user.getClassroom() == null ? List.<Classroom>of() : List.of(user.getClassroom());
+            case STUDENT -> user.getActiveClassroom() == null ? List.<Classroom>of() : List.of(user.getActiveClassroom());
             case PEDAGOGICAL_COORDINATOR -> user.getSchool() == null
                     ? List.<Classroom>of() : classrooms.findBySchoolId(user.getSchool().getId());
             case ADMIN -> List.<Classroom>of();
         };
         return new UserProfileResponse(mapper.toResponse(user),
-                user.getSchool() == null ? List.of() : List.of(SchoolOption.from(user.getSchool())),
+                user.getSchools().stream().sorted(java.util.Comparator.comparing(pulsoescolar_api.entity.school.School::getId))
+                        .map(SchoolOption::from).toList(),
                 rooms.stream().filter(room -> room.getDeletedAt() == null)
+                        .filter(user::isInActiveSchool)
                         .map(classroomMapper::toResponse).toList(),
                 deletionRequests.findFirstByRequesterIdOrderByRequestedAtDescIdDesc(user.getId())
                         .map(DeletionResponse::from).orElse(null));

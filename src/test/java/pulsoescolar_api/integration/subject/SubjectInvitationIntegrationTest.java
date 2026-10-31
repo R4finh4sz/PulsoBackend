@@ -240,7 +240,11 @@ class SubjectInvitationIntegrationTest extends HttpIntegrationSupport {
     @Test
     void enviar_ouAceitar_comOutraEscola_deveBloquearSemVinculo() {
         var another = school();
-        tx().executeWithoutResult(status -> users.findById(recipient.getId()).orElseThrow().setSchool(another));
+        tx().executeWithoutResult(status -> {
+            var user = users.findById(recipient.getId()).orElseThrow();
+            user.setSchool(another);
+            user.getSchools().removeIf(value -> value.getId().equals(school.getId()));
+        });
         assertThat(request(POST, sendPath(), teacherToken, Map.of("email", recipient.getEmail()), String.class).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
         tx().executeWithoutResult(status -> users.findById(recipient.getId()).orElseThrow().setSchool(school));
@@ -280,6 +284,24 @@ class SubjectInvitationIntegrationTest extends HttpIntegrationSupport {
                 .containsExactlyInAnyOrder(201, 409);
         assertThat(invitations.findByRecipientIdOrderByCreatedAtDescIdDesc(recipient.getId())).hasSize(1);
         assertThat(notifications.findByRecipientIdOrderByCreatedAtDescIdDesc(recipient.getId())).hasSize(1);
+    }
+
+    @Test
+    void convite_deveUsarVinculoDoDestinatarioSemDependerDaSelecaoDoRemetente() {
+        var another = school();
+        tx().executeWithoutResult(status -> {
+            users.findById(recipient.getId()).orElseThrow().getSchools().add(another);
+            users.findById(teacher.getId()).orElseThrow().getSchools().add(another);
+        });
+        assertThat(request(PATCH, "/api/me/active-school", recipientToken,
+                Map.of("schoolId", another.getId()), String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        var invitation = invite();
+        assertThat(request(PATCH, "/api/me/active-school", teacherToken,
+                Map.of("schoolId", another.getId()), String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(request(PATCH, "/api/me/active-school", recipientToken,
+                Map.of("schoolId", school.getId()), String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(request(PATCH, answerPath(invitation.id()), recipientToken,
+                Map.of("status", "ACCEPTED"), String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
