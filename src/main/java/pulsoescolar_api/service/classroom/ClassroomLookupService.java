@@ -15,6 +15,7 @@ public class ClassroomLookupService {
 
     public Classroom findById(Long id) {
         return classrooms.findById(id)
+                .filter(classroom -> classroom.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("Sala não encontrada."));
     }
 }

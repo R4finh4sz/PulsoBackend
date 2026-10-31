@@ -8,7 +8,8 @@ import pulsoescolar_api.entity.user.SchoolUser;
 public class UserMapper {
     public UserResponse toResponse(SchoolUser user) {
         return new UserResponse(user.getId(), user.getFullName(), user.getRa(), user.getEmail(),
-                user.getRole(), user.getClassroom() == null ? null : user.getClassroom().getId(),
+                user.getRole(), user.getClassroom() == null || user.getClassroom().getDeletedAt() != null
+                        ? null : user.getClassroom().getId(),
                 user.getSchool() == null ? null : user.getSchool().getId());
     }
 }

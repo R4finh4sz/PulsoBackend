@@ -30,6 +30,21 @@ public class ClassroomService {
     private final CurrentUser currentUser;
     private final UserAccessPolicy accessPolicy;
     private final ClassroomMapper mapper;
+    private final java.time.Clock clock;
+
+    @Transactional
+    public void delete(Long id) {
+        var user = currentUser.get();
+        accessPolicy.requireManager(user.getRole());
+        var classroom = lookup.findById(id);
+        if (user.getRole() != pulsoescolar_api.entity.user.Role.ADMIN
+                && (user.getSchool() == null || classroom.getSchool() == null
+                || !user.getSchool().getId().equals(classroom.getSchool().getId()))) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "A exclusão exige um coordenador vinculado à escola da turma ou administrador.");
+        }
+        classroom.setDeletedAt(clock.instant());
+    }
 
     public ClassroomResponse get(Long id) {
         var classroom = lookup.findById(id);
@@ -80,6 +95,7 @@ public class ClassroomService {
             case STUDENT -> user.getClassroom() == null
                     ? List.<Classroom>of() : List.of(user.getClassroom());
         };
-        return result.stream().map(mapper::toResponse).toList();
+        return result.stream().filter(classroom -> classroom.getDeletedAt() == null)
+                .map(mapper::toResponse).toList();
     }
 }

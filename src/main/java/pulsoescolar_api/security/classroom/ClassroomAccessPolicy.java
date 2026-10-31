@@ -9,6 +9,7 @@ import pulsoescolar_api.entity.user.SchoolUser;
 @Component
 public class ClassroomAccessPolicy {
     public void requireAccess(Classroom classroom, SchoolUser user) {
+        requireActive(classroom);
         boolean allowed = switch (user.getRole()) {
             case ADMIN -> true;
             case PEDAGOGICAL_COORDINATOR -> user.getSchool() == null || classroom.getSchool() == null
@@ -30,6 +31,7 @@ public class ClassroomAccessPolicy {
     }
 
     public void requireAssignedTeacher(Classroom classroom, SchoolUser user) {
+        requireActive(classroom);
         if (user.getRole() != Role.TEACHER || !isAssigned(classroom, user)) {
             throw new AccessDeniedException("Esta operação exige um professor vinculado à sala.");
         }
@@ -37,5 +39,11 @@ public class ClassroomAccessPolicy {
 
     private boolean isAssigned(Classroom classroom, SchoolUser user) {
         return classroom.getTeachers().stream().anyMatch(teacher -> teacher.getId().equals(user.getId()));
+    }
+
+    private void requireActive(Classroom classroom) {
+        if (classroom.getDeletedAt() != null) {
+            throw new pulsoescolar_api.exception.ResourceNotFoundException("Sala não encontrada.");
+        }
     }
 }
