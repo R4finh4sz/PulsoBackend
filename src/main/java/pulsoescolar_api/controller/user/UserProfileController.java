@@ -18,6 +18,11 @@ public class UserProfileController {
         return service.me();
     }
 
+    @GetMapping("/profile")
+    public pulsoescolar_api.dto.user.UserProfileResponse profile() {
+        return service.profile();
+    }
+
     @GetMapping(value = "/photo", produces = org.springframework.http.MediaType.IMAGE_PNG_VALUE)
     public org.springframework.http.ResponseEntity<byte[]> photo() {
         return org.springframework.http.ResponseEntity.ok()
