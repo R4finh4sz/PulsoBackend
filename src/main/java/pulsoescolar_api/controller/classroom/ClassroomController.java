@@ -25,6 +25,12 @@ import static org.springframework.http.HttpStatus.CREATED;
 public class ClassroomController {
     private final ClassroomService service;
 
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        service.delete(id);
+    }
+
     @GetMapping("/{id}")
     public ClassroomResponse get(@PathVariable Long id) {
         return service.get(id);

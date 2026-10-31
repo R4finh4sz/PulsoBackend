@@ -40,7 +40,8 @@ public class UserProfileService {
         };
         return new UserProfileResponse(mapper.toResponse(user),
                 user.getSchool() == null ? List.of() : List.of(SchoolOption.from(user.getSchool())),
-                rooms.stream().map(classroomMapper::toResponse).toList(),
+                rooms.stream().filter(room -> room.getDeletedAt() == null)
+                        .map(classroomMapper::toResponse).toList(),
                 deletionRequests.findFirstByRequesterIdOrderByRequestedAtDescIdDesc(user.getId())
                         .map(DeletionResponse::from).orElse(null));
     }

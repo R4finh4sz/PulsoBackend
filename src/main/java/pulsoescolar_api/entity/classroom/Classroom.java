@@ -8,6 +8,7 @@ import java.util.*;
 @Entity @Table(name="classrooms", uniqueConstraints=@UniqueConstraint(name="uk_classroom_name_identifier", columnNames={"name", "identifier"}))
 @Getter @Setter @NoArgsConstructor
 public class Classroom {
+ private java.time.Instant deletedAt;
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="school_id") private School school;
  @Column(nullable=false, length=100) private String name;

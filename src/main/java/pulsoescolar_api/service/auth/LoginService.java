@@ -66,7 +66,8 @@ public class LoginService {
         sessions.save(session);
         boolean termsSatisfied = user.getRole() == Role.ADMIN || user.isTermsAccepted();
         var loginUser = new LoginResponse.LoginUser(user.getRole(),
-                user.getClassroom() == null ? null : user.getClassroom().getId(),
+                user.getClassroom() == null || user.getClassroom().getDeletedAt() != null
+                        ? null : user.getClassroom().getId(),
                 user.getSchool() == null ? null : user.getSchool().getId(), termsSatisfied, user.getTermsAcceptedVersions());
         return new LoginResponse(token.getTokenValue(), "Bearer", expiresAt, loginUser,
                 true, session.getCodeExpiresAt(), session.getResendAvailableAt());

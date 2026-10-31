@@ -126,6 +126,9 @@ public class SubjectInvitationService {
     }
 
     private void requireSchool(Subject subject, SchoolUser user) {
+        if (subject.getClassroom().getDeletedAt() != null) {
+            throw new ResourceNotFoundException("Sala não encontrada.");
+        }
         var school = subject.getClassroom().getSchool();
         if (school == null || user.getSchool() == null || !school.getId().equals(user.getSchool().getId())) {
             throw new AccessDeniedException("O professor deve pertencer à escola da disciplina.");
