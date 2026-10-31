@@ -42,3 +42,6 @@ build/
 
 ### Local test logs ###
 /logs/
+
+### Local Thunder Client ###
+/thunder-client/
