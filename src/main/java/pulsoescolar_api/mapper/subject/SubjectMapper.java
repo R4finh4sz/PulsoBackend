@@ -15,6 +15,8 @@ public class SubjectMapper {
                 subject.getClassroom().getId(), subject.getTeacher().getId(),
                 syllabus, subject.getTopics().stream()
                         .map(t -> new CreateSubjectRequest.Topic(t.getTitle(), t.getDescription(), t.getReferences())).toList(),
-                java.util.List.of(subject.getTeacher().getId()));
+                java.util.stream.Stream.concat(java.util.stream.Stream.of(subject.getTeacher()), subject.getCollaborators().stream())
+                        .filter(t -> t.getDeletedAt() == null)
+                        .map(t -> t.getId()).distinct().sorted().toList());
     }
 }

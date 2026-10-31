@@ -99,8 +99,8 @@ public class SubjectService {
         requireSchool(subject.getClassroom(), user);
         if (writing) {
             accessPolicy.requireAssignedTeacher(subject.getClassroom(), user);
-            if (!subject.getTeacher().getId().equals(user.getId())) {
-                throw new AccessDeniedException("Somente o professor responsável pode alterar os temas.");
+            if (!subject.hasTeacher(user.getId())) {
+                throw new AccessDeniedException("Somente os professores da disciplina podem alterar os temas.");
             }
         }
         return subject;

@@ -34,7 +34,7 @@ public abstract class HttpIntegrationSupport {
     @Autowired PasswordEncoder passwords;
     @Autowired protected ClassroomRepository classrooms;
     @Autowired protected SubjectRepository subjects;
-    @MockitoBean EmailSender emailSender;
+    @MockitoBean protected EmailSender emailSender;
     protected RestClient client;
     protected String managerToken;
     protected String teacherToken;
@@ -58,7 +58,7 @@ public abstract class HttpIntegrationSupport {
         teacherToken = autenticar(teacher);
     }
 
-    private SchoolUser criarUsuario(Role role) {
+    protected SchoolUser criarUsuario(Role role) {
         var user = new SchoolUser();
         String id = UUID.randomUUID().toString();
         user.setFullName("Teste " + role);
@@ -69,7 +69,7 @@ public abstract class HttpIntegrationSupport {
         return users.saveAndFlush(user);
     }
 
-    private String autenticar(SchoolUser user) throws Exception {
+    protected String autenticar(SchoolUser user) throws Exception {
         var response = client.post().uri("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("email", user.getEmail(), "password", "SenhaTeste123"))
                 .retrieve().toEntity(LoginResponse.class);

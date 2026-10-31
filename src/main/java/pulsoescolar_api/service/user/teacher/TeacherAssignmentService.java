@@ -32,7 +32,7 @@ public class TeacherAssignmentService {
         accessPolicy.requireManager(currentUser.get().getRole());
         var classroom = classrooms.findById(classroomId);
         users.findByRole(teacherId, Role.TEACHER);
-        if (subjects.existsByClassroomIdAndTeacherId(classroomId, teacherId)) {
+        if (subjects.hasTeacherInClassroom(classroomId, teacherId)) {
             throw new BusinessConflictException("O professor ainda é responsável por disciplinas desta sala.");
         }
         classroom.getTeachers().removeIf(teacher -> teacher.getId().equals(teacherId));
