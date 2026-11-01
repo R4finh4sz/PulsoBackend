@@ -186,7 +186,7 @@ class JwtAuthenticationTests {
     }
 
     @Test void mailFailureLeavesSessionPendingAndAllowsLaterResend() throws Exception {
-        org.mockito.Mockito.doThrow(new pulsoescolar_api.exception.EmailDeliveryException())
+        org.mockito.Mockito.doThrow(new pulsoescolar_api.exception.mail.EmailDeliveryException())
                 .when(twoFactorMail).send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
         var result = mvc.perform(post("/api/auth/login").contentType("application/json")
                 .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))

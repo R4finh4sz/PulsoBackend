@@ -1,8 +1,8 @@
 package pulsoescolar_api.service.user;
 
-import pulsoescolar_api.exception.BusinessConflictException;
-import pulsoescolar_api.exception.BusinessValidationException;
-import pulsoescolar_api.exception.ResourceNotFoundException;
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
 
 import java.time.Clock;
 import lombok.RequiredArgsConstructor;

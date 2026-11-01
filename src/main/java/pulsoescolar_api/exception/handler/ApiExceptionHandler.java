@@ -1,10 +1,25 @@
-package pulsoescolar_api.exception;
+package pulsoescolar_api.exception.handler;
+
+import pulsoescolar_api.exception.auth.SessionUnavailableException;
+import pulsoescolar_api.exception.auth.VerificationCooldownException;
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.common.OperationNotAllowedException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
+import pulsoescolar_api.exception.invitation.InvitationUnavailableException;
+import pulsoescolar_api.exception.mail.EmailDeliveryException;
+import pulsoescolar_api.exception.user.InvalidUserRoleException;
+import pulsoescolar_api.exception.user.RegistrationPhotoTooLargeException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 @RestControllerAdvice
 public class ApiExceptionHandler {
+ @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+ public ProblemDetail accessDenied(org.springframework.security.access.AccessDeniedException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+ }
  @ExceptionHandler(BusinessValidationException.class)
  public ProblemDetail businessValidation(BusinessValidationException ex) {
   return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());

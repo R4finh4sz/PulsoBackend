@@ -5,8 +5,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import pulsoescolar_api.entity.user.Role;
 import pulsoescolar_api.entity.user.SchoolUser;
-import pulsoescolar_api.exception.InvalidUserRoleException;
-import pulsoescolar_api.exception.ResourceNotFoundException;
+import pulsoescolar_api.exception.user.InvalidUserRoleException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
 import pulsoescolar_api.repository.user.UserRepository;
 
 @Service

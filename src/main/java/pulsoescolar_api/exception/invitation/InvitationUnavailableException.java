@@ -1,4 +1,4 @@
-package pulsoescolar_api.exception;
+package pulsoescolar_api.exception.invitation;
 
 public class InvitationUnavailableException extends RuntimeException {
     public InvitationUnavailableException() {

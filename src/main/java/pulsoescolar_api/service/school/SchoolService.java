@@ -58,7 +58,7 @@ public class SchoolService {
     public SchoolResponse updateLocation(Long id, UpdateSchoolLocationRequest request) {
         requireAdmin();
         var school = schools.findById(id).orElseThrow(() ->
-                new pulsoescolar_api.exception.ResourceNotFoundException("Escola não encontrada."));
+                new pulsoescolar_api.exception.common.ResourceNotFoundException("Escola não encontrada."));
         school.setCep(request.cep().replace("-", ""));
         school.setUf(request.uf().toUpperCase(java.util.Locale.ROOT));
         return response(school);

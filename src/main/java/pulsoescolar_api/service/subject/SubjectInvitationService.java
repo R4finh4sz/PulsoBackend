@@ -1,5 +1,9 @@
 package pulsoescolar_api.service.subject;
 
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
+
 import jakarta.persistence.*;
 import java.time.Clock;
 import java.util.List;
@@ -11,7 +15,6 @@ import pulsoescolar_api.dto.subject.*;
 import pulsoescolar_api.entity.notification.UserNotification;
 import pulsoescolar_api.entity.subject.*;
 import pulsoescolar_api.entity.user.*;
-import pulsoescolar_api.exception.*;
 import pulsoescolar_api.repository.notification.UserNotificationRepository;
 import pulsoescolar_api.repository.subject.*;
 import pulsoescolar_api.repository.user.UserRepository;
@@ -89,8 +92,10 @@ public class SubjectInvitationService {
             throw new AccessDeniedException("Somente o destinatário pode responder ao convite.");
         }
         // Envios e respostas bloqueiam primeiro a disciplina, depois o convite e os vínculos.
-        var subject = subjects.findLockedById(found.getSubject().getId()).orElseThrow();
-        var invitation = invitations.findLockedById(id).orElseThrow();
+        var subject = subjects.findLockedById(found.getSubject().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Disciplina não encontrada."));
+        var invitation = invitations.findLockedById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Convite não encontrado."));
         entityManager.refresh(invitation);
         if (invitation.getStatus() != SubjectInvitationStatus.PENDING) {
             throw new BusinessConflictException("Este convite já foi respondido.");
@@ -106,7 +111,8 @@ public class SubjectInvitationService {
         }
         invitation.setStatus(input.status());
         invitation.setRespondedAt(clock.instant());
-        var notification = notifications.findMineForUpdate(invitation.getNotification().getId(), user.getId()).orElseThrow();
+        var notification = notifications.findMineForUpdate(invitation.getNotification().getId(), user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Notificação não encontrada."));
         if (notification.getReadAt() == null) notification.setReadAt(clock.instant());
         return SubjectInvitationResponse.from(invitation);
     }

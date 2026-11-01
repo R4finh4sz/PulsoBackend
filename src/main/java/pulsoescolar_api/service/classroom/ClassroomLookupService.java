@@ -4,7 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import pulsoescolar_api.entity.classroom.Classroom;
-import pulsoescolar_api.exception.ResourceNotFoundException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
 import pulsoescolar_api.repository.classroom.ClassroomRepository;
 
 @Service

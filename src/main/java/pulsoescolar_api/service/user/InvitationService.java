@@ -1,12 +1,12 @@
 package pulsoescolar_api.service.user;
 
-import pulsoescolar_api.exception.BusinessConflictException;
-import pulsoescolar_api.exception.BusinessValidationException;
-import pulsoescolar_api.exception.InvalidVerificationCodeException;
-import pulsoescolar_api.exception.InvitationUnavailableException;
-import pulsoescolar_api.exception.OperationNotAllowedException;
-import pulsoescolar_api.exception.ResourceNotFoundException;
-import pulsoescolar_api.exception.TermsVersionChangedException;
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.auth.InvalidVerificationCodeException;
+import pulsoescolar_api.exception.invitation.InvitationUnavailableException;
+import pulsoescolar_api.exception.common.OperationNotAllowedException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
+import pulsoescolar_api.exception.terms.TermsVersionChangedException;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;

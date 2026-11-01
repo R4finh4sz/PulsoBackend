@@ -1,5 +1,9 @@
 package pulsoescolar_api.service.user;
 
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.time.Clock;
@@ -12,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.user.*;
 import pulsoescolar_api.entity.user.*;
 import pulsoescolar_api.entity.notification.UserNotification;
-import pulsoescolar_api.exception.*;
 import pulsoescolar_api.repository.user.SchoolInvitationRepository;
 import pulsoescolar_api.repository.notification.UserNotificationRepository;
 import pulsoescolar_api.security.CurrentUser;

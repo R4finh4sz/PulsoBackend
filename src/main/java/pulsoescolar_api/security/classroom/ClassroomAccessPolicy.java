@@ -42,7 +42,7 @@ public class ClassroomAccessPolicy {
 
     private void requireActive(Classroom classroom) {
         if (classroom.getDeletedAt() != null) {
-            throw new pulsoescolar_api.exception.ResourceNotFoundException("Sala não encontrada.");
+            throw new pulsoescolar_api.exception.common.ResourceNotFoundException("Sala não encontrada.");
         }
     }
 }

@@ -1,4 +1,4 @@
-package pulsoescolar_api.exception;
+package pulsoescolar_api.exception.common;
 
 public class BusinessValidationException extends RuntimeException {
     public BusinessValidationException(String message) {

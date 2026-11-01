@@ -1,6 +1,6 @@
 package pulsoescolar_api.controller.auth;
 
-import pulsoescolar_api.exception.BusinessValidationException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

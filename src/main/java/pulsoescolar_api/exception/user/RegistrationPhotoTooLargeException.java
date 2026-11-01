@@ -1,4 +1,4 @@
-package pulsoescolar_api.exception;
+package pulsoescolar_api.exception.user;
 
 public class RegistrationPhotoTooLargeException extends RuntimeException {
     public RegistrationPhotoTooLargeException() {

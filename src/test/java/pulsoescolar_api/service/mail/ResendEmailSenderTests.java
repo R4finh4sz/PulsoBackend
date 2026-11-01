@@ -8,7 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import pulsoescolar_api.config.ResendProperties;
-import pulsoescolar_api.exception.EmailDeliveryException;
+import pulsoescolar_api.exception.mail.EmailDeliveryException;
 import pulsoescolar_api.service.mail.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

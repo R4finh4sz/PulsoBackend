@@ -1,6 +1,6 @@
 package pulsoescolar_api.service.user.teacher;
 
-import pulsoescolar_api.exception.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessConflictException;
 
 import pulsoescolar_api.repository.subject.SubjectRepository;
 
