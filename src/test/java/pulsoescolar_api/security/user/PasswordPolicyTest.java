@@ -6,8 +6,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
-import pulsoescolar_api.exception.InvalidPasswordException;
-import pulsoescolar_api.exception.PasswordTooLongException;
+import pulsoescolar_api.exception.auth.InvalidPasswordException;
+import pulsoescolar_api.exception.auth.PasswordTooLongException;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PasswordPolicyTest {

@@ -3,6 +3,10 @@ package pulsoescolar_api.dto.user;
 import java.time.Instant;
 import pulsoescolar_api.entity.user.Role;
 
-public record InvitationReceipt(String token, String email, Role role, Long schoolId, Instant expiresAt) {
+public record InvitationReceipt(String token, String email, Role role, Long schoolId, Instant expiresAt,
+        Long internalInvitationId) {
+    public InvitationReceipt(String token, String email, Role role, Long schoolId, Instant expiresAt) {
+        this(token, email, role, schoolId, expiresAt, null);
+    }
     @Override public String toString() { return "InvitationReceipt[REDACTED]"; }
 }

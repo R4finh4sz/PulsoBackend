@@ -1,7 +1,7 @@
 package pulsoescolar_api.service.auth;
 
-import pulsoescolar_api.exception.BusinessValidationException;
-import pulsoescolar_api.exception.SessionUnavailableException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.auth.SessionUnavailableException;
 
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;

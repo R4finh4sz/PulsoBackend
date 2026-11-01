@@ -1,5 +1,9 @@
 package pulsoescolar_api.service.auth;
 
+import pulsoescolar_api.exception.auth.InvalidPasswordException;
+import pulsoescolar_api.exception.auth.SessionUnavailableException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -11,7 +15,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import pulsoescolar_api.dto.auth.ChangePasswordRequest;
 import pulsoescolar_api.entity.user.SchoolUser;
-import pulsoescolar_api.exception.*;
 import pulsoescolar_api.repository.auth.AuthSessionRepository;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.security.user.PasswordPolicy;

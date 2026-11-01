@@ -1,9 +1,9 @@
 package pulsoescolar_api.service.terms;
 
-import pulsoescolar_api.exception.BusinessConflictException;
-import pulsoescolar_api.exception.BusinessValidationException;
-import pulsoescolar_api.exception.ResourceNotFoundException;
-import pulsoescolar_api.exception.TermsVersionChangedException;
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
+import pulsoescolar_api.exception.terms.TermsVersionChangedException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -27,7 +27,8 @@ public class TermsService {
     private final CurrentUser currentUser;
 
     public TermsResponse get() {
-        var term = terms.findById(1L).orElseThrow();
+        var term = terms.findById(1L)
+                .orElseThrow(() -> new ResourceNotFoundException("Nenhum termo publicado."));
         requirePublished(term);
         return response(term);
     }
@@ -38,6 +39,7 @@ public class TermsService {
             throw new AccessDeniedException("Esta operação exige acesso de administrador.");
         }
         var term = terms.lockCurrent();
+        if (term == null) throw new ResourceNotFoundException("Nenhum termo publicado.");
         if (create && term.getVersion() > 0) {
             throw new BusinessConflictException("Os termos já existem. Use a rota de edição.");
         }
@@ -77,7 +79,7 @@ public class TermsService {
     }
 
     private void requirePublished(TermsOfUse term) {
-        if (term.getVersion() == 0) {
+        if (term == null || term.getVersion() == 0) {
             throw new ResourceNotFoundException("Nenhum termo publicado.");
         }
     }

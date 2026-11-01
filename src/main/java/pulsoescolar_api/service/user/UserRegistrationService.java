@@ -1,7 +1,7 @@
 package pulsoescolar_api.service.user;
 
-import pulsoescolar_api.exception.BusinessValidationException;
-import pulsoescolar_api.exception.ResourceNotFoundException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

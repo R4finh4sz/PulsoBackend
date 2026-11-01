@@ -1,5 +1,21 @@
 package pulsoescolar_api.exception;
 
+import pulsoescolar_api.exception.auth.InvalidVerificationCodeException;
+import pulsoescolar_api.exception.auth.SessionUnavailableException;
+import pulsoescolar_api.exception.auth.VerificationAlreadyCompletedException;
+import pulsoescolar_api.exception.auth.VerificationCodeUnavailableException;
+import pulsoescolar_api.exception.auth.VerificationCooldownException;
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.common.OperationNotAllowedException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
+import pulsoescolar_api.exception.handler.ApiExceptionHandler;
+import pulsoescolar_api.exception.invitation.InvitationUnavailableException;
+import pulsoescolar_api.exception.school.SchoolAlreadyHasCoordinatorException;
+import pulsoescolar_api.exception.terms.TermsVersionChangedException;
+import pulsoescolar_api.exception.user.InvalidRegistrationPhotoException;
+import pulsoescolar_api.exception.user.RegistrationPhotoTooLargeException;
+
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -13,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ApiExceptionHandlerTests {
     static Stream<Arguments> failures() {
         return Stream.of(
+                Arguments.of(new org.springframework.security.access.AccessDeniedException("Acesso negado."), 403),
                 Arguments.of(new SchoolAlreadyHasCoordinatorException(), 409),
                 Arguments.of(new TermsVersionChangedException(), 409),
                 Arguments.of(new VerificationAlreadyCompletedException(), 409),

@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.notification.NotificationResponse;
-import pulsoescolar_api.exception.ResourceNotFoundException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
 import pulsoescolar_api.repository.notification.UserNotificationRepository;
 import pulsoescolar_api.security.CurrentUser;
 

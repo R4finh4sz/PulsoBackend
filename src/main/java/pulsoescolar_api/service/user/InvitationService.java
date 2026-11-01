@@ -1,12 +1,12 @@
 package pulsoescolar_api.service.user;
 
-import pulsoescolar_api.exception.BusinessConflictException;
-import pulsoescolar_api.exception.BusinessValidationException;
-import pulsoescolar_api.exception.InvalidVerificationCodeException;
-import pulsoescolar_api.exception.InvitationUnavailableException;
-import pulsoescolar_api.exception.OperationNotAllowedException;
-import pulsoescolar_api.exception.ResourceNotFoundException;
-import pulsoescolar_api.exception.TermsVersionChangedException;
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.auth.InvalidVerificationCodeException;
+import pulsoescolar_api.exception.invitation.InvitationUnavailableException;
+import pulsoescolar_api.exception.common.OperationNotAllowedException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
+import pulsoescolar_api.exception.terms.TermsVersionChangedException;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -46,6 +46,7 @@ public class InvitationService {
     private final Validator validator;
     private final Clock clock;
     private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
+    private final SchoolInvitationService schoolInvitations;
 
     @Transactional
     public InvitationReceipt createCoordinator(CreateCoordinatorInvitationRequest input) {
@@ -63,6 +64,8 @@ public class InvitationService {
         var actor = currentUser.get();
         accessPolicy.requireTeacherInvitation(actor);
         validate(input);
+        var existing = users.findByEmail(input.email().strip().toLowerCase(Locale.ROOT));
+        if (existing.isPresent()) return schoolInvitations.create(existing.get());
         return create(input.email(), Role.TEACHER, actor.getSchool(), actor);
     }
 

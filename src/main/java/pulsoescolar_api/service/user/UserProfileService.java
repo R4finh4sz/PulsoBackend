@@ -60,7 +60,7 @@ public class UserProfileService {
 
     public byte[] photo() {
         var photo = currentUser.get().getProfilePhoto();
-        if (photo == null) throw new pulsoescolar_api.exception.ResourceNotFoundException("Foto não encontrada.");
+        if (photo == null) throw new pulsoescolar_api.exception.common.ResourceNotFoundException("Foto não encontrada.");
         return photo;
     }
 }

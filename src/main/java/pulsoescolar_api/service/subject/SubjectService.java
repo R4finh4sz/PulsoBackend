@@ -1,5 +1,9 @@
 package pulsoescolar_api.service.subject;
 
+import pulsoescolar_api.exception.common.BusinessConflictException;
+import pulsoescolar_api.exception.common.BusinessValidationException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
+
 import pulsoescolar_api.service.classroom.ClassroomLookupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +22,6 @@ import pulsoescolar_api.entity.subject.SubjectTopic;
 import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.entity.user.SchoolUser;
 import pulsoescolar_api.entity.user.Role;
-import pulsoescolar_api.exception.*;
 import org.springframework.security.access.AccessDeniedException;
 
 @Service

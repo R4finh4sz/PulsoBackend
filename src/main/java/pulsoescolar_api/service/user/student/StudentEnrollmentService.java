@@ -1,6 +1,6 @@
 package pulsoescolar_api.service.user.student;
 
-import pulsoescolar_api.exception.ResourceNotFoundException;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
 
 import pulsoescolar_api.service.classroom.ClassroomLookupService;
 import pulsoescolar_api.service.user.UserLookupService;

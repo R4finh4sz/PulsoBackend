@@ -3,8 +3,8 @@ package pulsoescolar_api.security.user;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
-import pulsoescolar_api.exception.InvalidPasswordException;
-import pulsoescolar_api.exception.PasswordTooLongException;
+import pulsoescolar_api.exception.auth.InvalidPasswordException;
+import pulsoescolar_api.exception.auth.PasswordTooLongException;
 
 @Component
 public class PasswordPolicy {

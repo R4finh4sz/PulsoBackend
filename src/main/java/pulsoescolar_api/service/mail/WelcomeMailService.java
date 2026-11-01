@@ -2,7 +2,7 @@ package pulsoescolar_api.service.mail;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import pulsoescolar_api.exception.EmailDeliveryException;
+import pulsoescolar_api.exception.mail.EmailDeliveryException;
 
 @Service
 @RequiredArgsConstructor

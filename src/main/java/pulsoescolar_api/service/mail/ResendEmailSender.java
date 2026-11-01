@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import pulsoescolar_api.config.ResendProperties;
-import pulsoescolar_api.exception.EmailDeliveryException;
+import pulsoescolar_api.exception.mail.EmailDeliveryException;
 
 @Component
 @RequiredArgsConstructor

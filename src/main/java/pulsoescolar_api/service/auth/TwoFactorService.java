@@ -1,10 +1,10 @@
 package pulsoescolar_api.service.auth;
 
-import pulsoescolar_api.exception.InvalidVerificationCodeException;
-import pulsoescolar_api.exception.SessionUnavailableException;
-import pulsoescolar_api.exception.VerificationAlreadyCompletedException;
-import pulsoescolar_api.exception.VerificationCodeUnavailableException;
-import pulsoescolar_api.exception.VerificationCooldownException;
+import pulsoescolar_api.exception.auth.InvalidVerificationCodeException;
+import pulsoescolar_api.exception.auth.SessionUnavailableException;
+import pulsoescolar_api.exception.auth.VerificationAlreadyCompletedException;
+import pulsoescolar_api.exception.auth.VerificationCodeUnavailableException;
+import pulsoescolar_api.exception.auth.VerificationCooldownException;
 
 import java.security.SecureRandom;
 import java.time.Clock;

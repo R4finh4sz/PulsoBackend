@@ -1,7 +1,7 @@
 package pulsoescolar_api.service.user;
 
-import pulsoescolar_api.exception.InvalidRegistrationPhotoException;
-import pulsoescolar_api.exception.RegistrationPhotoTooLargeException;
+import pulsoescolar_api.exception.user.InvalidRegistrationPhotoException;
+import pulsoescolar_api.exception.user.RegistrationPhotoTooLargeException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

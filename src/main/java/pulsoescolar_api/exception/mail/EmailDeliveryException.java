@@ -1,4 +1,4 @@
-package pulsoescolar_api.exception;
+package pulsoescolar_api.exception.mail;
 public class EmailDeliveryException extends RuntimeException {
     public EmailDeliveryException(String message) {
         super(message);

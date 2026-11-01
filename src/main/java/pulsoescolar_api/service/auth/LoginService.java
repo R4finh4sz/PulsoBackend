@@ -1,6 +1,6 @@
 package pulsoescolar_api.service.auth;
 
-import pulsoescolar_api.exception.VerificationCooldownException;
+import pulsoescolar_api.exception.auth.VerificationCooldownException;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
