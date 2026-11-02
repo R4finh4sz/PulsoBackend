@@ -7,6 +7,28 @@ import org.springframework.data.jpa.repository.*;
 import pulsoescolar_api.entity.activity.QuizSubmission;
 
 public interface QuizSubmissionRepository extends JpaRepository<QuizSubmission, Long> {
+    interface StudentRanking {
+        Long getStudentId();
+        String getStudentName();
+        Long getTotalActivities();
+        java.math.BigDecimal getTotalScore();
+        Long getCorrectAnswers();
+        Long getTotalQuestions();
+    }
+
+    @Query("""
+            select s.student.id as studentId, s.student.fullName as studentName,
+                   count(s) as totalActivities, sum(s.score) as totalScore,
+                   sum(s.correctAnswers) as correctAnswers, sum(size(s.activity.questions)) as totalQuestions
+            from QuizSubmission s
+            where s.gradedAt is not null and s.score is not null and s.student.deletedAt is null
+              and s.submittedAt >= :start and s.submittedAt < :end
+              and s.activity.subject.classroom.school is not null
+              and (:schoolId is null or s.activity.subject.classroom.school.id = :schoolId)
+            group by s.student.id, s.student.fullName
+            """)
+    List<StudentRanking> rankStudents(java.time.Instant start, java.time.Instant end, Long schoolId);
+
     boolean existsByActivityIdAndStudentId(Long activityId, Long studentId);
     Optional<QuizSubmission> findByActivityIdAndStudentId(Long activityId, Long studentId);
     List<QuizSubmission> findByActivityIdOrderBySubmittedAtDescIdDesc(Long activityId);

@@ -46,6 +46,85 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
 
     String activityPath() { return "/api/subjects/" + subject.id() + "/activities"; }
 
+    @Test
+    void rankingCalculatesAveragesTiesFiltersAndCalendarBoundaries() {
+        var activity = create();
+        var extra = create();
+        var school = school();
+        var otherSchool = school();
+        var second = criarUsuario(Role.STUDENT);
+        var third = criarUsuario(Role.STUDENT);
+        tx().executeWithoutResult(status -> {
+            classrooms.findById(room.id()).orElseThrow().setSchool(school);
+            for (var user : List.of(student, second, third)) {
+                var submission = new pulsoescolar_api.entity.activity.QuizSubmission();
+                submission.setStudent(users.findById(user.getId()).orElseThrow());
+                submission.setActivity(activities.findById(activity.id()).orElseThrow());
+                submission.setSubmittedAt(java.time.Instant.parse("2026-02-01T03:00:00Z"));
+                if (!user.getId().equals(third.getId())) {
+                    submission.setScore(new BigDecimal("80.00"));
+                    submission.setCorrectAnswers(8);
+                    submission.setGradedAt(java.time.Instant.parse("2026-05-01T03:00:00Z"));
+                }
+                submissions.save(submission);
+            }
+        });
+        String path = "/api/rankings/students?year=2026&bimester=1";
+        var ranked = request(GET, path + "&schoolId=" + school.getId(), studentToken, null,
+                StudentRankingResponse[].class);
+        assertThat(ranked.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(ranked.getBody()).hasSize(2).allSatisfy(row -> {
+            assertThat(row.position()).isEqualTo(1);
+            assertThat(row.totalActivities()).isEqualTo(1);
+            assertThat(row.totalScore()).isEqualByComparingTo("80");
+            assertThat(row.averageScore()).isEqualByComparingTo("80");
+        });
+        assertThat(request(GET, path, teacherToken, null, StudentRankingResponse[].class).getBody())
+                .extracting(StudentRankingResponse::studentId).contains(student.getId(), second.getId())
+                .doesNotContain(third.getId());
+        assertThat(request(GET, path + "&schoolId=" + otherSchool.getId(), teacherToken, null,
+                StudentRankingResponse[].class).getBody()).isEmpty();
+        tx().executeWithoutResult(status -> {
+            var submission = new pulsoescolar_api.entity.activity.QuizSubmission();
+            submission.setStudent(users.findById(student.getId()).orElseThrow());
+            submission.setActivity(activities.findById(extra.id()).orElseThrow());
+            submission.setSubmittedAt(java.time.Instant.parse("2026-02-01T03:00:00Z"));
+            submission.setGradedAt(java.time.Instant.parse("2026-02-03T03:00:00Z"));
+            submission.setScore(new BigDecimal("100.00"));
+            submission.setCorrectAnswers(10);
+            submissions.save(submission);
+        });
+        var updated = request(GET, path + "&schoolId=" + school.getId(), teacherToken, null,
+                StudentRankingResponse[].class).getBody();
+        assertThat(updated[0].studentId()).isEqualTo(student.getId());
+        assertThat(updated[0].totalActivities()).isEqualTo(2);
+        assertThat(updated[0].totalScore()).isEqualByComparingTo("180");
+        assertThat(updated[0].averageScore()).isEqualByComparingTo("90");
+        assertThat(updated[1].position()).isEqualTo(2);
+        String[] starts = {"2026-02-01", "2026-04-01", "2026-07-01", "2026-10-01"};
+        String[] ends = {"2026-04-30", "2026-07-30", "2026-10-30", "2026-12-30"};
+        for (int i = 0; i < 4; i++) {
+            var start = java.time.LocalDate.parse(starts[i]).atStartOfDay(java.time.ZoneId.of("America/Sao_Paulo")).toInstant();
+            var end = java.time.LocalDate.parse(ends[i]).plusDays(1)
+                    .atStartOfDay(java.time.ZoneId.of("America/Sao_Paulo")).toInstant();
+            for (var instant : List.of(start.minusSeconds(1), start, end.minusSeconds(1), end)) {
+                tx().executeWithoutResult(status -> submissions.findByActivityIdOrderBySubmittedAtDescIdDesc(activity.id())
+                        .forEach(s -> s.setSubmittedAt(instant)));
+                var rows = request(GET, "/api/rankings/students?year=2026&bimester=" + (i + 1)
+                        + "&schoolId=" + school.getId(), teacherToken, null, StudentRankingResponse[].class).getBody();
+                assertThat(Arrays.stream(rows).anyMatch(row -> row.studentId().equals(second.getId())))
+                        .isEqualTo(!instant.isBefore(start) && instant.isBefore(end));
+            }
+        }
+        assertThat(request(GET, path, null, null, String.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        for (String invalid : List.of("year=2025&bimester=1", "year=2026&bimester=0", "year=2026&bimester=5")) {
+            assertThat(request(GET, "/api/rankings/students?" + invalid, teacherToken, null, String.class)
+                    .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(request(GET, path + "&schoolId=9223372036854775807", teacherToken, null, String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
     Map<String, Object> input() {
         return Map.of("questions", Collections.nCopies(10, Map.of("question", " 1 + 1? ",
                 "options", List.of("1", "2", "3", "4"), "theme", " Números ", "correctOption", 1)));
