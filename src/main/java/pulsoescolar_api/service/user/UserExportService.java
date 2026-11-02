@@ -24,6 +24,9 @@ public class UserExportService {
     private final UserNotificationRepository notifications;
     private final SubjectInvitationRepository invitations;
     private final pulsoescolar_api.repository.user.SchoolInvitationRepository schoolInvitations;
+    private final pulsoescolar_api.repository.activity.QuizSubmissionRepository submissions;
+    private final pulsoescolar_api.repository.activity.ActivityRepository activities;
+    private final pulsoescolar_api.mapper.activity.ActivityMapper activityMapper;
 
     public UserExportResponse export() {
         var user = currentUser.get();
@@ -45,6 +48,10 @@ public class UserExportService {
                         .map(i -> new UserExportResponse.Invitation(i.getId(), i.getSubject().getId(),
                                 i.getStatus(), i.getCreatedAt(), i.getRespondedAt())).toList(),
                 schoolInvitations.findByRecipientIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
-                        .map(pulsoescolar_api.dto.user.SchoolInvitationResponse::from).toList());
+                        .map(pulsoescolar_api.dto.user.SchoolInvitationResponse::from).toList(),
+                submissions.findByStudentIdOrderBySubmittedAtDescIdDesc(user.getId()).stream()
+                        .map(activityMapper::toResponse).toList(),
+                activities.findByCreatedByIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
+                        .map(activityMapper::toQuiz).toList());
     }
 }
