@@ -13,7 +13,8 @@ class StudentRankingServiceTest {
     @Test
     void ordersByAccuracyCorrectAnswersActivitiesThenPortugueseAlphabetWithoutBreakingTiedPositions() {
         var submissions = mock(QuizSubmissionRepository.class);
-        var service = new StudentRankingService(submissions, mock(SchoolRepository.class));
+        var service = new StudentRankingService(submissions, mock(SchoolRepository.class),
+                new SchoolBimesterCalendar(), new StudentRankingCalculator());
         doReturn(List.of(
                 row(6, "Bruno", 1, 8, 10), row(5, "Álvaro", 1, 8, 10),
                 row(4, "Zélia", 2, 8, 10), row(3, "Zeca", 2, 16, 20),
@@ -30,7 +31,8 @@ class StudentRankingServiceTest {
     @Test
     void comparesPercentagesBeforeRoundingForDisplay() {
         var submissions = mock(QuizSubmissionRepository.class);
-        var service = new StudentRankingService(submissions, mock(SchoolRepository.class));
+        var service = new StudentRankingService(submissions, mock(SchoolRepository.class),
+                new SchoolBimesterCalendar(), new StudentRankingCalculator());
         doReturn(List.of(row(1, "Ana", 2, 1600000, 2000000), row(2, "Zeca", 1, 800001, 1000000)))
                 .when(submissions).rankStudents(any(), any(), isNull());
         var result = service.ranking(2026, 1, null);
