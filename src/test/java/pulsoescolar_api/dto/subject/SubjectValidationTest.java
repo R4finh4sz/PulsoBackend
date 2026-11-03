@@ -23,31 +23,27 @@ class SubjectValidationTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "123", "!@#", "123 😀"})
-    void temaETitulo_semLetra_deveRejeitar(String value) {
-        assertThat(validator.validate(new ThemeRequest(value))).isNotEmpty();
+    void titulo_semLetra_deveRejeitar(String value) {
         var subject = new CreateSubjectRequest("Disciplina", "", List.of(new CreateSubjectRequest.Topic(value, "Descrição", "")));
         assertThat(validator.validate(subject)).anyMatch(v -> v.getPropertyPath().toString().endsWith("title"));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"Á", "Frações 123!", "中文", "😀 Álgebra", "  \u00a0Geometria\u00a0  "})
-    void temaETitulo_comLetraUnicode_deveAceitar(String value) {
-        assertThat(validator.validate(new ThemeRequest(value))).isEmpty();
+    void titulo_comLetraUnicode_deveAceitar(String value) {
         assertThat(validator.validate(new CreateSubjectRequest.Topic(value, "Descrição", ""))).isEmpty();
     }
 
     @Test
-    void temaETitulo_comQuarentaCaracteresAposTrim_deveAceitar() {
+    void titulo_comQuarentaCaracteresAposTrim_deveAceitar() {
         String name = "  " + "Á".repeat(40) + "  ";
-        assertThat(validator.validate(new ThemeRequest(name))).isEmpty();
         assertThat(validator.validate(new CreateSubjectRequest.Topic(name, "Descrição", ""))).isEmpty();
-        assertThat(new ThemeRequest(name).name()).hasSize(40);
+        assertThat(new CreateSubjectRequest.Topic(name, "Descrição", "").title()).hasSize(40);
     }
 
     @Test
-    void temaETitulo_comQuarentaEUmCaracteres_deveRejeitar() {
+    void titulo_comQuarentaEUmCaracteres_deveRejeitar() {
         String name = "Á".repeat(41);
-        assertThat(validator.validate(new ThemeRequest(name))).isNotEmpty();
         assertThat(validator.validate(new CreateSubjectRequest.Topic(name, "Descrição", ""))).isNotEmpty();
     }
 

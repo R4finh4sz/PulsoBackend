@@ -164,71 +164,14 @@ class SubjectControllerIntegrationTest extends HttpIntegrationSupport {
     }
 
     @Test
-    void temas_comRegrasDoFrontend_deveValidarNormalizarEPersistir() {
+    void rotasDeTemasAvulsos_naoDevemExistir() {
         var room = vincularProfessor(criarSala());
         var subject = create(room);
         String url = path(room) + "/" + subject.id() + "/themes";
-        for (String name : List.of("123", "!!!", "A".repeat(41))) {
-            assertProblem(request(POST, url, teacherToken, Map.of("name", name), ProblemDetail.class),
-                    HttpStatus.BAD_REQUEST, "inválidos");
+        for (var method : List.of(GET, POST, DELETE)) {
+            assertThat(request(method, url, teacherToken, Map.of("name", "Tema"), String.class).getStatusCode())
+                    .isEqualTo(HttpStatus.NOT_FOUND);
         }
-        String name = "Á".repeat(40);
-        var creation = request(POST, url, teacherToken, Map.of("name", "  " + name + "  "), Map.class);
-        assertThat(creation.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(creation.getBody()).containsEntry("name", name);
-        var removal = request(DELETE, url + "?name=  " + name + "  ", teacherToken, null, Void.class);
-        assertThat(removal.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(request(GET, url, teacherToken, null, String[].class).getBody()).isEmpty();
-    }
-
-    @Test
-    void temas_comProfessorResponsavel_deveCriarListarERemover() {
-        var room = vincularProfessor(criarSala());
-        var subject = create(room);
-        String url = path(room) + "/" + subject.id() + "/themes";
-        var creation = request(POST, url, teacherToken, Map.of("name", " Frações "), Map.class);
-        assertThat(creation.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(creation.getBody()).containsEntry("name", "Frações");
-        var list = request(GET, url, teacherToken, null, String[].class);
-        assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(list.getBody()).containsExactly("Frações");
-        var removal = request(DELETE, url + "?name=Frações", teacherToken, null, Void.class);
-        assertThat(removal.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(request(GET, url, teacherToken, null, String[].class).getBody()).isEmpty();
-    }
-
-    @Test
-    void temas_comNomeDuplicadoOuInexistente_deveRetornar409Ou404() {
-        var room = vincularProfessor(criarSala());
-        var subject = create(room);
-        String url = path(room) + "/" + subject.id() + "/themes";
-        assertThat(request(POST, url, teacherToken, Map.of("name", "Algebra"), Map.class).getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertProblem(request(POST, url, teacherToken, Map.of("name", " algebra "), ProblemDetail.class),
-                HttpStatus.CONFLICT, "já existe");
-        assertProblem(request(DELETE, url + "?name=ausente", teacherToken, null, ProblemDetail.class),
-                HttpStatus.NOT_FOUND, "Tema não encontrado");
-        assertThat(request(GET, url, teacherToken, null, String[].class).getBody()).containsExactly("Algebra");
-    }
-
-    @Test
-    void temas_comNomeVazio_deveRetornar400SemAlterarTemas() {
-        var room = vincularProfessor(criarSala());
-        var subject = create(room);
-        String url = path(room) + "/" + subject.id() + "/themes";
-        assertProblem(request(POST, url, teacherToken, Map.of("name", " "), ProblemDetail.class),
-                HttpStatus.BAD_REQUEST, "inválidos");
-        assertThat(request(DELETE, url + "?name=", teacherToken, null, String.class).getStatusCode())
-                .isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(request(GET, url, teacherToken, null, String[].class).getBody()).isEmpty();
-    }
-
-    @Test
-    void temas_comDisciplinaDeOutraTurma_deveRetornar404() {
-        var room = vincularProfessor(criarSala());
-        var other = vincularProfessor(criarSala());
-        var subject = create(room);
-        assertProblem(request(GET, path(other) + "/" + subject.id() + "/themes", teacherToken, null, ProblemDetail.class),
-                HttpStatus.NOT_FOUND, "nesta turma");
     }
 
     @Test
@@ -237,23 +180,6 @@ class SubjectControllerIntegrationTest extends HttpIntegrationSupport {
         assertThat(request(POST, path(room), null, payload(), String.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(request(POST, path(room), teacherToken, payload(), String.class).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(subjects.findByClassroomId(room.id())).isEmpty();
-    }
-
-    @Test
-    void temas_comProfessorVinculadoSemSerResponsavel_deveRetornar403() {
-        var room = vincularProfessor(criarSala());
-        var subject = create(room);
-        new TransactionTemplate(transactions).executeWithoutResult(status -> {
-            var owner = new SchoolUser();
-            String id = UUID.randomUUID().toString();
-            owner.setFullName("Outro Professor"); owner.setRa(id); owner.setEmail(id + "@integration.test");
-            owner.setPasswordHash("unused"); owner.setRole(Role.TEACHER);
-            users.saveAndFlush(owner);
-            classrooms.findById(room.id()).orElseThrow().getTeachers().add(owner);
-            subjects.findById(subject.id()).orElseThrow().setTeacher(owner);
-        });
-        var response = request(POST, path(room) + "/" + subject.id() + "/themes", teacherToken, Map.of("name", "Tema"), String.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test

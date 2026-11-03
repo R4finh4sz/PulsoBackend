@@ -60,8 +60,8 @@ public class ActivityService {
             }
             var question = new QuizQuestion();
             question.setText(item.question());
-            question.setTheme(subject.getThemes().stream().filter(theme -> theme.equals(item.theme())).findFirst()
-                    .orElseThrow(() -> new BusinessValidationException("Selecione um tema cadastrado nesta disciplina.")));
+            question.setTheme(subject.getTopics().stream().map(topic -> topic.getTitle()).filter(title -> title.equals(item.theme())).findFirst()
+                    .orElseThrow(() -> new BusinessValidationException("Selecione um tópico da ementa desta disciplina.")));
             question.getOptions().addAll(options);
             question.setCorrectOption(item.correctOption());
             activity.getQuestions().add(question);
@@ -122,6 +122,7 @@ public class ActivityService {
         submission.setStudent(user);
         submission.getAnswers().addAll(input.answers());
         submission.setSubmittedAt(clock.instant().truncatedTo(ChronoUnit.MICROS));
+        calculateGrade(submission);
         return mapper.toResponse(submissions.saveAndFlush(submission));
     }
 
@@ -131,6 +132,12 @@ public class ActivityService {
                 .orElseThrow(() -> new ResourceNotFoundException("Entrega não encontrada."));
         requireTeacher(submission.getActivity().getSubject(), currentUser.get());
         if (submission.getGradedAt() != null) throw new SubmissionAlreadyGradedException();
+        calculateGrade(submission);
+        submission.setGradedBy(currentUser.get());
+        return mapper.toResponse(submission);
+    }
+
+    private void calculateGrade(QuizSubmission submission) {
         int correct = 0;
         var questions = submission.getActivity().getQuestions();
         for (int i = 0; i < questions.size(); i++) {
@@ -139,9 +146,7 @@ public class ActivityService {
         submission.setCorrectAnswers(correct);
         submission.setScore(BigDecimal.valueOf(correct).multiply(BigDecimal.valueOf(100))
                 .divide(BigDecimal.valueOf(questions.size()), 2, RoundingMode.HALF_UP));
-        submission.setGradedBy(currentUser.get());
         submission.setGradedAt(clock.instant().truncatedTo(ChronoUnit.MICROS));
-        return mapper.toResponse(submission);
     }
 
     public SubmissionResponse result(Long id) {

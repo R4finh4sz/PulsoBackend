@@ -41,7 +41,6 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         student = criarUsuario(Role.STUDENT);
         request(PUT, "/api/classrooms/" + room.id() + "/students/" + student.getId(), managerToken, null, String.class);
         studentToken = autenticar(student);
-        tx().executeWithoutResult(status -> subjects.findById(subject.id()).orElseThrow().getThemes().add("Números"));
     }
 
     String activityPath() { return "/api/subjects/" + subject.id() + "/activities"; }
@@ -126,7 +125,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     }
 
     Map<String, Object> input() {
-        return Map.of("questions", Collections.nCopies(10, Map.of("question", " 1 + 1? ",
+        return Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(10, Map.of("question", " 1 + 1? ",
                 "options", List.of("1", "2", "3", "4"), "theme", " Números ", "correctOption", 1)));
     }
 
@@ -137,7 +136,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     ActivityResponse create() {
         var response = request(POST, activityPath(), teacherToken, input(), ActivityResponse.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(response.getBody().closesAt()).isNull();
+        assertThat(response.getBody().closesAt()).isEqualTo(java.time.Instant.parse("2099-01-01T00:00:00Z"));
         assertThat(response.getBody().status()).isEqualTo(ActivityStatus.OPEN);
         assertThat(response.getBody().questionCount()).isEqualTo(10);
         return response.getBody();
@@ -148,8 +147,9 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
                 Map.of("answers", answers, "studentId", teacher.getId(), "score", 100), SubmissionResponse.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody().studentId()).isEqualTo(student.getId());
-        assertThat(response.getBody().score()).isNull();
-        assertThat(response.getBody().themePerformance()).isEmpty();
+        assertThat(response.getBody().score()).isNotNull();
+        assertThat(response.getBody().gradedAt()).isNotNull();
+        assertThat(response.getBody().themePerformance()).isNotEmpty();
         return response.getBody();
     }
 
@@ -162,8 +162,9 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         assertThat(quiz.getBody().questions()).hasSize(10);
         assertThat(quiz.getBody().questions().getFirst().question()).isEqualTo("1 + 1?");
         var submission = submit(activity, partialAnswers());
-        assertThat(submission.gradedAt()).isNull();
-        var grade = request(PATCH, "/api/submissions/" + submission.id() + "/grade", teacherToken, null, SubmissionResponse.class);
+        assertThat(submission.gradedAt()).isNotNull();
+        assertThat(submission.score()).isEqualByComparingTo("70.00");
+        var grade = request(GET, "/api/submissions/" + submission.id() + "/result", studentToken, null, SubmissionResponse.class);
         assertThat(grade.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(grade.getBody().score()).isEqualByComparingTo(new BigDecimal("70.00"));
         assertThat(grade.getBody().correctAnswers()).isEqualTo(7);
@@ -247,19 +248,19 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     void createValidatesQuizAndAnswerKeyBeforePersisting() {
         long count = activities.count();
         var invalid = new ArrayList<Map<String, Object>>();
-        invalid.add(Map.of("questions", List.of()));
-        invalid.add(Map.of("questions", Arrays.asList((Object) null)));
+        invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", List.of()));
+        invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Arrays.asList((Object) null)));
         var valid = Map.<String, Object>of("question", "Questão", "options", List.of("A", "B", "C", "D"),
                 "theme", "Números", "correctOption", 0);
-        invalid.add(Map.of("questions", Collections.nCopies(9, valid)));
-        invalid.add(Map.of("questions", Collections.nCopies(11, valid)));
+        invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(9, valid)));
+        invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(11, valid)));
         for (var change : List.of(Map.of("correctOption", 4), Map.of("correctOption", -1),
                 Map.of("correctOption", 1.5), Map.of("correctOption", "1"), Map.of("options", List.of(" A ", "a", "C", "D")),
                 Map.of("options", List.of("A", "B", "C")), Map.of("options", List.of("A", "B", "C", "D", "E")),
                 Map.of("question", "x".repeat(1001)), Map.of("question", " "), Map.of("theme", " "),
                 Map.of("theme", "Tema inexistente"), Map.of("options", List.of("A", "B", "C", "x".repeat(501))))) {
             var question = new HashMap<String, Object>(valid); question.putAll(change);
-            invalid.add(Map.of("questions", Collections.nCopies(10, question)));
+            invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(10, question)));
         }
         for (var body : invalid) {
             assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -278,6 +279,14 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         assertThat(List.of(first.join().getStatusCode().value(), second.join().getStatusCode().value()))
                 .containsExactlyInAnyOrder(201, 409);
         var submission = submissions.findByActivityIdAndStudentId(activity.id(), student.getId()).orElseThrow();
+        assertThat(submission.getScore()).isNotNull();
+        assertThat(submission.getGradedAt()).isNotNull();
+        assertThat(submission.getGradedBy()).isNull();
+        // Simulate a historical submission still awaiting manual grading.
+        tx().executeWithoutResult(status -> {
+            var historical = submissions.findById(submission.getId()).orElseThrow();
+            historical.setGradedAt(null); historical.setScore(null); historical.setCorrectAnswers(null);
+        });
         String gradePath = "/api/submissions/" + submission.getId() + "/grade";
         var grade1 = CompletableFuture.supplyAsync(() -> request(PATCH, gradePath, teacherToken, null, String.class));
         var grade2 = CompletableFuture.supplyAsync(() -> request(PATCH, gradePath, teacherToken, null, String.class));
@@ -314,7 +323,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         var token = autenticar(collaborator);
         var activity = create(); var submission = submit(activity, correctAnswers());
         assertThat(request(GET, "/api/teacher/activities", token, null, TeacherActivityResponse[].class).getBody()).hasSize(1);
-        assertThat(request(PATCH, "/api/submissions/" + submission.id() + "/grade", token, null,
+        assertThat(request(GET, "/api/submissions/" + submission.id() + "/result", token, null,
                 SubmissionResponse.class).getBody().score()).isEqualByComparingTo("100.00");
         tx().executeWithoutResult(status -> subjects.findById(subject.id()).orElseThrow().getCollaborators().clear());
         assertThat(request(GET, "/api/submissions/" + submission.id() + "/result", token, null, String.class).getStatusCode())
@@ -357,8 +366,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     @Test
     void gradeUsesStoredAnswerKeyAndReturnsZeroForAllWrongAnswers() {
         var activity = create(); var submission = submit(activity, wrongAnswers());
-        var result = request(PATCH, "/api/submissions/" + submission.id() + "/grade", teacherToken,
-                Map.of("score", 100, "correctAnswers", 3), SubmissionResponse.class);
+        var result = request(GET, "/api/submissions/" + submission.id() + "/result", studentToken, null, SubmissionResponse.class);
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(result.getBody().correctAnswers()).isZero();
         assertThat(result.getBody().score()).isEqualByComparingTo("0.00");
@@ -381,7 +389,6 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         var secondSubject = request(POST, "/api/classrooms/" + secondRoom.id() + "/subjects", teacherToken,
                 Map.of("name", "Matemática", "syllabus", "", "topics", List.of(
                         Map.of("title", "Números", "description", "Operações", "references", ""))), SubjectResponse.class).getBody();
-        tx().executeWithoutResult(status -> subjects.findById(secondSubject.id()).orElseThrow().getThemes().add("Números"));
         var secondActivity = request(POST, "/api/subjects/" + secondSubject.id() + "/activities", teacherToken,
                 input(), ActivityResponse.class).getBody();
         var overview = request(GET, "/api/teacher/activities", teacherToken, null, TeacherActivityResponse[].class);
@@ -406,8 +413,14 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     }
 
     @Test
-    void deadlineIsOptionalAndClosedQuizzesRejectSubmissionsButAllowGrading() {
+    void deadlineIsRequiredAndClosedQuizzesRejectSubmissionsButPreserveResults() {
         var body = new HashMap<String, Object>(input());
+        long count = activities.count();
+        body.remove("closesAt");
+        assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        body.put("closesAt", null);
+        assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(activities.count()).isEqualTo(count);
         body.put("closesAt", "2020-01-01T00:00:00Z");
         var closed = request(POST, activityPath(), teacherToken, body, ActivityResponse.class);
         assertThat(closed.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -421,7 +434,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         var open = request(POST, activityPath(), teacherToken, body, ActivityResponse.class).getBody();
         var submission = submit(open, correctAnswers());
         tx().executeWithoutResult(status -> activities.findById(open.id()).orElseThrow().setClosesAt(java.time.Instant.EPOCH));
-        assertThat(request(PATCH, "/api/submissions/" + submission.id() + "/grade", teacherToken, null,
+        assertThat(request(GET, "/api/submissions/" + submission.id() + "/result", studentToken, null,
                 SubmissionResponse.class).getBody().score()).isEqualByComparingTo("100.00");
         body.put("closesAt", "amanhã");
         assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -433,14 +446,14 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
                 "options", List.of("  " + "y".repeat(500) + "  ", "B", "C", "D"),
                 "theme", "\uFEFF Números \u00A0", "correctOption", 3);
         var created = request(POST, activityPath(), teacherToken,
-                Map.of("questions", Collections.nCopies(10, question)), ActivityResponse.class);
+                Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(10, question)), ActivityResponse.class);
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         var quiz = request(GET, "/api/activities/" + created.getBody().id() + "/quiz", studentToken, null, QuizResponse.class).getBody();
         assertThat(quiz.questions().getFirst().question()).hasSize(1000);
         assertThat(quiz.questions().getFirst().options().getFirst()).hasSize(500);
         assertThat(quiz.questions().getFirst().theme()).isEqualTo("Números");
         var submission = submit(created.getBody(), Collections.nCopies(10, 3));
-        assertThat(request(PATCH, "/api/submissions/" + submission.id() + "/grade", teacherToken, null,
+        assertThat(request(GET, "/api/submissions/" + submission.id() + "/result", studentToken, null,
                 SubmissionResponse.class).getBody().score()).isEqualByComparingTo("100.00");
     }
 

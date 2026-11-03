@@ -134,10 +134,7 @@ class SubjectInvitationIntegrationTest extends HttpIntegrationSupport {
         assertThat(listing.getBody()).hasSize(1);
         assertThat(listing.getBody()[0].teacherIds()).containsExactlyInAnyOrder(teacher.getId(), recipient.getId());
         assertThat(classrooms.findByTeachersId(recipient.getId())).extracting(c -> c.getId()).contains(room.id());
-        var theme = request(POST, "/api/classrooms/" + room.id() + "/subjects/" + subject.id() + "/themes",
-                recipientToken, Map.of("name", "Geometria"), Map.class);
-        assertThat(theme.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(theme.getBody()).containsEntry("name", "Geometria");
+        assertThat(listing.getBody()[0].topics()).isEqualTo(subject.topics());
         assertThat(request(GET, "/api/notifications", recipientToken, null, NotificationResponse[].class).getBody()[0].read()).isTrue();
         assertThat(request(DELETE, "/api/classrooms/" + room.id() + "/teachers/" + recipient.getId(), managerToken, null, String.class)
                 .getStatusCode()).isEqualTo(HttpStatus.CONFLICT);

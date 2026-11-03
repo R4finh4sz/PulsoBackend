@@ -27,10 +27,8 @@ Para avaliar a feature de disciplinas e temas na branch `feature-subjects`:
 ```
 
 `GET/POST /api/classrooms/{classroomId}/subjects` lista e cria disciplinas com
-ementa e de 1 a 15 tópicos. `GET/POST/DELETE` no caminho
-`/api/classrooms/{classroomId}/subjects/{subjectId}/themes` gerencia os temas;
-a remoção recebe `?name=...`. O responsável e os professores que aceitaram convite,
-vinculados à turma e à mesma escola, podem alterar temas. A API utiliza somente `/subjects` para disciplinas.
+ementa e de 1 a 15 tópicos. As rotas `/subjects/{subjectId}/themes` foram removidas.
+As atividades usam os títulos dos tópicos da ementa no campo `theme`.
 A migração V22 acrescenta o conteúdo e padroniza
 as tabelas como `subjects`, `subject_topics` e `subject_themes`, preservando os dados.
 
@@ -62,12 +60,9 @@ depois dela. Responder novamente retorna 409. Envio e resposta usam bloqueios no
 banco para impedir notificações duplicadas ou duas decisões concorrentes. A leitura
 da notificação é idempotente e a resposta ao convite também a marca como lida.
 
-As regras de Disciplina e Tema acompanham o resumo dos schemas do frontend:
-os textos são normalizados antes de verificar os limites; título de tópico e nome
-de tema aceitam de 1 a 40 caracteres e exigem uma letra Unicode. Ementa e
-referências são strings obrigatórias, mas aceitam texto vazio. Tipos JSON como
-número ou booleano são rejeitados nesses campos. Títulos dos tópicos e temas
-duplicados são comparados sem diferenciar maiúsculas e minúsculas.
+Os títulos dos tópicos aceitam de 1 a 40 caracteres e exigem uma letra Unicode.
+Ementa e referências são strings obrigatórias, mas aceitam texto vazio.
+Títulos duplicados são comparados sem diferenciar maiúsculas e minúsculas.
 
 Os novos testes usam `@SpringBootTest(RANDOM_PORT)`, `RestClient` e o perfil `test`.
 O H2 `pulso-integration` tem esquema criado e descartado pelo Hibernate; o Flyway
@@ -94,3 +89,7 @@ a ementa anteriormente armazenada como alternativa.
 CNPJ continua obrigatório e único para escolas; a consulta pública não o expõe.
 Campos de endereço ignorados no cadastro pessoal ficam apenas no teste específico
 de compatibilidade do frontend. Os testes de auditoria usam `CurrentUser` real.
+
+Ao concluir um quiz, `POST /api/activities/{id}/submissions` calcula e persiste
+a nota automaticamente e retorna `score`, `correctAnswers`, `gradedAt` e
+`themePerformance`. A rota manual de correção permanece para entregas antigas pendentes.
