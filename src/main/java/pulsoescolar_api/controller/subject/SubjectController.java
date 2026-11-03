@@ -25,24 +25,4 @@ public class SubjectController {
         return service.createSubject(classroomId, request);
     }
 
-    @GetMapping("/{subjectId}/themes")
-    public List<String> themes(@PathVariable Long classroomId, @PathVariable Long subjectId) {
-        return service.themes(classroomId, subjectId);
-    }
-
-    @PostMapping("/{subjectId}/themes")
-    @ResponseStatus(CREATED)
-    public ThemeResponse addTheme(@PathVariable Long classroomId, @PathVariable Long subjectId,
-                                   @Valid @RequestBody ThemeRequest request) {
-        return new ThemeResponse(service.addTheme(classroomId, subjectId, request));
-    }
-
-    @DeleteMapping("/{subjectId}/themes")
-    @ResponseStatus(NO_CONTENT)
-    public void removeTheme(@PathVariable Long classroomId, @PathVariable Long subjectId,
-                            @Valid @ModelAttribute ThemeRequest request) {
-        service.removeTheme(classroomId, subjectId, request.name());
-    }
-
-    public record ThemeResponse(String name) {}
 }

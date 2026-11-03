@@ -1,8 +1,6 @@
 package pulsoescolar_api.service.subject;
 
-import pulsoescolar_api.exception.common.BusinessConflictException;
 import pulsoescolar_api.exception.common.BusinessValidationException;
-import pulsoescolar_api.exception.common.ResourceNotFoundException;
 
 import pulsoescolar_api.service.classroom.ClassroomLookupService;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +15,6 @@ import pulsoescolar_api.repository.subject.SubjectRepository;
 import pulsoescolar_api.security.classroom.ClassroomAccessPolicy;
 import pulsoescolar_api.security.CurrentUser;
 import pulsoescolar_api.dto.subject.CreateSubjectRequest;
-import pulsoescolar_api.dto.subject.ThemeRequest;
 import pulsoescolar_api.entity.subject.SubjectTopic;
 import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.entity.user.SchoolUser;
@@ -66,51 +63,6 @@ public class SubjectService {
         accessPolicy.requireAccess(classroom, user);
         requireSchool(classroom, user);
         return subjects.findByClassroomId(classroomId).stream().map(mapper::toResponse).toList();
-    }
-
-    public List<String> themes(Long classroomId, Long subjectId) {
-        return sortedThemes(findAccessible(classroomId, subjectId, false));
-    }
-
-    @Transactional
-    public String addTheme(Long classroomId, Long subjectId, ThemeRequest request) {
-        var subject = findAccessible(classroomId, subjectId, true);
-        String name = request.name().strip();
-        if (subject.getThemes().stream().anyMatch(t -> t.equalsIgnoreCase(name))) {
-            throw new BusinessConflictException("Este tema já existe na disciplina.");
-        }
-        subject.getThemes().add(name);
-        return name;
-    }
-
-    @Transactional
-    public void removeTheme(Long classroomId, Long subjectId, String name) {
-        var subject = findAccessible(classroomId, subjectId, true);
-        if (!subject.getThemes().removeIf(t -> t.equalsIgnoreCase(name.strip()))) {
-            throw new ResourceNotFoundException("Tema não encontrado.");
-        }
-    }
-
-    private Subject findAccessible(Long classroomId, Long subjectId, boolean writing) {
-        var subject = (writing ? subjects.findLockedById(subjectId) : subjects.findById(subjectId))
-                .orElseThrow(() -> new ResourceNotFoundException("Disciplina não encontrada."));
-        if (!subject.getClassroom().getId().equals(classroomId)) {
-            throw new ResourceNotFoundException("Disciplina não encontrada nesta turma.");
-        }
-        var user = currentUser.get();
-        accessPolicy.requireAccess(subject.getClassroom(), user);
-        requireSchool(subject.getClassroom(), user);
-        if (writing) {
-            accessPolicy.requireAssignedTeacher(subject.getClassroom(), user);
-            if (!subject.hasTeacher(user.getId())) {
-                throw new AccessDeniedException("Somente os professores da disciplina podem alterar os temas.");
-            }
-        }
-        return subject;
-    }
-
-    private List<String> sortedThemes(Subject subject) {
-        return subject.getThemes().stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
     }
 
     private void requireSchool(Classroom classroom, SchoolUser user) {
