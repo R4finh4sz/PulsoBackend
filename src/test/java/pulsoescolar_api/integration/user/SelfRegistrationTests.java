@@ -245,7 +245,7 @@ class SelfRegistrationTests {
         review(id, "coordinator", "APPROVED", 200);
         var created = users.findByEmail("person150@example.com").orElseThrow();
         var result = mvc.perform(post("/api/me/deletion-requests").with(user(created.getEmail()).roles("STUDENT"))
-                        .contentType("application/json").content("{\"reason\":\"Quero excluir minha conta\"}"))
+                        .contentType("application/json").content("{\"reason\":\"Quero excluir minha conta\",\"currentPassword\":\"chosen-password-123\"}"))
                 .andExpect(status().isCreated()).andReturn();
         long deletionId = json.readTree(result.getResponse().getContentAsString()).get("id").asLong();
         mvc.perform(patch("/api/account-deletion-requests/" + deletionId)

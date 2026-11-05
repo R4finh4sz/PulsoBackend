@@ -41,6 +41,9 @@ public class AccountDeletionService {
         var requester = requireRequester();
         entityManager.refresh(requester, LockModeType.PESSIMISTIC_WRITE);
         requireActive(requester);
+        if (!passwords.matches(input.currentPassword(), requester.getPasswordHash())) {
+            throw new BusinessValidationException("Senha atual incorreta.");
+        }
         if (requests.existsByRequesterIdAndStatus(requester.getId(), DeletionStatus.PENDING)) {
             throw new BusinessConflictException("Já existe um pedido de exclusão pendente.");
         }

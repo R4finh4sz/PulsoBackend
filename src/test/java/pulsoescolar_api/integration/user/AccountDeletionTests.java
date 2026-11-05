@@ -37,6 +37,7 @@ class AccountDeletionTests {
     @Autowired AccountDeletionRepository requests;
     @Autowired AuthSessionRepository sessions;
     @Autowired JwtEncoder encoder;
+    @Autowired org.springframework.security.crypto.password.PasswordEncoder passwords;
     @Autowired ClassroomRepository classrooms;
     @Autowired SubjectRepository subjects;
     @Autowired jakarta.persistence.EntityManager entityManager;
@@ -59,7 +60,7 @@ class AccountDeletionTests {
     SchoolUser create(String name, Role role, School school) {
         var user = new SchoolUser();
         user.setFullName(name); user.setRa(name); user.setEmail(name + "@example.com");
-        user.setPasswordHash("old-hash"); user.setRole(role); user.setSchool(school);
+        user.setPasswordHash(passwords.encode("old-password")); user.setRole(role); user.setSchool(school);
         return users.saveAndFlush(user);
     }
 
@@ -90,9 +91,21 @@ class AccountDeletionTests {
         assertEquals(DeletionStatus.PENDING, requests.findById(request.getId()).orElseThrow().getStatus());
     }
 
+    @Test void rejectsMissingBlankAndIncorrectCurrentPasswordWithoutCreatingRequest() throws Exception {
+        for (String body : new String[]{
+                "{\"reason\":\"Excluir\"}",
+                "{\"reason\":\"Excluir\",\"currentPassword\":\" \"}",
+                "{\"reason\":\"Excluir\",\"currentPassword\":\"wrong-password\"}"}) {
+            mvc.perform(post("/api/me/deletion-requests").with(user("student@example.com"))
+                    .contentType("application/json").content(body))
+                    .andExpect(status().isBadRequest());
+            assertTrue(requests.findByRequesterIdOrderByRequestedAtDesc(student.getId()).isEmpty());
+        }
+    }
+
     Long submit() throws Exception {
         mvc.perform(post("/api/me/deletion-requests").with(user("student@example.com"))
-                .contentType("application/json").content("{\"reason\":\"Não utilizo mais a conta\"}"))
+                .contentType("application/json").content("{\"currentPassword\":\"old-password\",\"reason\":\"Não utilizo mais a conta\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"));
         return requests.findByRequesterIdOrderByRequestedAtDesc(student.getId()).stream()
                 .filter(r -> r.getStatus() == DeletionStatus.PENDING).findFirst().orElseThrow().getId();
@@ -127,7 +140,7 @@ class AccountDeletionTests {
         assertNotNull(deleted.getDeletedAt());
         assertEquals(schoolId, deleted.getSchool().getId());
         assertEquals(classroom.getId(), deleted.getClassroom().getId());
-        assertNotEquals("old-hash", deleted.getPasswordHash());
+        assertFalse(passwords.matches("old-password", deleted.getPasswordHash()));
         assertFalse(sessions.existsById(session.getId()));
         mvc.perform(get("/api/me").header("Authorization", "Bearer " + token)).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/auth/login").contentType("application/json")
@@ -178,12 +191,12 @@ class AccountDeletionTests {
         sessions.saveAndFlush(session);
 
         mvc.perform(post("/api/me/deletion-requests").with(user(teacher.getEmail()))
-                .contentType("application/json").content("{\"reason\":\"Não leciono mais na escola\"}"))
+                .contentType("application/json").content("{\"currentPassword\":\"old-password\",\"reason\":\"Não leciono mais na escola\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.userId").value(teacher.getId()))
                 .andExpect(jsonPath("$.role").value("TEACHER"));
         Long firstId = requests.findByRequesterIdOrderByRequestedAtDesc(teacher.getId()).getFirst().getId();
         mvc.perform(post("/api/me/deletion-requests").with(user(teacher.getEmail()))
-                .contentType("application/json").content("{\"reason\":\"Duplicado\"}"))
+                .contentType("application/json").content("{\"currentPassword\":\"old-password\",\"reason\":\"Duplicado\"}"))
                 .andExpect(status().isConflict());
         mvc.perform(get("/api/me/deletion-requests").with(user("student@example.com")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
@@ -203,7 +216,7 @@ class AccountDeletionTests {
         assertEquals("teacher@example.com", teacher.getEmail());
         assertTrue(sessions.existsById(session.getId()));
         mvc.perform(post("/api/me/deletion-requests").with(user(teacher.getEmail()))
-                .contentType("application/json").content("{\"reason\":\"Confirmo a exclusão\"}"))
+                .contentType("application/json").content("{\"currentPassword\":\"old-password\",\"reason\":\"Confirmo a exclusão\"}"))
                 .andExpect(status().isCreated());
         mvc.perform(get("/api/me/deletion-requests").with(user(teacher.getEmail())))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
@@ -239,7 +252,7 @@ class AccountDeletionTests {
         session.setId(UUID.randomUUID()); session.setUser(coordinator);
         session.setCreatedAt(Instant.now()); session.setExpiresAt(Instant.now().plusSeconds(600));
         sessions.saveAndFlush(session);
-        String body = "{\"reason\":\"Solicito exclusão da conta\"}";
+        String body = "{\"currentPassword\":\"old-password\",\"reason\":\"Solicito exclusão da conta\"}";
         mvc.perform(post("/api/me/deletion-requests").with(user(coordinator.getEmail()))
                 .contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.role").value("PEDAGOGICAL_COORDINATOR"));
@@ -295,13 +308,13 @@ class AccountDeletionTests {
     @Test void enforcesSchoolScopeRolesValidationAndPendingUniqueness() throws Exception {
         Long id = submit();
         mvc.perform(post("/api/me/deletion-requests").with(user("student@example.com"))
-                .contentType("application/json").content("{\"reason\":\"Outro pedido\"}"))
+                .contentType("application/json").content("{\"currentPassword\":\"old-password\",\"reason\":\"Outro pedido\"}"))
                 .andExpect(status().isConflict());
         mvc.perform(post("/api/me/deletion-requests").with(user("student@example.com"))
-                .contentType("application/json").content("{\"reason\":\" \"}"))
+                .contentType("application/json").content("{\"currentPassword\":\"old-password\",\"reason\":\" \"}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/me/deletion-requests").with(user("admin@example.com"))
-                .contentType("application/json").content("{\"reason\":\"Excluir\"}"))
+                .contentType("application/json").content("{\"currentPassword\":\"old-password\",\"reason\":\"Excluir\"}"))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/account-deletion-requests").with(user("coordinator@example.com")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
