@@ -17,13 +17,21 @@ public class AdminBootstrap implements CommandLineRunner {
  @Override @Transactional public void run(String... args) {
   String email=environment.getProperty("BOOTSTRAP_ADMIN_EMAIL");
   String password=environment.getProperty("BOOTSTRAP_ADMIN_PASSWORD");
-  if(email==null || email.isBlank()) return;
-  email=email.strip().toLowerCase(Locale.ROOT);
-  if(users.findByEmail(email).isPresent()) return;
+  if(email==null || email.isBlank()) {
+   throw new IllegalStateException("Configure BOOTSTRAP_ADMIN_EMAIL e BOOTSTRAP_ADMIN_PASSWORD para iniciar a aplicação.");
+  }
   if(password==null || password.length()<12 || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72)
-   throw new IllegalStateException("A senha inicial do administrador deve ter pelo menos 12 caracteres e no máximo 72 bytes.");
+   throw new IllegalStateException("BOOTSTRAP_ADMIN_PASSWORD deve ter pelo menos 12 caracteres e no máximo 72 bytes.");
+  email=email.strip().toLowerCase(Locale.ROOT);
+  var existing = users.findByEmail(email);
+  if(existing.isPresent()) {
+   if (existing.get().getRole() != Role.ADMIN || existing.get().getDeletedAt() != null)
+    throw new IllegalStateException("BOOTSTRAP_ADMIN_EMAIL deve identificar um administrador ativo.");
+   return;
+  }
   var admin=new SchoolUser(); admin.setFullName("Administrator"); admin.setRa("SYSTEM-ADMIN");
   admin.setEmail(email); admin.setPasswordHash(encoder.encode(password)); admin.setRole(Role.ADMIN);
+  admin.setTwoFactorEnabled(true);
   users.save(admin);
  }
 }

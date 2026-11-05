@@ -169,6 +169,8 @@ class UserExportIntegrationTest extends HttpIntegrationSupport {
     @Test
     void pendingTwoFactorCannotExport() {
         var account = criarUsuario(Role.STUDENT);
+        account.setTwoFactorEnabled(true);
+        users.saveAndFlush(account);
         var login = request(org.springframework.http.HttpMethod.POST, "/api/auth/login", null,
                 java.util.Map.of("email", account.getEmail(), "password", "SenhaTeste123"),
                 pulsoescolar_api.dto.auth.LoginResponse.class);

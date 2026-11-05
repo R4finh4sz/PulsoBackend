@@ -46,7 +46,7 @@ public class LoginService {
         var now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         entityManager.refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (user.getDeletedAt() != null) throw new BadCredentialsException("Conta excluída.");
-        if (user.getTwoFactorResendAvailableAt() != null && now.isBefore(user.getTwoFactorResendAvailableAt())) {
+        if (user.isTwoFactorEnabled() && user.getTwoFactorResendAvailableAt() != null && now.isBefore(user.getTwoFactorResendAvailableAt())) {
             throw new VerificationCooldownException("Aguarde 3 minutos para solicitar outro código.");
         }
         var expiresAt = now.plus(properties.sessionTtl()).truncatedTo(ChronoUnit.SECONDS);
@@ -62,14 +62,18 @@ public class LoginService {
         session.setUser(user);
         session.setCreatedAt(now);
         session.setExpiresAt(expiresAt);
-        twoFactor.issue(session);
+        if (user.isTwoFactorEnabled()) {
+            twoFactor.issue(session);
+        } else {
+            session.setTwoFactorVerified(true);
+        }
         sessions.save(session);
         boolean termsSatisfied = user.getRole() == Role.ADMIN || user.isTermsAccepted();
         var loginUser = new LoginResponse.LoginUser(user.getRole(),
                 user.getActiveClassroom() == null ? null : user.getActiveClassroom().getId(),
                 user.getSchool() == null ? null : user.getSchool().getId(), termsSatisfied, user.getTermsAcceptedVersions());
         return new LoginResponse(token.getTokenValue(), "Bearer", expiresAt, loginUser,
-                true, session.getCodeExpiresAt(), session.getResendAvailableAt());
+                user.isTwoFactorEnabled(), session.getCodeExpiresAt(), session.getResendAvailableAt());
     }
 
     @Transactional

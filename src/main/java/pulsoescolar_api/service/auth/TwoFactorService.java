@@ -30,6 +30,24 @@ public class TwoFactorService {
     private final jakarta.persistence.EntityManager entityManager;
     private final SecureRandom random = new SecureRandom();
 
+    @Transactional
+    public void updateSettings(Jwt jwt, pulsoescolar_api.dto.auth.TwoFactorSettingsRequest request) {
+        var user = entityManager.find(pulsoescolar_api.entity.user.SchoolUser.class,
+                Long.valueOf(jwt.getSubject()), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (user == null || user.getDeletedAt() != null) throw new SessionUnavailableException();
+        if (!passwords.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new pulsoescolar_api.exception.common.BusinessValidationException("Senha atual incorreta.");
+        }
+        if (user.getRole() == pulsoescolar_api.entity.user.Role.ADMIN && !request.enabled()) {
+            throw new pulsoescolar_api.exception.common.BusinessValidationException(
+                    "A verificação em duas etapas é obrigatória para administradores.");
+        }
+        if (user.isTwoFactorEnabled() == request.enabled()) return;
+        user.setTwoFactorEnabled(request.enabled());
+        user.setTwoFactorResendAvailableAt(null);
+        sessions.revokeOthers(user.getId(), UUID.fromString(jwt.getId()));
+    }
+
     public void issue(AuthSession session) {
         String code = String.format(java.util.Locale.ROOT, "%06d", random.nextInt(1_000_000));
         session.setCodeHash(passwords.encode(code));
