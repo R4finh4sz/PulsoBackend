@@ -97,7 +97,7 @@ class AuthMailTests {
         verify(sender).send(any(CreateEmailOptions.class));
     }
 
-    @Test void approvedUserLogsInWithChosenPasswordAndStillRequiresEmailTwoFactor() throws Exception {
+    @Test void approvedUserLogsInWithChosenPasswordAndOptedInEmailTwoFactor() throws Exception {
         mvc.perform(post("/api/students").contentType("application/json").content(registration("newstudent")))
                 .andExpect(status().isCreated());
         String login = "{\"email\":\"NEWSTUDENT@example.com\",\"password\":\"chosen-password-123\"}";
@@ -110,6 +110,10 @@ class AuthMailTests {
                 .andExpect(status().isOk());
         verify(sender, timeout(3000)).send(any(CreateEmailOptions.class));
         clearInvocations(sender);
+        var approvedUser = users.findByEmail("newstudent@example.com").orElseThrow();
+        assertFalse(approvedUser.isTwoFactorEnabled());
+        approvedUser.setTwoFactorEnabled(true);
+        users.saveAndFlush(approvedUser);
         var result = mvc.perform(post("/api/auth/login").contentType("application/json").content(login))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.user.role").value("STUDENT"))
                 .andExpect(jsonPath("$.user.termsAccepted").value(true))

@@ -74,6 +74,22 @@ class AccountDeletionTests {
         create("admin", Role.ADMIN, null);
     }
 
+    @Test void administratorCannotBeDeletedEvenWithAnExistingRequest() throws Exception {
+        var admin = users.findByEmail("admin@example.com").orElseThrow();
+        var request = new AccountDeletionRequest();
+        request.setRequester(admin);
+        request.setReason("Legacy request");
+        request.setStatus(DeletionStatus.PENDING);
+        request.setRequestedAt(Instant.now());
+        requests.saveAndFlush(request);
+        mvc.perform(patch("/api/account-deletion-requests/" + request.getId()).with(user(admin.getEmail()))
+                .contentType("application/json")
+                .content("{\"status\":\"APPROVED\",\"reason\":\"Approved\"}"))
+                .andExpect(status().isBadRequest());
+        assertNull(users.findById(admin.getId()).orElseThrow().getDeletedAt());
+        assertEquals(DeletionStatus.PENDING, requests.findById(request.getId()).orElseThrow().getStatus());
+    }
+
     Long submit() throws Exception {
         mvc.perform(post("/api/me/deletion-requests").with(user("student@example.com"))
                 .contentType("application/json").content("{\"reason\":\"Não utilizo mais a conta\"}"))

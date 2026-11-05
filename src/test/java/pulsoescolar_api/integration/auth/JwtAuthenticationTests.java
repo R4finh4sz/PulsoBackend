@@ -64,6 +64,82 @@ class JwtAuthenticationTests {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
+    @Test void userCanDisableAndEnableTwoFactor() throws Exception {
+        String token = login();
+        var user = users.findById(userId).orElseThrow();
+        user.setRole(Role.STUDENT);
+        user.setTermsAccepted(true);
+        user.setTwoFactorEnabled(true);
+        users.saveAndFlush(user);
+        mvc.perform(patch("/api/auth/2fa").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json")
+                .content("{}"))
+                .andExpect(status().isBadRequest());
+        assertTrue(users.findById(userId).orElseThrow().isTwoFactorEnabled());
+        mvc.perform(patch("/api/auth/2fa").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"enabled\":false}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(patch("/api/auth/2fa").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json")
+                .content("{\"enabled\":false,\"currentPassword\":\"wrong-password\"}"))
+                .andExpect(status().isBadRequest());
+        assertTrue(users.findById(userId).orElseThrow().isTwoFactorEnabled());
+        mvc.perform(patch("/api/auth/2fa").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json")
+                .content("{\"enabled\":false,\"currentPassword\":\"admin-password-123\"}"))
+                .andExpect(status().isNoContent());
+        org.mockito.Mockito.clearInvocations(twoFactorMail);
+        var result = mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.twoFactorRequired").value(false))
+                .andReturn();
+        org.mockito.Mockito.verifyNoInteractions(twoFactorMail);
+        String directToken = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString())
+                .get("accessToken").asText();
+        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + directToken))
+                .andExpect(status().isOk());
+        mvc.perform(patch("/api/auth/2fa").header(HttpHeaders.AUTHORIZATION, "Bearer " + directToken)
+                .contentType("application/json")
+                .content("{\"enabled\":true,\"currentPassword\":\"admin-password-123\"}"))
+                .andExpect(status().isNoContent());
+        unauthorized(token);
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.twoFactorRequired").value(true));
+    }
+
+    @Test void adminCannotDisableTwoFactor() throws Exception {
+        String token = login();
+        mvc.perform(patch("/api/auth/2fa").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"enabled\":false,\"currentPassword\":\"admin-password-123\"}"))
+                .andExpect(status().isBadRequest());
+        assertTrue(users.findById(userId).orElseThrow().isTwoFactorEnabled());
+    }
+
+    @Test void ordinaryUserStartsWithTwoFactorDisabled() throws Exception {
+        var user = users.findById(userId).orElseThrow();
+        user.setRole(Role.STUDENT);
+        users.saveAndFlush(user);
+        assertFalse(users.findById(userId).orElseThrow().isTwoFactorEnabled());
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.twoFactorRequired").value(false));
+        org.mockito.Mockito.verifyNoInteractions(twoFactorMail);
+    }
+
+    @Test void pendingTwoFactorCannotChangeSettings() throws Exception {
+        var result = mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isOk()).andReturn();
+        String token = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString())
+                .get("accessToken").asText();
+        mvc.perform(patch("/api/auth/2fa").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json")
+                .content("{\"enabled\":false,\"currentPassword\":\"admin-password-123\"}"))
+                .andExpect(status().isForbidden());
+        assertTrue(users.findById(userId).orElseThrow().isTwoFactorEnabled());
+    }
+
     String login() throws Exception {
         org.mockito.Mockito.clearInvocations(twoFactorMail);
         var result = mvc.perform(post("/api/auth/login").contentType("application/json")

@@ -93,6 +93,9 @@ public class AccountDeletionService {
             throw new BusinessConflictException("Este pedido já foi analisado.");
         }
         requireActive(requester);
+        if (requester.getRole() == Role.ADMIN) {
+            throw new BusinessValidationException("Administradores não podem ser excluídos.");
+        }
         request.setStatus(input.status());
         request.setReviewedAt(clock.instant());
         request.setReviewedBy(actor);

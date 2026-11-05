@@ -12,6 +12,8 @@ public class SchoolUser {
  @Column private java.time.Instant deletedAt;
  @Version private long version;
  private java.time.Instant twoFactorResendAvailableAt;
+ @Column(nullable=false) private boolean twoFactorEnabled;
+ public boolean isTwoFactorEnabled() { return role == Role.ADMIN || twoFactorEnabled; }
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="school_id") private School school;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="active_school_id") private School activeSchool;
  @ManyToMany

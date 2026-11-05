@@ -45,3 +45,6 @@ build/
 
 ### Local Thunder Client ###
 /thunder-client/
+
+### Local Postman collections and environments ###
+/postman/

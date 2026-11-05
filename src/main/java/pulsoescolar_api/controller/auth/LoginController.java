@@ -19,6 +19,13 @@ public class LoginController {
     private final ChangePasswordService changePasswordService;
     private final pulsoescolar_api.service.auth.TwoFactorService twoFactor;
 
+    @PatchMapping("/2fa")
+    public ResponseEntity<Void> updateTwoFactor(@AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody pulsoescolar_api.dto.auth.TwoFactorSettingsRequest body) {
+        twoFactor.updateSettings(jwt, body);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/2fa/verify")
     public ResponseEntity<Void> verify(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody pulsoescolar_api.dto.auth.VerifyCodeRequest body) {

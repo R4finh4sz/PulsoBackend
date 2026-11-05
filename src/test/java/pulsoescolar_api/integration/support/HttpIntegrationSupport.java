@@ -78,6 +78,7 @@ public abstract class HttpIntegrationSupport {
         assertThat(response.getBody()).isNotNull();
         String token = response.getBody().accessToken();
         assertThat(token).isNotBlank();
+        if (!response.getBody().twoFactorRequired()) return token;
         String code = codes.computeIfAbsent(user.getEmail(), key -> new CompletableFuture<>())
                 .get(10, TimeUnit.SECONDS);
         var verification = request(HttpMethod.POST, "/api/auth/2fa/verify", token, Map.of("code", code), Void.class);
