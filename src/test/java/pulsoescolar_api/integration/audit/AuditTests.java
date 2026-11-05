@@ -35,6 +35,7 @@ class AuditTests {
     @Autowired UserRegistrationService registration;
     @Autowired AccountDeletionService deletion;
     @Autowired UserRepository users;
+    @Autowired org.springframework.security.crypto.password.PasswordEncoder passwords;
     @Autowired PlatformTransactionManager transactions;
     @MockitoBean WelcomeMailService mail;
 
@@ -53,7 +54,7 @@ class AuditTests {
         user.setFullName("Private name");
         user.setRa("private-" + role);
         user.setEmail(role + "@private.test");
-        user.setPasswordHash("hash");
+        user.setPasswordHash(passwords.encode("test-password"));
         user.setRole(role);
         users.saveAndFlush(user);
         login(user);
@@ -102,12 +103,12 @@ class AuditTests {
     @Test @Transactional
     void logsOnlyApprovedDeletionAndDoesNotLogRepeatedReview() {
         var student = actor(Role.STUDENT);
-        var first = deletion.create(new CreateDeletionRequest("Private reason"));
+        var first = deletion.create(new CreateDeletionRequest("Private reason", "test-password"));
         var admin = actor(Role.ADMIN);
         deletion.review(first.id(), new ReviewDeletionRequest(DeletionStatus.REJECTED, "Private reason"));
         assertEquals(0, count(AuditEvent.ACCOUNT_DELETED));
         login(student);
-        var second = deletion.create(new CreateDeletionRequest("Private reason"));
+        var second = deletion.create(new CreateDeletionRequest("Private reason", "test-password"));
         login(admin);
         deletion.review(second.id(), new ReviewDeletionRequest(DeletionStatus.APPROVED, "Private reason"));
         assertEquals(1, count(AuditEvent.ACCOUNT_DELETED));
