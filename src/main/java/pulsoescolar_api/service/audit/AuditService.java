@@ -18,7 +18,11 @@ public class AuditService {
     private final CurrentUser currentUser;
     @Transactional(propagation = Propagation.MANDATORY)
     public void record(AuditEvent event) {
-        Long actorUserId = currentUser.get().getId();
+        record(event, currentUser.get().getId());
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void record(AuditEvent event, Long actorUserId) {
         jdbc.update("INSERT INTO audit_events (occurred_at, event_type, actor_user_id) VALUES (?, ?, ?)",
                 OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC), event.code(), actorUserId);
     }

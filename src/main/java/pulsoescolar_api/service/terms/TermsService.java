@@ -25,6 +25,10 @@ public class TermsService {
     private final pulsoescolar_api.repository.terms.TermsVersionRepository versions;
     private final UserRepository users;
     private final CurrentUser currentUser;
+    private final pulsoescolar_api.repository.auth.AuthSessionRepository sessions;
+    private final pulsoescolar_api.repository.terms.TermsRevocationRepository revocations;
+    private final jakarta.persistence.EntityManager entityManager;
+    private final java.time.Clock clock;
 
     public TermsResponse get() {
         var term = terms.findById(1L)
@@ -67,6 +71,19 @@ public class TermsService {
         boolean firstAcceptance = user.getAcceptedTermVersions().add(term.getVersion());
         user.setTermsAccepted(true);
         if (firstAcceptance) audit.record(pulsoescolar_api.service.audit.AuditEvent.TERMS_ACCEPTED);
+    }
+
+    @Transactional
+    public void revoke() {
+        var user = currentUser.get();
+        if (user.getRole() == Role.ADMIN) {
+            throw new AccessDeniedException("Administradores não podem revogar os termos.");
+        }
+        // A mesma trava do login impede criar uma sessão durante a revogação.
+        entityManager.refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        revocations.save(new pulsoescolar_api.entity.terms.TermsRevocation(user, clock.instant()));
+        user.setTermsAccepted(false);
+        sessions.revokeAll(user.getId());
     }
 
     public java.util.List<TermsResponse> history() {

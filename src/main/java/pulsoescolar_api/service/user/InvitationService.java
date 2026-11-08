@@ -8,7 +8,6 @@ import pulsoescolar_api.exception.common.OperationNotAllowedException;
 import pulsoescolar_api.exception.common.ResourceNotFoundException;
 import pulsoescolar_api.exception.terms.TermsVersionChangedException;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Locale;
@@ -47,6 +46,7 @@ public class InvitationService {
     private final Clock clock;
     private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
     private final SchoolInvitationService schoolInvitations;
+    private final pulsoescolar_api.security.user.PasswordPolicy passwordPolicy;
 
     @Transactional
     public InvitationReceipt createCoordinator(CreateCoordinatorInvitationRequest input) {
@@ -125,9 +125,7 @@ public class InvitationService {
                 || registrations.existsByEmailOrRa(invitation.getEmail(), ra)) {
             throw new BusinessConflictException("Já existe uma conta ou solicitação com este e-mail ou matrícula.");
         }
-        if (input.password().getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new BusinessValidationException("A senha deve ter no máximo 72 bytes.");
-        }
+        passwordPolicy.requireValidNewPassword(input.password());
         var term = terms.lockCurrent();
         if (invitation.getRole() == Role.PEDAGOGICAL_COORDINATOR) {
             coordinators.requireVacancy(invitation.getSchool().getId());

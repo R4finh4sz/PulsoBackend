@@ -33,6 +33,8 @@ build/
 .vscode/
 
 ### Local credentials ###
+/admin-token.txt
+/data/
 .env
 .env.*
 !.env.example
