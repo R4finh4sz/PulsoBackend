@@ -146,7 +146,7 @@ class JwtAuthenticationTests {
                 .content("{\"email\":\"ADMIN@example.com\",\"password\":\"admin-password-123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("pulso_device=")))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresAt").exists())
                 .andExpect(jsonPath("$.user.role").value("ADMIN"))
@@ -390,6 +390,32 @@ class JwtAuthenticationTests {
                 .andExpect(status().isOk()).andExpect(content().json("[\"1.0\",\"1.1\"]"));
     }
 
+    @Test void pendingTermsBlockAllSchoolRolesUntilAcceptanceWithSameToken() throws Exception {
+        String token = login();
+        mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType("application/json").content("{\"title\":\"Termos\",\"content\":\"Texto\"}"))
+                .andExpect(status().isCreated());
+        for (Role role : List.of(Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR)) {
+            var user = users.findById(userId).orElseThrow();
+            user.setRole(role);
+            user.setTermsAccepted(false);
+            users.saveAndFlush(user);
+            for (String path : List.of("/api/me/export", "/api/teacher/classrooms", "/api/schools/me/metrics")) {
+                mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                        .andExpect(status().isForbidden());
+            }
+            for (String path : List.of("/api/me", "/api/terms", "/api/terms/history", "/api/terms/accepted")) {
+                mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                        .andExpect(status().isOk());
+            }
+            mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
+                    .andExpect(status().isNoContent());
+            mvc.perform(get("/api/me/export").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isOk());
+        }
+    }
+
     @Test void optionalPasswordChangeDoesNotAcceptTerms() throws Exception {
         String token = login();
         mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -529,6 +555,6 @@ class JwtAuthenticationTests {
         mvc.perform(post("/api/auth/login").contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest());
         assertFalse(new LoginRequest("admin@example.com", "secret").toString().contains("secret"));
-        assertFalse(new LoginResponse("secret", "Bearer", now, null, true, now, now).toString().contains("secret"));
+        assertFalse(new LoginResponse("secret", "Bearer", now, null, true, now, now, "refresh-secret", now).toString().contains("secret"));
     }
 }

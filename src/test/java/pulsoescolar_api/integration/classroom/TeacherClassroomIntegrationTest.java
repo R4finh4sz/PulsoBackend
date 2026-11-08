@@ -2,7 +2,7 @@ package pulsoescolar_api.integration.classroom;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import pulsoescolar_api.dto.classroom.ClassroomResponse;
+import pulsoescolar_api.dto.classroom.TeacherClassroomResponse;
 import pulsoescolar_api.entity.user.Role;
 import pulsoescolar_api.integration.support.HttpIntegrationSupport;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,11 +17,11 @@ class TeacherClassroomIntegrationTest extends HttpIntegrationSupport {
         criarSala();
         var otherTeacherToken = autenticar(criarUsuario(Role.TEACHER));
 
-        var response = request(GET, PATH, teacherToken, null, ClassroomResponse[].class);
-        var otherResponse = request(GET, PATH, otherTeacherToken, null, ClassroomResponse[].class);
+        var response = request(GET, PATH, teacherToken, null, TeacherClassroomResponse[].class);
+        var otherResponse = request(GET, PATH, otherTeacherToken, null, TeacherClassroomResponse[].class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).containsExactly(room);
+        assertThat(response.getBody()).extracting(TeacherClassroomResponse::id).containsExactly(room.id());
         assertThat(otherResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(otherResponse.getBody()).isEmpty();
     }

@@ -86,7 +86,7 @@ O campo `syllabus` da resposta reúne os `description` dos tópicos da própria
 disciplina, na ordem cadastrada, separados por uma linha em branco. Os tópicos
 permanecem disponíveis individualmente. Disciplinas antigas sem tópicos mantêm
 a ementa anteriormente armazenada como alternativa.
-CNPJ continua obrigatório e único para escolas; a consulta pública não o expõe.
+Escolas são cadastradas com nome e endereço; CEP e UF são opcionais no cadastro.
 Campos de endereço ignorados no cadastro pessoal ficam apenas no teste específico
 de compatibilidade do frontend. Os testes de auditoria usam `CurrentUser` real.
 

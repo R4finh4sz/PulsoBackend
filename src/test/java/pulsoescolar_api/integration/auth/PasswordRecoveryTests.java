@@ -160,7 +160,7 @@ class PasswordRecoveryTests {
     @CsvSource({"STUDENT,APPROVED,aluno", "TEACHER,APPROVED,professor", "PEDAGOGICAL_COORDINATOR,APPROVED,coordenador",
                 "STUDENT,REJECTED,aluno", "TEACHER,REJECTED,professor", "PEDAGOGICAL_COORDINATOR,REJECTED,coordenador"})
     void reviewEmailsMatchProfileAndDecisionWithoutNamesOrLinks(Role role, RegistrationStatus status, String profile) throws Exception {
-        var school = new School(); school.setNome("Escola"); school.setCnpj("12345678000190");
+        var school = new School(); school.setNome("Escola");
         school.setLogradouro("Rua"); school.setBairro("Centro"); school.setCidade("Recife"); schools.saveAndFlush(school);
         Role actorRole = role == Role.PEDAGOGICAL_COORDINATOR ? Role.ADMIN : Role.PEDAGOGICAL_COORDINATOR;
         account.setRole(actorRole); account.setSchool(actorRole == Role.ADMIN ? null : school); users.saveAndFlush(account);

@@ -42,14 +42,13 @@ class SubjectInvitationIntegrationTest extends HttpIntegrationSupport {
     private School school() {
         var school = new School();
         school.setNome("Escola " + UUID.randomUUID());
-        school.setCnpj(String.format("%014d", Math.floorMod(UUID.randomUUID().getMostSignificantBits(), 100_000_000_000_000L)));
         school.setLogradouro("Rua"); school.setBairro("Centro"); school.setCidade("Cidade");
         return schools.saveAndFlush(school);
     }
 
     @BeforeEach
     void prepareInvitation() throws Exception {
-        school = school();
+        school = defaultSchool;
         recipient = criarUsuario(Role.TEACHER);
         outsider = criarUsuario(Role.TEACHER);
         room = vincularProfessor(criarSala());
@@ -60,7 +59,7 @@ class SubjectInvitationIntegrationTest extends HttpIntegrationSupport {
         recipientToken = autenticar(recipient);
         outsiderToken = autenticar(outsider);
         var response = request(POST, "/api/classrooms/" + room.id() + "/subjects", teacherToken,
-                Map.of("name", "Matemática", "syllabus", "", "topics", List.of(
+                Map.of("name", "Matemática", "syllabus", "Conteúdos e objetivos", "topics", List.of(
                         Map.of("title", "Frações", "description", "Operações", "references", ""))), SubjectResponse.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         subject = response.getBody();

@@ -1,7 +1,6 @@
 package pulsoescolar_api.integration.classroom;
 
 import java.util.Map;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.*;
 import pulsoescolar_api.dto.classroom.ClassroomResponse;
@@ -14,8 +13,8 @@ class ClassroomControllerIntegrationTest extends HttpIntegrationSupport {
     private static final String PATH = "/api/classrooms";
 
     @Test
-    void criar_comAdministrador_deveRetornar201ComCorpoHeaderEPersistencia() {
-        String name = "Turma " + UUID.randomUUID();
+    void criar_comCoordenador_deveRetornar201ComCorpoHeaderEPersistencia() {
+        String name = "3º ano · Integral";
         var response = request(POST, PATH, managerToken,
                 Map.of("name", name, "identifier", "A"), ClassroomResponse.class);
 
@@ -54,15 +53,15 @@ class ClassroomControllerIntegrationTest extends HttpIntegrationSupport {
     @Test
     void atualizar_comNomeValido_deveRetornar200EPersistirSemAlterarIdentificador() {
         var room = criarSala();
-        String name = "Atualizada " + UUID.randomUUID();
+        String name = "2º ano · Noite";
         var response = request(PATCH, PATH + "/" + room.id(), managerToken,
                 Map.of("name", name), ClassroomResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(new ClassroomResponse(room.id(), name, "A", room.teacherIds()));
+        assertThat(response.getBody()).isEqualTo(new ClassroomResponse(room.id(), name, room.identifier(), room.teacherIds()));
         var saved = classrooms.findById(room.id()).orElseThrow();
         assertThat(saved.getName()).isEqualTo(name);
-        assertThat(saved.getIdentifier()).isEqualTo("A");
+        assertThat(saved.getIdentifier()).isEqualTo(room.identifier());
     }
 
     @Test
@@ -106,7 +105,7 @@ class ClassroomControllerIntegrationTest extends HttpIntegrationSupport {
     @Test
     void criar_semToken_deveRetornar401ComDesafioBearer() {
         var response = request(POST, PATH, null,
-                Map.of("name", "Bloqueada", "identifier", "A"), String.class);
+                Map.of("name", "1º ano · Manhã", "identifier", "A"), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE)).startsWith("Bearer");
@@ -116,7 +115,7 @@ class ClassroomControllerIntegrationTest extends HttpIntegrationSupport {
     void criar_comProfessor_deveRetornar403SemPersistir() {
         long count = classrooms.count();
         var response = request(POST, PATH, teacherToken,
-                Map.of("name", "Bloqueada", "identifier", "A"), String.class);
+                Map.of("name", "1º ano · Manhã", "identifier", "A"), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(classrooms.count()).isEqualTo(count);

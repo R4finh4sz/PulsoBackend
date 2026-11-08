@@ -36,7 +36,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     void setupQuiz() throws Exception {
         room = vincularProfessor(criarSala());
         subject = request(POST, "/api/classrooms/" + room.id() + "/subjects", teacherToken,
-                Map.of("name", "Matemática", "syllabus", "", "topics", List.of(
+                Map.of("name", "Matemática", "syllabus", "Conteúdos e objetivos", "topics", List.of(
                         Map.of("title", "Números", "description", "Operações", "references", ""))), SubjectResponse.class).getBody();
         student = criarUsuario(Role.STUDENT);
         request(PUT, "/api/classrooms/" + room.id() + "/students/" + student.getId(), managerToken, null, String.class);
@@ -44,6 +44,56 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     }
 
     String activityPath() { return "/api/subjects/" + subject.id() + "/activities"; }
+
+    @Test
+    @org.springframework.test.context.jdbc.Sql(scripts = {
+            "/db/migration/V14__audit_events.sql", "/db/migration/V16__audit_actor.sql"})
+    void inactiveStudentsDisappearFromRostersSubmissionsAndRankingWhileHistoryRemains() {
+        var activity = create();
+        var submission = submit(activity, correctAnswers());
+        var school = defaultSchool;
+        var active = criarUsuario(Role.STUDENT);
+        var inactiveWithoutSubmission = criarUsuario(Role.STUDENT);
+        tx().executeWithoutResult(status -> {
+            classrooms.findById(room.id()).orElseThrow().setSchool(school);
+            for (var account : List.of(student, active, inactiveWithoutSubmission)) {
+                var managed = users.findById(account.getId()).orElseThrow();
+                managed.setSchool(school);
+                managed.setClassroom(classrooms.findById(room.id()).orElseThrow());
+            }
+            users.findById(teacher.getId()).orElseThrow().setSchool(school);
+            users.findById(inactiveWithoutSubmission.getId()).orElseThrow().setDeletedAt(java.time.Instant.now());
+            submissions.findById(submission.id()).orElseThrow()
+                    .setSubmittedAt(java.time.Instant.parse("2026-02-15T03:00:00Z"));
+        });
+        String ranking = "/api/rankings/students?year=2026&bimester=1&schoolId=" + school.getId();
+        assertThat(request(GET, ranking, teacherToken, null, StudentRankingResponse[].class).getBody())
+                .extracting(StudentRankingResponse::studentId).containsExactly(student.getId());
+        assertThat(request(GET, "/api/teacher/activities", teacherToken, null, TeacherActivityResponse[].class).getBody())
+                .filteredOn(item -> item.activity().id().equals(activity.id()))
+                .singleElement().satisfies(item -> assertThat(item.submissions()).hasSize(1));
+        var deletion = request(POST, "/api/me/deletion-requests", studentToken,
+                Map.of("currentPassword", "SenhaTeste123", "reason", "Excluir minha conta"),
+                pulsoescolar_api.dto.user.DeletionResponse.class).getBody();
+        assertThat(request(PATCH, "/api/account-deletion-requests/" + deletion.id(), managerToken,
+                Map.of("status", "APPROVED", "reason", "Solicitação atendida"), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(request(GET, "/api/classrooms/" + room.id() + "/students", teacherToken, null,
+                pulsoescolar_api.dto.user.UserResponse[].class).getBody())
+                .extracting(pulsoescolar_api.dto.user.UserResponse::id).containsExactly(active.getId());
+        assertThat(request(GET, "/api/teacher/activities", teacherToken, null, TeacherActivityResponse[].class).getBody())
+                .filteredOn(item -> item.activity().id().equals(activity.id()))
+                .singleElement().satisfies(item -> assertThat(item.submissions()).isEmpty());
+        assertThat(request(GET, ranking, teacherToken, null, StudentRankingResponse[].class).getBody()).isEmpty();
+        assertThat(request(GET, "/api/submissions/" + submission.id() + "/result", teacherToken, null, String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(request(PATCH, "/api/submissions/" + submission.id() + "/grade", teacherToken, null, String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(request(GET, "/api/student/activities", studentToken, null, String.class).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(submissions.findById(submission.id())).isPresent();
+        assertThat(users.findById(student.getId()).orElseThrow().getDeletedAt()).isNotNull();
+    }
 
     @Test
     void rankingCalculatesAveragesTiesFiltersAndCalendarBoundaries() {
@@ -107,7 +157,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
             var end = java.time.LocalDate.parse(ends[i]).plusDays(1)
                     .atStartOfDay(java.time.ZoneId.of("America/Sao_Paulo")).toInstant();
             for (var instant : List.of(start.minusSeconds(1), start, end.minusSeconds(1), end)) {
-                tx().executeWithoutResult(status -> submissions.findByActivityIdOrderBySubmittedAtDescIdDesc(activity.id())
+                tx().executeWithoutResult(status -> submissions.findByActivityIdAndStudentDeletedAtIsNullOrderBySubmittedAtDescIdDesc(activity.id())
                         .forEach(s -> s.setSubmittedAt(instant)));
                 var rows = request(GET, "/api/rankings/students?year=2026&bimester=" + (i + 1)
                         + "&schoolId=" + school.getId(), teacherToken, null, StudentRankingResponse[].class).getBody();
@@ -116,7 +166,9 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
             }
         }
         assertThat(request(GET, path, null, null, String.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        for (String invalid : List.of("year=2025&bimester=1", "year=2026&bimester=0", "year=2026&bimester=5")) {
+        assertThat(request(GET, "/api/rankings/students?year=2025&bimester=1", teacherToken, null,
+                StudentRankingResponse[].class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        for (String invalid : List.of("year=0&bimester=1", "year=2026&bimester=0", "year=2026&bimester=5")) {
             assertThat(request(GET, "/api/rankings/students?" + invalid, teacherToken, null, String.class)
                     .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
@@ -186,17 +238,17 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     }
 
     @Test
-    void answerKeyIsNeverSerializedAndExportContainsOnlyOwnSubmissions() throws Exception {
+    void answerKeyIsNeverSerializedAndExportContainsOnlyPersonalData() throws Exception {
         var activity = create();
         var submission = submit(activity, correctAnswers());
         var outsider = criarUsuario(Role.STUDENT);
         var outsiderToken = autenticar(outsider);
         var export = request(GET, "/api/me/export", studentToken, null, UserExportResponse.class).getBody();
-        assertThat(export.submissions()).containsExactly(submission);
-        assertThat(export.authoredActivities()).isEmpty();
-        assertThat(request(GET, "/api/me/export", outsiderToken, null, UserExportResponse.class).getBody().submissions()).isEmpty();
-        assertThat(request(GET, "/api/me/export", teacherToken, null, UserExportResponse.class).getBody().authoredActivities())
-                .extracting(q -> q.activity().id()).containsExactly(activity.id());
+        assertThat(export.user().id()).isEqualTo(student.getId());
+        assertThat(request(GET, "/api/me/export", outsiderToken, null, UserExportResponse.class).getBody().user().id())
+                .isEqualTo(outsider.getId());
+        assertThat(request(GET, "/api/me/export", teacherToken, null, String.class).getBody())
+                .doesNotContain("submissions", "authoredActivities", "questions");
         for (String path : List.of("/api/activities/" + activity.id() + "/quiz", activityPath(),
                 "/api/student/activities", "/api/me/export")) {
             assertThat(request(GET, path, studentToken, null, String.class).getBody())
@@ -292,7 +344,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         var grade2 = CompletableFuture.supplyAsync(() -> request(PATCH, gradePath, teacherToken, null, String.class));
         assertThat(List.of(grade1.join().getStatusCode().value(), grade2.join().getStatusCode().value()))
                 .containsExactlyInAnyOrder(200, 409);
-        assertThat(submissions.findByActivityIdOrderBySubmittedAtDescIdDesc(activity.id())).hasSize(1);
+        assertThat(submissions.findByActivityIdAndStudentDeletedAtIsNullOrderBySubmittedAtDescIdDesc(activity.id())).hasSize(1);
     }
 
     @Test
@@ -302,14 +354,14 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         var otherRoom = criarSala();
         request(PUT, "/api/classrooms/" + otherRoom.id() + "/students/" + student.getId(), managerToken, null, String.class);
         assertThat(request(GET, "/api/activities/" + activity.id() + "/quiz", studentToken, null, String.class).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN);
+                .isEqualTo(HttpStatus.OK);
         assertThat(request(GET, "/api/submissions/" + submission.id() + "/result", studentToken, null, String.class).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
         request(DELETE, "/api/classrooms/" + room.id(), managerToken, null, String.class);
         assertThat(request(GET, "/api/activities/" + activity.id() + "/quiz", teacherToken, null, String.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(request(GET, "/api/teacher/activities", teacherToken, null, TeacherActivityResponse[].class).getBody()).isEmpty();
-        assertThat(request(GET, "/api/me/export", studentToken, null, UserExportResponse.class).getBody().submissions()).hasSize(1);
+        assertThat(request(GET, "/api/me/export", studentToken, null, String.class).getBody()).doesNotContain("submissions");
         assertThat(activities.findById(activity.id())).isPresent();
         assertThat(submissions.findById(submission.id())).isPresent();
     }
@@ -342,23 +394,31 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
             }
         });
         assertThat(request(GET, "/api/teacher/activities", teacherToken, null, TeacherActivityResponse[].class).getBody()).hasSize(1);
-        for (String token : List.of(teacherToken, studentToken)) {
-            request(PATCH, "/api/me/active-school", token, Map.of("schoolId", second.getId()), String.class);
-            assertThat(request(GET, "/api/activities/" + activity.id() + "/quiz", token, null, String.class).getStatusCode())
-                    .isEqualTo(HttpStatus.FORBIDDEN);
-        }
+        request(PATCH, "/api/me/active-school", teacherToken, Map.of("schoolId", second.getId()), String.class);
+        assertThat(request(GET, "/api/activities/" + activity.id() + "/quiz", teacherToken, null, String.class).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(request(GET, "/api/teacher/activities", teacherToken, null, TeacherActivityResponse[].class).getBody())
                 .extracting(item -> item.activity().schoolId()).containsExactly(first.getId());
-        assertThat(request(GET, "/api/student/activities", studentToken, null, StudentActivityResponse[].class).getBody()).isEmpty();
+        assertThat(request(PATCH, "/api/me/active-school", studentToken, Map.of("schoolId", second.getId()), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(request(POST, "/api/students/transfer", teacherToken,
+                Map.of("fullName", student.getFullName(), "ra", student.getRa(), "schoolId", second.getId()), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        tx().executeWithoutResult(status -> {
+            var transferred = users.findById(student.getId()).orElseThrow();
+            transferred.setSchool(second);
+            transferred.setClassroom(null);
+        });
+        assertThat(request(GET, "/api/student/activities", studentToken, null, StudentActivityResponse[].class).getBody()).hasSize(1);
         assertThat(request(PATCH, "/api/submissions/" + submission.id() + "/grade", teacherToken, null, String.class).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(request(GET, "/api/submissions/" + submission.id() + "/result", studentToken, null, String.class).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN);
+                .isEqualTo(HttpStatus.OK);
     }
 
     pulsoescolar_api.entity.school.School school() {
         var school = new pulsoescolar_api.entity.school.School();
-        school.setNome("Escola quiz"); school.setCnpj(UUID.randomUUID().toString().substring(0, 18));
+        school.setNome("Escola quiz");
         school.setLogradouro("Rua"); school.setBairro("Centro"); school.setCidade("Cidade");
         return schools.saveAndFlush(school);
     }
@@ -387,7 +447,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         assertThat(request(PATCH, "/api/me/active-school", teacherToken,
                 Map.of("schoolId", secondSchool.getId()), String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
         var secondSubject = request(POST, "/api/classrooms/" + secondRoom.id() + "/subjects", teacherToken,
-                Map.of("name", "Matemática", "syllabus", "", "topics", List.of(
+                Map.of("name", "Matemática", "syllabus", "Conteúdos e objetivos", "topics", List.of(
                         Map.of("title", "Números", "description", "Operações", "references", ""))), SubjectResponse.class).getBody();
         var secondActivity = request(POST, "/api/subjects/" + secondSubject.id() + "/activities", teacherToken,
                 input(), ActivityResponse.class).getBody();
@@ -422,18 +482,18 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(activities.count()).isEqualTo(count);
         body.put("closesAt", "2020-01-01T00:00:00Z");
-        var closed = request(POST, activityPath(), teacherToken, body, ActivityResponse.class);
-        assertThat(closed.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(closed.getBody().closesAt()).isEqualTo(java.time.Instant.parse("2020-01-01T00:00:00Z"));
-        assertThat(closed.getBody().status()).isEqualTo(ActivityStatus.FINISHED);
-        assertThat(request(POST, "/api/activities/" + closed.getBody().id() + "/submissions", studentToken,
-                Map.of("answers", correctAnswers()), String.class).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(request(GET, "/api/activities/" + closed.getBody().id() + "/quiz", studentToken, null,
-                QuizResponse.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        body.put("closesAt", "2099-02-30T00:00:00Z");
+        assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(activities.count()).isEqualTo(count);
         body.put("closesAt", "2099-01-01T00:00:00Z");
         var open = request(POST, activityPath(), teacherToken, body, ActivityResponse.class).getBody();
         var submission = submit(open, correctAnswers());
         tx().executeWithoutResult(status -> activities.findById(open.id()).orElseThrow().setClosesAt(java.time.Instant.EPOCH));
+        assertThat(request(POST, "/api/activities/" + open.id() + "/submissions", studentToken,
+                Map.of("answers", correctAnswers()), String.class).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(request(GET, "/api/activities/" + open.id() + "/quiz", studentToken, null,
+                QuizResponse.class).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(request(GET, "/api/submissions/" + submission.id() + "/result", studentToken, null,
                 SubmissionResponse.class).getBody().score()).isEqualByComparingTo("100.00");
         body.put("closesAt", "amanhã");
