@@ -1,16 +1,13 @@
 package pulsoescolar_api.service.user;
 
-import lombok.RequiredArgsConstructor;
 import java.time.Clock;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.user.UserExportResponse;
-import pulsoescolar_api.dto.notification.NotificationResponse;
-import pulsoescolar_api.repository.user.AccountDeletionRepository;
-import pulsoescolar_api.repository.user.RegistrationRepository;
-import pulsoescolar_api.repository.notification.UserNotificationRepository;
-import pulsoescolar_api.repository.subject.SubjectInvitationRepository;
 import pulsoescolar_api.security.CurrentUser;
+import pulsoescolar_api.entity.terms.TermsVersion;
+import pulsoescolar_api.repository.terms.TermsVersionRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -18,40 +15,16 @@ import pulsoescolar_api.security.CurrentUser;
 public class UserExportService {
     private final CurrentUser currentUser;
     private final Clock clock;
-    private final UserProfileService profiles;
-    private final RegistrationRepository registrations;
-    private final AccountDeletionRepository deletions;
-    private final UserNotificationRepository notifications;
-    private final SubjectInvitationRepository invitations;
-    private final pulsoescolar_api.repository.user.SchoolInvitationRepository schoolInvitations;
-    private final pulsoescolar_api.repository.activity.QuizSubmissionRepository submissions;
-    private final pulsoescolar_api.repository.activity.ActivityRepository activities;
-    private final pulsoescolar_api.mapper.activity.ActivityMapper activityMapper;
+    private final TermsVersionRepository termsVersions;
 
     public UserExportResponse export() {
         var user = currentUser.get();
-        var profile = profiles.profile();
-        return new UserExportResponse(clock.instant(), profile.user(), user.getBirthDate(), user.getProfilePhoto(),
-                user.isTermsAccepted(), user.getTermsAcceptedVersions(), profile.schools(),
-                profile.classrooms().stream().map(room -> new UserExportResponse.Classroom(
-                        room.id(), room.name(), room.identifier())).toList(),
-                registrations.findByUserId(user.getId()).map(r -> new UserExportResponse.Registration(
-                        r.getId(), r.getFullName(), r.getRa(), r.getEmail(), r.getBirthDate(),
-                        r.getSchool().getId(), r.getTermsVersion(), r.getProfilePhoto(), r.getStatus(),
-                        r.getRequestedAt(), r.getReviewedAt(), r.getReviewReason())).orElse(null),
-                deletions.findByRequesterIdOrderByRequestedAtDesc(user.getId()).stream()
-                        .map(r -> new UserExportResponse.Deletion(r.getId(), r.getReason(), r.getStatus(),
-                                r.getRequestedAt(), r.getReviewedAt(), r.getReviewReason())).toList(),
-                notifications.findByRecipientIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
-                        .map(NotificationResponse::from).toList(),
-                invitations.findByRecipientIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
-                        .map(i -> new UserExportResponse.Invitation(i.getId(), i.getSubject().getId(),
-                                i.getStatus(), i.getCreatedAt(), i.getRespondedAt())).toList(),
-                schoolInvitations.findByRecipientIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
-                        .map(pulsoescolar_api.dto.user.SchoolInvitationResponse::from).toList(),
-                submissions.findByStudentIdOrderBySubmittedAtDescIdDesc(user.getId()).stream()
-                        .map(activityMapper::toResponse).toList(),
-                activities.findByCreatedByIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
-                        .map(activityMapper::toQuiz).toList());
+        return new UserExportResponse(clock.instant(), new UserExportResponse.PersonalData(
+                user.getId(), user.getFullName(), user.getRa(), user.getEmail(), user.getRole()),
+                user.getBirthDate(), user.getProfilePhoto(), user.isTermsAccepted(), user.getTermsAcceptedVersions(),
+                termsVersions.findAllById(user.getAcceptedTermVersions()).stream()
+                        .sorted(java.util.Comparator.comparing(TermsVersion::getVersion))
+                        .map(term -> new UserExportResponse.AcceptedTerm(term.getTitle(), TermsVersion.label(term.getVersion())))
+                        .toList());
     }
 }
