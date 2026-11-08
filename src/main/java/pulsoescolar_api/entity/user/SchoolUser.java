@@ -7,6 +7,8 @@ import lombok.*;
 @Entity @Table(name="school_users")
 @Getter @Setter @NoArgsConstructor
 public class SchoolUser {
+ @Column(updatable=false) private java.time.Instant createdAt;
+ @PrePersist void recordCreationTime() { if (createdAt == null) createdAt = java.time.Instant.now(); }
  private java.time.LocalDate birthDate;
  @Column(columnDefinition="bytea") private byte[] profilePhoto;
  @Column private java.time.Instant deletedAt;
@@ -19,15 +21,17 @@ public class SchoolUser {
  @ManyToMany
  @JoinTable(name="user_schools", joinColumns=@JoinColumn(name="user_id"), inverseJoinColumns=@JoinColumn(name="school_id"))
  private java.util.Set<School> schools = new java.util.HashSet<>();
- public School getSchool() { return activeSchool == null ? school : activeSchool; }
+ public School getSchool() { return role == Role.STUDENT || activeSchool == null ? school : activeSchool; }
  public School getEnrollmentSchool() { return school; }
  public void setSchool(School school) {
   this.school = school;
   this.activeSchool = school;
+  if (role == Role.STUDENT) schools.clear();
   if (school != null && schools.stream().noneMatch(value -> value == school
           || school.getId() != null && school.getId().equals(value.getId()))) schools.add(school);
  }
  public boolean belongsToSchool(Long schoolId) {
+  if (role == Role.STUDENT) return school != null && java.util.Objects.equals(school.getId(), schoolId);
   return schools.stream().anyMatch(value -> value.getId().equals(schoolId));
  }
  public boolean isInActiveSchool(Classroom room) {
