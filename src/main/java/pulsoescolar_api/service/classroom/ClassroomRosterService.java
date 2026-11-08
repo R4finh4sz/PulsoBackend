@@ -23,6 +23,7 @@ public class ClassroomRosterService {
     public List<UserResponse> students(Long classroomId) {
         var classroom = classrooms.findById(classroomId);
         accessPolicy.requireRosterAccess(classroom, currentUser.get());
-        return users.findByClassroomId(classroomId).stream().map(mapper::toResponse).toList();
+        return users.findByClassroomIdAndRoleAndDeletedAtIsNull(classroomId, pulsoescolar_api.entity.user.Role.STUDENT)
+                .stream().map(mapper::toResponse).toList();
     }
 }

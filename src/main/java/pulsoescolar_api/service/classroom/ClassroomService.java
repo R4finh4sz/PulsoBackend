@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.classroom.ClassroomResponse;
+import pulsoescolar_api.dto.classroom.TeacherClassroomResponse;
 import pulsoescolar_api.dto.classroom.CreateClassroomRequest;
 import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.mapper.classroom.ClassroomMapper;
@@ -35,14 +36,9 @@ public class ClassroomService {
     @Transactional
     public void delete(Long id) {
         var user = currentUser.get();
-        accessPolicy.requireManager(user.getRole());
+        accessPolicy.requireCoordinator(user);
         var classroom = lookup.findById(id);
-        if (user.getRole() != pulsoescolar_api.entity.user.Role.ADMIN
-                && (user.getSchool() == null || classroom.getSchool() == null
-                || !user.getSchool().getId().equals(classroom.getSchool().getId()))) {
-            throw new org.springframework.security.access.AccessDeniedException(
-                    "A exclusão exige um coordenador vinculado à escola da turma ou administrador.");
-        }
+        classroomPolicy.requireAccess(classroom, user);
         classroom.setDeletedAt(clock.instant());
     }
 
@@ -64,7 +60,7 @@ public class ClassroomService {
     @Transactional
     public ClassroomResponse update(Long id, UpdateClassroomRequest request) {
         var user = currentUser.get();
-        accessPolicy.requireManager(user.getRole());
+        accessPolicy.requireCoordinator(user);
         var classroom = lookup.findById(id);
         classroomPolicy.requireAccess(classroom, user);
         if (request.name() != null) classroom.setName(request.name().strip());
@@ -75,28 +71,45 @@ public class ClassroomService {
     @Transactional
     public ClassroomResponse createClassroom(CreateClassroomRequest request) {
         var user = currentUser.get();
-        accessPolicy.requireManager(user.getRole());
+        accessPolicy.requireCoordinator(user);
         var classroom = new Classroom();
-        if (user.getRole() == pulsoescolar_api.entity.user.Role.PEDAGOGICAL_COORDINATOR) {
-            classroom.setSchool(user.getSchool());
-        }
+        classroom.setSchool(user.getSchool());
         classroom.setName(request.name().strip());
         classroom.setIdentifier(request.identifier());
         return mapper.toResponse(classrooms.saveAndFlush(classroom));
     }
 
+    public List<TeacherClassroomResponse> listTeacherClassrooms() {
+        var teacher = currentUser.get();
+        if (teacher.getRole() != pulsoescolar_api.entity.user.Role.TEACHER) {
+            throw new org.springframework.security.access.AccessDeniedException("Esta consulta exige um professor.");
+        }
+        return classrooms.findByTeachersId(teacher.getId()).stream()
+                .filter(classroom -> classroom.getDeletedAt() == null)
+                .filter(classroom -> classroom.getSchool() == null || teacher.belongsToSchool(classroom.getSchool().getId()))
+                .sorted(Comparator.comparing(Classroom::getId))
+                .map(classroom -> {
+                    var response = mapper.toResponse(classroom);
+                    var school = classroom.getSchool();
+                    return new TeacherClassroomResponse(response.id(), response.name(), response.identifier(), response.teacherIds(),
+                            school == null ? null : school.getId(), school == null ? null : school.getNome());
+                }).toList();
+    }
+
     public List<ClassroomResponse> listClassrooms() {
         var user = currentUser.get();
         var result = switch (user.getRole()) {
-            case ADMIN -> classrooms.findAll();
-            case PEDAGOGICAL_COORDINATOR -> user.getSchool() == null
-                    ? List.<Classroom>of() : classrooms.findBySchoolId(user.getSchool().getId());
+            case ADMIN -> throw new org.springframework.security.access.AccessDeniedException("Administradores não podem consultar turmas.");
+            case PEDAGOGICAL_COORDINATOR -> {
+                accessPolicy.requireCoordinator(user);
+                yield classrooms.findBySchoolId(user.getSchool().getId());
+            }
             case TEACHER -> classrooms.findByTeachersId(user.getId());
             case STUDENT -> user.getActiveClassroom() == null
                     ? List.<Classroom>of() : List.of(user.getActiveClassroom());
         };
         return result.stream().filter(classroom -> classroom.getDeletedAt() == null)
-                .filter(classroom -> user.getRole() == pulsoescolar_api.entity.user.Role.ADMIN || user.isInActiveSchool(classroom))
+                .filter(user::isInActiveSchool)
                 .map(mapper::toResponse).toList();
     }
 }

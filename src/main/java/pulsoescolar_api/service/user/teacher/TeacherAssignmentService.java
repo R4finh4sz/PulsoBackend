@@ -30,7 +30,7 @@ public class TeacherAssignmentService {
 
     @Transactional
     public void unassign(Long classroomId, Long teacherId) {
-        accessPolicy.requireManager(currentUser.get().getRole());
+        accessPolicy.requireCoordinator(currentUser.get());
         var classroom = classrooms.findById(classroomId);
         classroomPolicy.requireAccess(classroom, currentUser.get());
         users.findByRole(teacherId, Role.TEACHER);
@@ -42,7 +42,7 @@ public class TeacherAssignmentService {
 
     @Transactional
     public ClassroomResponse assign(Long classroomId, Long teacherId) {
-        accessPolicy.requireManager(currentUser.get().getRole());
+        accessPolicy.requireCoordinator(currentUser.get());
         var classroom = classrooms.findById(classroomId);
         classroomPolicy.requireAccess(classroom, currentUser.get());
         var teacher = users.findByRole(teacherId, Role.TEACHER);

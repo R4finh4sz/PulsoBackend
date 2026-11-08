@@ -6,10 +6,19 @@ import org.springframework.data.jpa.repository.Query;
 import pulsoescolar_api.entity.activity.Activity;
 
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
+    interface Recipient {
+        Long getActivityId();
+        Long getStudentId();
+    }
+
+    @Query("select a.id as activityId, r.id as studentId from Activity a join a.recipients r "
+            + "where a.id in :activityIds and r.deletedAt is null")
+    List<Recipient> findRecipients(java.util.Collection<Long> activityIds);
     List<Activity> findBySubjectIdOrderByCreatedAtDescIdDesc(Long subjectId);
     List<Activity> findByCreatedByIdOrderByCreatedAtDescIdDesc(Long createdById);
     List<Activity> findBySubjectClassroomIdOrderByCreatedAtDescIdDesc(Long classroomId);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"subject", "subject.classroom", "subject.classroom.school"})
     @Query("""
             select distinct a from Activity a join a.subject s left join s.collaborators collaborator
             join s.classroom.teachers teacher

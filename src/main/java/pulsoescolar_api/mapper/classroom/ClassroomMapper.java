@@ -8,6 +8,7 @@ import pulsoescolar_api.entity.classroom.Classroom;
 public class ClassroomMapper {
     public ClassroomResponse toResponse(Classroom classroom) {
         return new ClassroomResponse(classroom.getId(), classroom.getName(), classroom.getIdentifier(),
-                classroom.getTeachers().stream().map(teacher -> teacher.getId()).sorted().toList());
+                classroom.getTeachers().stream().filter(teacher -> teacher.getDeletedAt() == null)
+                        .map(teacher -> teacher.getId()).sorted().toList());
     }
 }

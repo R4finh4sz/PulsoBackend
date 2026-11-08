@@ -7,7 +7,8 @@ import java.time.Instant;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import pulsoescolar_api.dto.subject.SubjectStringDeserializer;
 
-public record CreateActivityRequest(@NotNull(message = "Informe a data de encerramento do quiz.") Instant closesAt,
+public record CreateActivityRequest(@NotNull(message = "Informe a data de encerramento do quiz.")
+        @Future(message = "A data de encerramento do quiz deve ser futura.") Instant closesAt,
         @NotNull @Size(min = 10, max = 10, message = "O quiz deve conter exatamente 10 questões.")
         List<@NotNull @Valid Question> questions) {
     public record Question(@JsonDeserialize(using = SubjectStringDeserializer.class)

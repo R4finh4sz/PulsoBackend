@@ -15,6 +15,8 @@ import pulsoescolar_api.repository.subject.SubjectRepository;
 import pulsoescolar_api.security.classroom.ClassroomAccessPolicy;
 import pulsoescolar_api.security.CurrentUser;
 import pulsoescolar_api.dto.subject.CreateSubjectRequest;
+import pulsoescolar_api.dto.subject.UpdateSyllabusRequest;
+import pulsoescolar_api.exception.common.ResourceNotFoundException;
 import pulsoescolar_api.entity.subject.SubjectTopic;
 import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.entity.user.SchoolUser;
@@ -33,16 +35,37 @@ public class SubjectService {
 
     @Transactional
     public SubjectResponse createSubject(Long classroomId, CreateSubjectRequest request) {
-        var titles = new java.util.HashSet<String>();
         var subject = newSubject(classroomId, request.name());
         subject.setSyllabus(request.syllabus());
-        for (var topic : request.topics()) {
+        replaceTopics(subject, request.topics());
+        return mapper.toResponse(subjects.saveAndFlush(subject));
+    }
+
+    @Transactional
+    public SubjectResponse updateSyllabus(Long classroomId, Long subjectId, UpdateSyllabusRequest request) {
+        var classroom = classrooms.findById(classroomId);
+        var user = currentUser.get();
+        accessPolicy.requireAssignedTeacher(classroom, user);
+        requireSchool(classroom, user);
+        var subject = subjects.findById(subjectId)
+                .filter(s -> s.getClassroom().getId().equals(classroomId))
+                .orElseThrow(() -> new ResourceNotFoundException("Disciplina não encontrada nesta turma."));
+        if (!subject.hasTeacher(user.getId())) {
+            throw new AccessDeniedException("Somente professores da disciplina podem editar a ementa.");
+        }
+        replaceTopics(subject, request.topics());
+        return mapper.toResponse(subjects.saveAndFlush(subject));
+    }
+
+    private void replaceTopics(Subject subject, List<CreateSubjectRequest.Topic> topics) {
+        var titles = new java.util.HashSet<String>();
+        subject.getTopics().clear();
+        for (var topic : topics) {
             if (!titles.add(topic.title().strip().toLowerCase(java.util.Locale.ROOT))) {
                 throw new BusinessValidationException("Os títulos dos tópicos devem ser únicos.");
             }
             subject.getTopics().add(new SubjectTopic(topic.title(), topic.description(), topic.references()));
         }
-        return mapper.toResponse(subjects.saveAndFlush(subject));
     }
 
     private Subject newSubject(Long classroomId, String name) {

@@ -7,6 +7,16 @@ import org.springframework.data.jpa.repository.*;
 import pulsoescolar_api.entity.activity.QuizSubmission;
 
 public interface QuizSubmissionRepository extends JpaRepository<QuizSubmission, Long> {
+    interface ReportSubmission {
+        Long getActivityId();
+        Long getStudentId();
+        java.time.Instant getGradedAt();
+        java.math.BigDecimal getScore();
+    }
+
+    @Query("select s.activity.id as activityId, s.student.id as studentId, s.gradedAt as gradedAt, s.score as score "
+            + "from QuizSubmission s where s.activity.id in :activityIds and s.student.deletedAt is null")
+    List<ReportSubmission> findForReport(java.util.Collection<Long> activityIds);
     interface StudentRanking {
         Long getStudentId();
         String getStudentName();
@@ -31,7 +41,7 @@ public interface QuizSubmissionRepository extends JpaRepository<QuizSubmission, 
 
     boolean existsByActivityIdAndStudentId(Long activityId, Long studentId);
     Optional<QuizSubmission> findByActivityIdAndStudentId(Long activityId, Long studentId);
-    List<QuizSubmission> findByActivityIdOrderBySubmittedAtDescIdDesc(Long activityId);
+    List<QuizSubmission> findByActivityIdAndStudentDeletedAtIsNullOrderBySubmittedAtDescIdDesc(Long activityId);
     List<QuizSubmission> findByStudentIdOrderBySubmittedAtDescIdDesc(Long studentId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

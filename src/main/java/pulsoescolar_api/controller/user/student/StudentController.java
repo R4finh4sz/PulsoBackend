@@ -15,6 +15,25 @@ import static org.springframework.http.HttpStatus.CREATED;
 @RequiredArgsConstructor
 public class StudentController {
     private final StudentService service;
+    private final pulsoescolar_api.service.user.student.StudentTransferService transfers;
+
+    @PostMapping("/transfer")
+    @ResponseStatus(CREATED)
+    public StudentTransferResponse transfer(@Valid @RequestBody TransferStudentRequest request) {
+        return transfers.transfer(request);
+    }
+
+    @GetMapping("/transfers")
+    public java.util.List<StudentTransferResponse> transfers(
+            @RequestParam(defaultValue = "PENDING") pulsoescolar_api.entity.user.RegistrationStatus status) {
+        return transfers.list(status);
+    }
+
+    @PatchMapping("/transfers/{id}")
+    public StudentTransferResponse reviewTransfer(@PathVariable Long id,
+            @Valid @RequestBody ReviewStudentTransferRequest request) {
+        return transfers.review(id, request);
+    }
 
     @PostMapping
     @ResponseStatus(CREATED)
