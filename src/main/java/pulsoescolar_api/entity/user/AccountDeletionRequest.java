@@ -15,6 +15,7 @@ public class AccountDeletionRequest {
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private DeletionStatus status;
     @Column(nullable = false) private Instant requestedAt;
     private Instant reviewedAt;
+    @Column(nullable = false) private boolean automatic;
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "reviewed_by_id") private SchoolUser reviewedBy;
     @Column(length = 2000) private String reviewReason;
 }
