@@ -10,6 +10,5 @@ public class AuthAuditEntry {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @Column(nullable = false) private Instant occurredAt;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 40) private AuthAuditEvent eventType;
-    // Sem FK: o histórico permanece após a exclusão de uma conta.
     private Long actorUserId;
 }

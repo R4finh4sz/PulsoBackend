@@ -6,7 +6,6 @@ import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import pulsoescolar_api.entity.user.Role;
 
-// Location is used by the frontend to find the school, never persisted with the person.
 @JsonIgnoreProperties({"cep", "city", "state", "address"})
 public record SelfRegistrationRequest(
         @JsonAlias("fullName") @NotBlank @Size(max = 50)

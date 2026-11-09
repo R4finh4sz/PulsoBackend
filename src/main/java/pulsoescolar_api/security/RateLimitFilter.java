@@ -25,7 +25,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final Clock clock;
     private final SecretKey signingKey;
     private static final String DEVICE_COOKIE = "pulso_device";
-    // shortcut: limite por instância; usar armazenamento compartilhado ao escalar horizontalmente.
     private final Map<String, Client> clients = new HashMap<>();
     private static final int MAX_CLIENTS = 10_000;
 
