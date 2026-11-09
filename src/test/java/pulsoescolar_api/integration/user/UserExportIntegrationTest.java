@@ -54,7 +54,6 @@ class UserExportIntegrationTest extends HttpIntegrationSupport {
     void exportIncludesOwnDataAndExcludesCredentialsAndOtherUsers() {
         var school = new School();
         school.setNome("Escola export");
-        school.setCnpj(UUID.randomUUID().toString().substring(0, 18));
         school.setLogradouro("Rua");
         school.setBairro("Centro");
         school.setCidade("Cidade");
@@ -128,15 +127,9 @@ class UserExportIntegrationTest extends HttpIntegrationSupport {
         assertThat(body.profilePhoto()).containsExactly(teacher.getProfilePhoto());
         assertThat(body.termsAccepted()).isTrue();
         assertThat(body.termsAcceptedVersions()).containsExactly("1.0");
-        assertThat(body.schools()).hasSize(1);
-        assertThat(body.schools().getFirst().id()).isEqualTo(school.getId().toString());
-        assertThat(body.classrooms()).extracting(UserExportResponse.Classroom::id).containsExactly(room.id());
-        assertThat(body.registration().id()).isEqualTo(registration.getId());
-        assertThat(body.deletionRequests()).extracting(UserExportResponse.Deletion::reason).containsExactly("Meu pedido");
-        assertThat(body.notifications()).hasSize(1);
-        assertThat(body.notifications().getFirst().id()).isEqualTo(notification.getId());
-        assertThat(body.receivedInvitations()).extracting(UserExportResponse.Invitation::id).containsExactly(invitation.getId());
         var raw = request(GET, PATH, teacherToken, null, String.class).getBody();
+        assertThat(raw).doesNotContain("schools", "classrooms", "schoolId", "classroomId", "registration",
+                "deletionRequests", "notifications", "receivedInvitations", "schoolInvitations", "submissions", "authoredActivities");
         assertThat(raw).doesNotContain("password", "Hash", "token", "jwt", "refresh", "secret", "code", "teacherIds", "reviewedBy",
                 "inviter", "recipient", outsider.getEmail(), "registration-secret", teacher.getPasswordHash(),
                 "other-private-notification", "other-private-deletion");
@@ -151,12 +144,7 @@ class UserExportIntegrationTest extends HttpIntegrationSupport {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             var body = response.getBody();
             assertThat(body.user().id()).isEqualTo(account.getId());
-            assertThat(body.schools()).isEmpty();
-            assertThat(body.classrooms()).isEmpty();
-            assertThat(body.registration()).isNull();
-            assertThat(body.deletionRequests()).isEmpty();
-            assertThat(body.notifications()).isEmpty();
-            assertThat(body.receivedInvitations()).isEmpty();
+            assertThat(body.acceptedTerms()).isEmpty();
         }
     }
 

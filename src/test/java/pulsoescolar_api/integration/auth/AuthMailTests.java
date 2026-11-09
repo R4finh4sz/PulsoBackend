@@ -43,7 +43,7 @@ class AuthMailTests {
         users.deleteAll();
         schools.deleteAll();
         var school = new pulsoescolar_api.entity.school.School();
-        school.setNome("Escola"); school.setCnpj("12345678000190");
+        school.setNome("Escola");
         school.setLogradouro("Rua A"); school.setBairro("Centro"); school.setCidade("Recife");
         schoolId = schools.saveAndFlush(school).getId();
         var coordinator = new SchoolUser();

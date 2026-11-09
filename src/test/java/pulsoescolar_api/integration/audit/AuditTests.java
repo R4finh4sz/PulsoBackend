@@ -69,7 +69,7 @@ class AuditTests {
     @Test @Transactional
     void recordsSchoolAndOnlyCoordinatorRegistration() {
         var admin = actor(Role.ADMIN);
-        var school = schools.create(new CreateSchoolRequest("Private school", "12345678000190", "Street", "Area", "City"));
+        var school = schools.create(new CreateSchoolRequest("Private school", "Street", "Area", "City"));
         assertEquals(1, count(AuditEvent.SCHOOL_CREATED));
         for (Role role : new Role[]{Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR}) {
             registration.createUser(new CreateUser("Private name", role.name(), role + "@new.test", school.id()), role);
@@ -125,7 +125,7 @@ class AuditTests {
         long schoolsBefore = jdbc.queryForObject("SELECT COUNT(*) FROM schools", Long.class);
         new TransactionTemplate(transactions).executeWithoutResult(status -> {
             actor(Role.ADMIN);
-            schools.create(new CreateSchoolRequest("Private school", "12345678000190", "Street", "Area", "City"));
+            schools.create(new CreateSchoolRequest("Private school", "Street", "Area", "City"));
             assertEquals(before + 1, count(AuditEvent.SCHOOL_CREATED));
             status.setRollbackOnly();
         });

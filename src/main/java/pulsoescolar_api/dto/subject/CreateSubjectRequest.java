@@ -7,8 +7,10 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 
 public record CreateSubjectRequest(
         @JsonDeserialize(using = SubjectStringDeserializer.class) @NotBlank @Size(max = 100) String name,
-        @JsonDeserialize(using = SubjectStringDeserializer.class) @NotNull @Size(max = 5000) String syllabus,
-        @NotNull @Size(min = 1, max = 15) List<@NotNull @Valid Topic> topics) {
+        @JsonDeserialize(using = SubjectStringDeserializer.class)
+        @NotBlank(message = "Informe a ementa da disciplina.") @Size(max = 5000) String syllabus,
+        @NotNull @Size(min = 1, max = 15, message = "A ementa deve conter de 1 a 15 tópicos.")
+        List<@NotNull @Valid Topic> topics) {
     public CreateSubjectRequest {
         name = SubjectText.trim(name);
         syllabus = SubjectText.trim(syllabus);

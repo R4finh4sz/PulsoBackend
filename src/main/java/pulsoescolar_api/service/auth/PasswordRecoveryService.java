@@ -34,11 +34,14 @@ public class PasswordRecoveryService {
     private final ApplicationEventPublisher events;
     private final EntityManager entityManager;
     private final Clock clock;
+    private final pulsoescolar_api.service.audit.AuthAuditService audit;
     private final SecureRandom random = new SecureRandom();
 
     @Transactional
     public void request(String email) {
         var user = lockActiveUser(email);
+        audit.record(pulsoescolar_api.service.audit.AuthAuditEvent.PASSWORD_RECOVERY_REQUESTED,
+                user == null ? null : user.getId());
         // A resposta pública é a mesma para contas existentes, ausentes e em cooldown.
         if (user == null) return;
         var recovery = recoveries.findById(user.getId()).orElseGet(PasswordRecovery::new);

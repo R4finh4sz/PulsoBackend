@@ -55,7 +55,7 @@ class ClassroomDeletionTests {
     void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         school = new School();
-        school.setNome("Escola"); school.setCnpj("12345678901234");
+        school.setNome("Escola");
         school.setLogradouro("Rua"); school.setBairro("Centro"); school.setCidade("Cidade");
         schools.saveAndFlush(school);
         account("admin", Role.ADMIN, null);
@@ -89,7 +89,8 @@ class ClassroomDeletionTests {
                 case STUDENT -> "student";
             };
             var actor = user(name + "@deletion.test").roles(role.name());
-            mvc.perform(get("/api/classrooms").with(actor)).andExpect(jsonPath("$").isEmpty());
+            if (role == Role.ADMIN) mvc.perform(get("/api/classrooms").with(actor)).andExpect(status().isForbidden());
+            else mvc.perform(get("/api/classrooms").with(actor)).andExpect(jsonPath("$").isEmpty());
             mvc.perform(get("/api/me/profile").with(actor)).andExpect(jsonPath("$.classrooms").isEmpty());
             mvc.perform(get(path()).with(actor)).andExpect(status().isNotFound());
         }
@@ -99,17 +100,17 @@ class ClassroomDeletionTests {
                 .andExpect(jsonPath("$.classroomId").doesNotExist());
         mvc.perform(get(path() + "/subjects/" + subject.getId()).with(user(teacher.getEmail()).roles("TEACHER")))
                 .andExpect(status().isNotFound());
-        mvc.perform(patch(path()).with(user("admin@deletion.test").roles("ADMIN"))
-                .contentType("application/json").content("{\"name\":\"Outra\"}"))
+        mvc.perform(patch(path()).with(user("coordinator@deletion.test").roles("PEDAGOGICAL_COORDINATOR"))
+                .contentType("application/json").content("{\"identifier\":\"B\"}"))
                 .andExpect(status().isNotFound());
-        mvc.perform(put(path() + "/teachers/" + teacher.getId()).with(user("admin@deletion.test").roles("ADMIN")))
+        mvc.perform(put(path() + "/teachers/" + teacher.getId()).with(user("coordinator@deletion.test").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isNotFound());
-        mvc.perform(delete(path()).with(user("admin@deletion.test").roles("ADMIN")))
+        mvc.perform(delete(path()).with(user("coordinator@deletion.test").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void onlyAdminOrCoordinatorFromSameSchoolCanDelete() throws Exception {
+    void onlyCoordinatorFromSameSchoolCanDelete() throws Exception {
         mvc.perform(delete(path())).andExpect(status().isUnauthorized());
         for (var role : new Role[] {Role.TEACHER, Role.STUDENT}) {
             mvc.perform(delete(path()).with(user(role == Role.TEACHER ? "teacher@deletion.test" : "student@deletion.test")
@@ -117,14 +118,14 @@ class ClassroomDeletionTests {
         }
         mvc.perform(delete(path()).with(user("unassigned@deletion.test").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isForbidden());
-        var other = new School(); other.setNome("Outra"); other.setCnpj("22345678901234");
+        var other = new School(); other.setNome("Outra");
         other.setLogradouro("Rua"); other.setBairro("Centro"); other.setCidade("Cidade");
         schools.saveAndFlush(other);
         account("outsider", Role.PEDAGOGICAL_COORDINATOR, other);
         mvc.perform(delete(path()).with(user("outsider@deletion.test").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isForbidden());
         assertThat(room.getDeletedAt()).isNull();
-        mvc.perform(delete(path()).with(user("admin@deletion.test").roles("ADMIN")))
+        mvc.perform(delete(path()).with(user("coordinator@deletion.test").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isNoContent());
     }
 
@@ -141,10 +142,10 @@ class ClassroomDeletionTests {
         invitation.setSubject(subject); invitation.setNotification(notification);
         invitation.setCreatedAt(Instant.now()); invitation.setStatus(SubjectInvitationStatus.PENDING);
         invitations.saveAndFlush(invitation);
-        mvc.perform(delete(path()).with(user("admin@deletion.test").roles("ADMIN"))).andExpect(status().isNoContent());
+        mvc.perform(delete(path()).with(user("coordinator@deletion.test").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNoContent());
         entityManager.flush();
         var student = users.findByEmail("student@deletion.test").orElseThrow();
-        mvc.perform(put(path() + "/students/" + student.getId()).with(user("admin@deletion.test").roles("ADMIN")))
+        mvc.perform(put(path() + "/students/" + student.getId()).with(user("coordinator@deletion.test").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isNotFound());
         mvc.perform(patch("/api/subject-invitations/" + invitation.getId()).with(user(guest.getEmail()).roles("TEACHER"))
                 .contentType("application/json").content("{\"status\":\"ACCEPTED\"}"))
@@ -155,12 +156,12 @@ class ClassroomDeletionTests {
     }
 
     @Test
-    void adminCanDeleteSchoollessClassroomAndUnknownIdReturns404() throws Exception {
+    void noManagerCanDeleteSchoollessClassroomAndUnknownIdReturns404() throws Exception {
         room.setSchool(null);
         mvc.perform(delete(path()).with(user("coordinator@deletion.test").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isForbidden());
-        mvc.perform(delete(path()).with(user("admin@deletion.test").roles("ADMIN"))).andExpect(status().isNoContent());
-        mvc.perform(delete("/api/classrooms/9223372036854775807").with(user("admin@deletion.test").roles("ADMIN")))
+        mvc.perform(delete(path()).with(user("admin@deletion.test").roles("ADMIN"))).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/classrooms/9223372036854775807").with(user("coordinator@deletion.test").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isNotFound());
     }
 }

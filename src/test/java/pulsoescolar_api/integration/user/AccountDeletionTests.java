@@ -50,9 +50,9 @@ class AccountDeletionTests {
                 .roles(users.findByEmail(email).orElseThrow().getRole().name());
     }
 
-    School school(String cnpj) {
+    School school(String schoolName) {
         var school = new School();
-        school.setNome(cnpj); school.setCnpj(cnpj); school.setLogradouro("Rua");
+        school.setNome(schoolName); school.setLogradouro("Rua");
         school.setBairro("Centro"); school.setCidade("Cidade");
         return schools.saveAndFlush(school);
     }
@@ -150,10 +150,12 @@ class AccountDeletionTests {
         mvc.perform(get("/api/students/" + student.getId()).with(user("coordinator@example.com")))
                 .andExpect(status().isNotFound());
         mvc.perform(patch("/api/students/" + student.getId()).with(user("coordinator@example.com"))
-                .contentType("application/json").content("{\"fullName\":\"Restaurar\"}"))
+                .contentType("application/json").content("{\"email\":\"restaurar@example.com\"}"))
                 .andExpect(status().isNotFound());
         mvc.perform(get("/api/students").with(user("coordinator@example.com")))
                 .andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(get("/api/classrooms/" + classroom.getId() + "/students").with(user("coordinator@example.com")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
         mvc.perform(patch("/api/account-deletion-requests/" + id).with(user("coordinator@example.com"))
                 .contentType("application/json").content("{\"status\":\"REJECTED\",\"reason\":\"Repetido\"}"))
                 .andExpect(status().isConflict());
@@ -235,11 +237,13 @@ class AccountDeletionTests {
         assertEquals(teacher.getId(), subjects.findById(subject.getId()).orElseThrow().getTeacher().getId());
         assertTrue(classrooms.findById(classroom.getId()).orElseThrow().getTeachers().stream()
                 .anyMatch(t -> t.getId().equals(teacher.getId())));
+        mvc.perform(get("/api/classrooms/" + classroom.getId()).with(user("coordinator@example.com")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.teacherIds").isEmpty());
         assertEquals(deleted.getRa(), requests.findById(firstId).orElseThrow().getReason());
         mvc.perform(get("/api/teachers").with(user("coordinator@example.com")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
         mvc.perform(patch("/api/teachers/" + teacher.getId()).with(user("coordinator@example.com"))
-                .contentType("application/json").content("{\"fullName\":\"Restaurar\"}"))
+                .contentType("application/json").content("{\"email\":\"restaurar@example.com\"}"))
                 .andExpect(status().isNotFound());
     }
 

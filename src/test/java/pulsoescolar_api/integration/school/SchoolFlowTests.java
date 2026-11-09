@@ -64,7 +64,7 @@ class SchoolFlowTests {
  @BeforeEach void setup() {
   var coordinator=new SchoolUser();
   var school = new pulsoescolar_api.entity.school.School();
-  school.setNome("Escola"); school.setCnpj("12345678000190");
+  school.setNome("Escola");
   school.setLogradouro("Rua A"); school.setBairro("Centro"); school.setCidade("Recife");
   coordinator.setSchool(schools.saveAndFlush(school));
   coordinator.setFullName("Coordinator"); coordinator.setRa("COORD");

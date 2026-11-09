@@ -34,6 +34,8 @@ public abstract class HttpIntegrationSupport {
     @Autowired PasswordEncoder passwords;
     @Autowired protected ClassroomRepository classrooms;
     @Autowired protected SubjectRepository subjects;
+    @Autowired pulsoescolar_api.repository.school.SchoolRepository schools;
+    protected pulsoescolar_api.entity.school.School defaultSchool;
     @MockitoBean protected EmailSender emailSender;
     protected RestClient client;
     protected String managerToken;
@@ -53,7 +55,11 @@ public abstract class HttpIntegrationSupport {
             return null;
         }).when(emailSender).send(anyString(), anyString(), anyString());
         // Bootstrap das identidades; tokens e 2FA passam pelos endpoints reais.
-        managerToken = autenticar(criarUsuario(Role.ADMIN));
+        defaultSchool = new pulsoescolar_api.entity.school.School();
+        defaultSchool.setNome("Escola " + UUID.randomUUID()); defaultSchool.setLogradouro("Rua");
+        defaultSchool.setBairro("Centro"); defaultSchool.setCidade("Cidade");
+        defaultSchool = schools.saveAndFlush(defaultSchool);
+        managerToken = autenticar(criarUsuario(Role.PEDAGOGICAL_COORDINATOR));
         teacher = criarUsuario(Role.TEACHER);
         teacherToken = autenticar(teacher);
     }
@@ -66,6 +72,8 @@ public abstract class HttpIntegrationSupport {
         user.setEmail(id + "@integration.test");
         user.setPasswordHash(passwords.encode("SenhaTeste123"));
         user.setRole(role);
+        user.setSchool(defaultSchool);
+        user.setTermsAccepted(true);
         return users.saveAndFlush(user);
     }
 
@@ -94,8 +102,17 @@ public abstract class HttpIntegrationSupport {
     }
 
     protected ClassroomResponse criarSala() {
+        String[] shifts = {"Manhã", "Tarde", "Noite", "Integral"};
+        var used = classrooms.findAll().stream().map(room -> room.getName() + "/" + room.getIdentifier())
+                .collect(java.util.stream.Collectors.toSet());
+        int index = 0;
+        while (index < 312 && used.contains((index % 3 + 1) + "º ano · " + shifts[index / 3 % 4]
+                + "/" + (char) ('A' + index / 12))) index++;
+        if (index == 312) throw new IllegalStateException("Combinações de turma esgotadas no teste.");
+        String name = (index % 3 + 1) + "º ano · " + shifts[index / 3 % 4];
+        String identifier = String.valueOf((char) ('A' + index / 12));
         var response = request(HttpMethod.POST, "/api/classrooms", managerToken,
-                Map.of("name", "Turma " + UUID.randomUUID(), "identifier", "A"), ClassroomResponse.class);
+                Map.of("name", name, "identifier", identifier), ClassroomResponse.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         return response.getBody();

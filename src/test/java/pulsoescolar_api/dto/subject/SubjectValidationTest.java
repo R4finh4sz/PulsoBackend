@@ -48,12 +48,27 @@ class SubjectValidationTest {
     }
 
     @Test
-    void ementaEReferencias_comTextoVazio_deveAceitar() {
-        var subject = new CreateSubjectRequest(" Disciplina ", "  ",
+    void ementaPreenchidaEReferenciasVazias_deveAceitar() {
+        var subject = new CreateSubjectRequest(" Disciplina ", " Conteúdo ",
                 List.of(new CreateSubjectRequest.Topic(" Tema ", " Descrição ", "  ")));
         assertThat(validator.validate(subject)).isEmpty();
         assertThat(subject.name()).isEqualTo("Disciplina");
-        assertThat(subject.syllabus()).isEmpty();
+        assertThat(subject.syllabus()).isEqualTo("Conteúdo");
         assertThat(subject.topics().getFirst()).isEqualTo(new CreateSubjectRequest.Topic("Tema", "Descrição", ""));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\n\t"})
+    void ementaVazia_deveRejeitar(String value) {
+        var subject = new CreateSubjectRequest("Disciplina", value,
+                List.of(new CreateSubjectRequest.Topic("Tema", "Descrição", "Livro")));
+        assertThat(validator.validate(subject)).anyMatch(v -> v.getPropertyPath().toString().equals("syllabus"));
+    }
+
+    @Test
+    void ementaSemTopico_deveRejeitar() {
+        assertThat(validator.validate(new CreateSubjectRequest("Disciplina", "Conteúdo", List.of())))
+                .anyMatch(v -> v.getPropertyPath().toString().equals("topics"));
     }
 }

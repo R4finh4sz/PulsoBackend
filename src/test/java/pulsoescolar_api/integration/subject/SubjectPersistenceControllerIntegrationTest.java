@@ -12,7 +12,7 @@ import static org.springframework.http.HttpMethod.*;
 
 class SubjectPersistenceControllerIntegrationTest extends HttpIntegrationSupport {
     private Map<String, Object> body(String name) {
-        return Map.of("name", name, "syllabus", "", "topics",
+        return Map.of("name", name, "syllabus", "Conteúdos e objetivos", "topics",
                 List.of(Map.of("title", "Tema", "description", "Conteudo", "references", "")));
     }
 

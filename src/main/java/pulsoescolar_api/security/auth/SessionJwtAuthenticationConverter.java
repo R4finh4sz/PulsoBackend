@@ -44,6 +44,10 @@ public class SessionJwtAuthenticationConverter implements Converter<Jwt, Abstrac
             return new JwtAuthenticationToken(jwt,
                     List.of(new SimpleGrantedAuthority("TWO_FACTOR_PENDING")), user.getEmail());
         }
+        if (user.getRole() != pulsoescolar_api.entity.user.Role.ADMIN && !user.isTermsAccepted()) {
+            return new JwtAuthenticationToken(jwt,
+                    List.of(new SimpleGrantedAuthority("TERMS_PENDING")), user.getEmail());
+        }
         return new JwtAuthenticationToken(jwt,
                 List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())), user.getEmail());
     }

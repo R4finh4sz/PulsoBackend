@@ -25,4 +25,10 @@ public class SubjectController {
         return service.createSubject(classroomId, request);
     }
 
+    @PatchMapping("/{subjectId}/syllabus")
+    public SubjectResponse updateSyllabus(@PathVariable Long classroomId, @PathVariable Long subjectId,
+            @Valid @RequestBody UpdateSyllabusRequest request) {
+        return service.updateSyllabus(classroomId, subjectId, request);
+    }
+
 }

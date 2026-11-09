@@ -24,6 +24,16 @@ public class UserProfileService {
     private final ClassroomRepository classrooms;
     private final ClassroomMapper classroomMapper;
     private final AccountDeletionRepository deletionRequests;
+    private final RegistrationPhotoService photos;
+
+    @Transactional
+    public void updatePhoto(org.springframework.web.multipart.MultipartFile photo) {
+        byte[] image = photos.read(photo);
+        if (image == null) {
+            throw new pulsoescolar_api.exception.common.BusinessValidationException("Informe uma foto de perfil.");
+        }
+        currentUser.get().setProfilePhoto(image);
+    }
 
     public UserResponse me() {
         return mapper.toResponse(currentUser.get());
@@ -32,6 +42,9 @@ public class UserProfileService {
     @Transactional
     public UserResponse activeSchool(Long schoolId) {
         var user = currentUser.get();
+        if (user.getRole() != pulsoescolar_api.entity.user.Role.TEACHER) {
+            throw new org.springframework.security.access.AccessDeniedException("Apenas professores podem alternar escolas.");
+        }
         var school = user.getSchools().stream().filter(value -> value.getId().equals(schoolId)).findFirst()
                 .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
                         "Você não possui vínculo com esta escola."));

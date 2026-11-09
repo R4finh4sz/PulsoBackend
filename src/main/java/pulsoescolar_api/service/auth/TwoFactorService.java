@@ -19,6 +19,8 @@ import pulsoescolar_api.entity.auth.AuthSession;
 import pulsoescolar_api.repository.auth.AuthSessionRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import pulsoescolar_api.service.mail.TwoFactorMailRequested;
+import pulsoescolar_api.service.audit.AuthAuditService;
+import static pulsoescolar_api.service.audit.AuthAuditEvent.*;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +30,7 @@ public class TwoFactorService {
     private final ApplicationEventPublisher events;
     private final Clock clock;
     private final jakarta.persistence.EntityManager entityManager;
+    private final AuthAuditService audit;
     private final SecureRandom random = new SecureRandom();
 
     @Transactional
@@ -72,6 +75,8 @@ public class TwoFactorService {
         session.setTwoFactorVerified(true);
         session.setCodeHash(null);
         session.getUser().setTwoFactorResendAvailableAt(null);
+        audit.record(TWO_FACTOR_SUCCEEDED, session.getUser().getId());
+        audit.record(LOGIN_SUCCEEDED, session.getUser().getId());
     }
 
     @Transactional

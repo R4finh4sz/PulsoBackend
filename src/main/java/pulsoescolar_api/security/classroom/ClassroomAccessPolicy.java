@@ -11,8 +11,8 @@ public class ClassroomAccessPolicy {
     public void requireAccess(Classroom classroom, SchoolUser user) {
         requireActive(classroom);
         boolean allowed = switch (user.getRole()) {
-            case ADMIN -> true;
-            case PEDAGOGICAL_COORDINATOR -> user.isInActiveSchool(classroom);
+            case ADMIN -> false;
+            case PEDAGOGICAL_COORDINATOR -> user.getSchool() != null && user.isInActiveSchool(classroom);
             case TEACHER -> user.isInActiveSchool(classroom) && isAssigned(classroom, user);
             case STUDENT -> user.isInActiveSchool(classroom) && user.getClassroom() != null
                     && user.getClassroom().getId().equals(classroom.getId());
@@ -25,7 +25,7 @@ public class ClassroomAccessPolicy {
     public void requireRosterAccess(Classroom classroom, SchoolUser user) {
         requireAccess(classroom, user);
         if (user.getRole() == Role.STUDENT) {
-            throw new AccessDeniedException("A consulta de alunos exige acesso de administrador, coordenador pedagógico ou professor vinculado à sala.");
+            throw new AccessDeniedException("A consulta de participantes exige coordenador ou professor vinculado à sala.");
         }
     }
 

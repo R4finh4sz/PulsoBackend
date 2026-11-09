@@ -36,6 +36,7 @@ public class ActivityService {
     private final ActivityMapper mapper;
     private final EntityManager entityManager;
     private final Clock clock;
+    private final ActivityRecipientService recipients;
 
     @Transactional
     public ActivityResponse create(Long subjectId, CreateActivityRequest input) {
@@ -66,6 +67,7 @@ public class ActivityService {
             question.setCorrectOption(item.correctOption());
             activity.getQuestions().add(question);
         }
+        recipients.capture(activity);
         return mapper.toResponse(activities.saveAndFlush(activity));
     }
 
@@ -82,8 +84,12 @@ public class ActivityService {
         var user = currentUser.get();
         requireStudent(user);
         var room = user.getActiveClassroom();
-        if (room == null) return List.of();
-        return activities.findBySubjectClassroomIdOrderByCreatedAtDescIdDesc(room.getId()).stream()
+        var history = submissions.findByStudentIdOrderBySubmittedAtDescIdDesc(user.getId());
+        var visible = new java.util.LinkedHashMap<Long, Activity>();
+        if (room != null) activities.findBySubjectClassroomIdOrderByCreatedAtDescIdDesc(room.getId())
+                .forEach(activity -> visible.put(activity.getId(), activity));
+        history.forEach(submission -> visible.putIfAbsent(submission.getActivity().getId(), submission.getActivity()));
+        return visible.values().stream()
                 .map(activity -> new StudentActivityResponse(mapper.toResponse(activity),
                         submissions.findByActivityIdAndStudentId(activity.getId(), user.getId())
                                 .map(mapper::toResponse).orElse(null))).toList();
@@ -91,6 +97,10 @@ public class ActivityService {
 
     public QuizResponse open(Long id) {
         var activity = activity(id);
+        var user = currentUser.get();
+        if (user.getRole() == Role.STUDENT && submissions.existsByActivityIdAndStudentId(id, user.getId())) {
+            return mapper.toQuiz(activity);
+        }
         requireReader(activity.getSubject(), currentUser.get());
         return mapper.toQuiz(activity);
     }
@@ -130,6 +140,7 @@ public class ActivityService {
     public SubmissionResponse grade(Long id) {
         var submission = submissions.findForGrading(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Entrega não encontrada."));
+        requireActiveStudent(submission);
         requireTeacher(submission.getActivity().getSubject(), currentUser.get());
         if (submission.getGradedAt() != null) throw new SubmissionAlreadyGradedException();
         calculateGrade(submission);
@@ -152,11 +163,11 @@ public class ActivityService {
     public SubmissionResponse result(Long id) {
         var submission = submissions.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Entrega não encontrada."));
+        requireActiveStudent(submission);
         var user = currentUser.get();
         if (user.getRole() == Role.STUDENT) {
-            if (!submission.getStudent().getId().equals(user.getId())
-                    || !user.isInActiveSchool(submission.getActivity().getSubject().getClassroom())) {
-                throw new AccessDeniedException("Você só pode consultar suas entregas na escola ativa.");
+            if (!submission.getStudent().getId().equals(user.getId())) {
+                throw new AccessDeniedException("Você só pode consultar suas próprias entregas.");
             }
         } else {
             requireTeacher(submission.getActivity().getSubject(), user);
@@ -169,12 +180,18 @@ public class ActivityService {
         if (user.getRole() != Role.TEACHER) throw new AccessDeniedException("Esta consulta exige um professor.");
         return activities.findForTeacher(user.getId()).stream()
                 .map(activity -> new TeacherActivityResponse(mapper.toResponse(activity),
-                        submissions.findByActivityIdOrderBySubmittedAtDescIdDesc(activity.getId()).stream()
+                        submissions.findByActivityIdAndStudentDeletedAtIsNullOrderBySubmittedAtDescIdDesc(activity.getId()).stream()
                                 .map(mapper::toResponse).toList())).toList();
     }
 
     private Activity activity(Long id) {
         return activities.findById(id).orElseThrow(() -> new ResourceNotFoundException("Atividade não encontrada."));
+    }
+
+    private void requireActiveStudent(QuizSubmission submission) {
+        if (submission.getStudent().getDeletedAt() != null) {
+            throw new ResourceNotFoundException("Entrega não encontrada.");
+        }
     }
 
     private Subject subject(Long id) {

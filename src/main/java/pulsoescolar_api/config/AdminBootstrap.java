@@ -14,14 +14,18 @@ public class AdminBootstrap implements CommandLineRunner {
  private final UserRepository users;
  private final PasswordEncoder encoder;
  private final Environment environment;
+ private final pulsoescolar_api.security.user.PasswordPolicy passwordPolicy;
  @Override @Transactional public void run(String... args) {
   String email=environment.getProperty("BOOTSTRAP_ADMIN_EMAIL");
   String password=environment.getProperty("BOOTSTRAP_ADMIN_PASSWORD");
   if(email==null || email.isBlank()) {
    throw new IllegalStateException("Configure BOOTSTRAP_ADMIN_EMAIL e BOOTSTRAP_ADMIN_PASSWORD para iniciar a aplicação.");
   }
-  if(password==null || password.length()<12 || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72)
-   throw new IllegalStateException("BOOTSTRAP_ADMIN_PASSWORD deve ter pelo menos 12 caracteres e no máximo 72 bytes.");
+  try {
+   passwordPolicy.requireValidNewPassword(password);
+  } catch (pulsoescolar_api.exception.common.BusinessValidationException ex) {
+   throw new IllegalStateException("BOOTSTRAP_ADMIN_PASSWORD deve ter pelo menos 8 caracteres, uma maiúscula, um número e no máximo 72 bytes.", ex);
+  }
   email=email.strip().toLowerCase(Locale.ROOT);
   var existing = users.findByEmail(email);
   if(existing.isPresent()) {

@@ -39,8 +39,7 @@ class SchoolInvitationIntegrationTest extends HttpIntegrationSupport {
     TransactionTemplate tx() { return new TransactionTemplate(transactions); }
 
     School school() {
-        var school = new School(); school.setNome("Escola " + UUID.randomUUID());
-        school.setCnpj(UUID.randomUUID().toString().substring(0, 18)); school.setLogradouro("Rua");
+        var school = new School(); school.setNome("Escola " + UUID.randomUUID()); school.setLogradouro("Rua");
         school.setBairro("Centro"); school.setCidade("Cidade");
         return schools.saveAndFlush(school);
     }
@@ -91,7 +90,8 @@ class SchoolInvitationIntegrationTest extends HttpIntegrationSupport {
         assertThat(request(PATCH, "/api/me/active-school", teacherToken, Map.of("schoolId", target.getId()),
                 UserResponse.class).getBody().schoolId()).isEqualTo(target.getId());
         var export = request(GET, "/api/me/export", teacherToken, null, UserExportResponse.class).getBody();
-        assertThat(export.schoolInvitations()).extracting(SchoolInvitationResponse::id).containsExactly(invitation.internalInvitationId());
+        assertThat(export.user().id()).isEqualTo(teacher.getId());
+        assertThat(request(GET, "/api/me/export", teacherToken, null, String.class).getBody()).doesNotContain("schoolInvitations");
         assertThat(request(GET, PATH, teacherToken, null, String.class).getBody())
                 .doesNotContain("invitedBy", "password", "token", coordinator.getEmail());
     }

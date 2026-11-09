@@ -32,7 +32,6 @@ public class SchoolService {
         requireAdmin();
         var school = new School();
         school.setNome(request.nome().strip());
-        school.setCnpj(request.cnpj().replaceAll("[./-]", ""));
         school.setLogradouro(request.logradouro().strip());
         school.setBairro(request.bairro().strip());
         school.setCidade(request.cidade().strip());
@@ -72,7 +71,7 @@ public class SchoolService {
     }
 
     private SchoolResponse response(School school, SchoolResponse.Coordinator coordinator) {
-        return new SchoolResponse(school.getId(), school.getNome(), school.getCnpj(),
+        return new SchoolResponse(school.getId(), school.getNome(),
                 school.getLogradouro(), school.getBairro(), school.getCidade(), school.getCep(), school.getUf(), coordinator);
     }
 }

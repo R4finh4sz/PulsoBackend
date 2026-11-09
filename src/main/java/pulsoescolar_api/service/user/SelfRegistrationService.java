@@ -6,7 +6,6 @@ import pulsoescolar_api.exception.common.OperationNotAllowedException;
 import pulsoescolar_api.exception.common.ResourceNotFoundException;
 import pulsoescolar_api.exception.terms.TermsVersionChangedException;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -33,6 +32,7 @@ public class SelfRegistrationService {
     private final PasswordEncoder passwords;
     private final Validator validator;
     private final Clock clock;
+    private final pulsoescolar_api.security.user.PasswordPolicy passwordPolicy;
 
     @Transactional
     public RegistrationReceipt register(SelfRegistrationRequest input, Role role, byte[] photo) {
@@ -48,8 +48,9 @@ public class SelfRegistrationService {
         if (input.birthDate().isAfter(LocalDate.now(clock.withZone(ZoneId.of("America/Sao_Paulo"))).minusYears(15))) {
             throw new BusinessValidationException("É necessário ter pelo menos 15 anos.");
         }
-        if (input.password().getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new BusinessValidationException("A senha deve ter no máximo 72 bytes.");
+        passwordPolicy.requireValidNewPassword(input.password());
+        if (!input.password().equals(input.confirmPassword())) {
+            throw new BusinessValidationException("A confirmação de senha deve ser igual à senha.");
         }
         String email = input.email().strip().toLowerCase(Locale.ROOT);
         String ra = input.ra().strip();

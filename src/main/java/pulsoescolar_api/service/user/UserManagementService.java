@@ -28,7 +28,7 @@ public class UserManagementService {
 
     public UserPageResponse list(Role role, String q, Long classroomId, Boolean unassigned, int page, int size) {
         var actor = currentUser.get();
-        policy.requireManager(actor.getRole());
+        policy.requireManager(actor);
         Specification<SchoolUser> filter = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("role"), role));
@@ -57,17 +57,27 @@ public class UserManagementService {
 
     public UserResponse get(Long id, Role role) {
         var actor = currentUser.get();
-        policy.requireManager(actor.getRole());
+        policy.requireManager(actor);
         return mapper.toResponse(requireSameSchool(lookup.findByRole(id, role), actor));
     }
 
     @Transactional
     public UserResponse update(Long id, Role role, UpdateUserRequest request) {
         var actor = currentUser.get();
-        policy.requireManager(actor.getRole());
-        var user = requireSameSchool(lookup.findByRole(id, role), actor);
-        if (request.fullName() != null) user.setFullName(request.fullName().strip());
-        if (request.ra() != null) user.setRa(request.ra().strip());
+        var user = lookup.findByRole(id, role);
+        if (!actor.getId().equals(user.getId())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Você só pode alterar seus próprios dados.");
+        }
+        return applyUpdate(user, request);
+    }
+
+    @Transactional
+    public UserResponse updateSelf(UpdateUserRequest request) {
+        return applyUpdate(currentUser.get(), request);
+    }
+
+    private UserResponse applyUpdate(SchoolUser user, UpdateUserRequest request) {
         if (request.email() != null) user.setEmail(request.email().strip().toLowerCase(Locale.ROOT));
         return mapper.toResponse(users.saveAndFlush(user));
     }

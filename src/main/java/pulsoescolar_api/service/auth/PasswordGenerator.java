@@ -8,6 +8,6 @@ public class PasswordGenerator {
     public String generate() {
         byte[] bytes = new byte[18];
         random.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return "A1" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

@@ -50,7 +50,6 @@ class UserProfileIntegrationTest {
     School school() {
         var school = new School();
         school.setNome("Escola do perfil");
-        school.setCnpj("12345678901234");
         school.setLogradouro("Rua");
         school.setBairro("Centro");
         school.setCidade("Cidade");

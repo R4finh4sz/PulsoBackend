@@ -11,6 +11,9 @@ import pulsoescolar_api.dto.auth.LoginResponse;
 import pulsoescolar_api.service.auth.LoginService;
 import pulsoescolar_api.service.auth.ChangePasswordService;
 import pulsoescolar_api.dto.auth.ChangePasswordRequest;
+import pulsoescolar_api.service.audit.AuthAuditService;
+import pulsoescolar_api.exception.auth.*;
+import static pulsoescolar_api.service.audit.AuthAuditEvent.*;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -18,6 +21,7 @@ public class LoginController {
     private final LoginService loginService;
     private final ChangePasswordService changePasswordService;
     private final pulsoescolar_api.service.auth.TwoFactorService twoFactor;
+    private final AuthAuditService audit;
 
     @PatchMapping("/2fa")
     public ResponseEntity<Void> updateTwoFactor(@AuthenticationPrincipal Jwt jwt,
@@ -29,7 +33,13 @@ public class LoginController {
     @PostMapping("/2fa/verify")
     public ResponseEntity<Void> verify(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody pulsoescolar_api.dto.auth.VerifyCodeRequest body) {
-        twoFactor.verify(jwt, body.code());
+        try {
+            twoFactor.verify(jwt, body.code());
+        } catch (InvalidVerificationCodeException | VerificationCodeUnavailableException | SessionUnavailableException
+                 | VerificationAlreadyCompletedException ex) {
+            audit.recordFailure(TWO_FACTOR_FAILED, Long.valueOf(jwt.getSubject()));
+            throw ex;
+        }
         return ResponseEntity.noContent().build();
     }
 
@@ -46,12 +56,28 @@ public class LoginController {
     }
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest body) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(loginService.login(body));
+        try {
+            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(loginService.login(body));
+        } catch (org.springframework.security.core.AuthenticationException | VerificationCooldownException ex) {
+            // A transação da tentativa já terminou; a falha não desaparece no rollback.
+            audit.recordFailure(LOGIN_FAILED, null);
+            throw ex;
+        }
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal Jwt jwt) {
         loginService.logout(jwt);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponse> refresh(@Valid @RequestBody pulsoescolar_api.dto.auth.RefreshTokenRequest body) {
+        try {
+            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(loginService.refresh(body.refreshToken()));
+        } catch (InvalidRefreshTokenException ex) {
+            audit.recordFailure(TOKEN_REFRESH_FAILED, null);
+            throw ex;
+        }
     }
 }

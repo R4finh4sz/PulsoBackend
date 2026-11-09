@@ -39,8 +39,8 @@ class SelfRegistrationTests {
     MockMvc mvc;
     School school, other;
 
-    School school(String cnpj, String cep, String uf) {
-        var s = new School(); s.setNome("Escola " + uf); s.setCnpj(cnpj); s.setLogradouro("Rua");
+    School school(String schoolName, String cep, String uf) {
+        var s = new School(); s.setNome("Escola " + uf); s.setLogradouro("Rua");
         s.setBairro("Centro"); s.setCidade("Recife"); s.setCep(cep); s.setUf(uf);
         return schools.saveAndFlush(s);
     }
@@ -61,10 +61,29 @@ class SelfRegistrationTests {
     String payload(String ra, Role role, Long schoolId) {
         return """
                 {"name":"Pessoa Teste","birthDate":"2000-01-01","ra":"%s",
-                 "email":"person%s@example.com","password":"chosen-password-123","schoolId":%d,
+                 "email":"person%s@example.com","password":"Chosen-password-123","confirmPassword":"Chosen-password-123","schoolId":%d,
                  "termsAccepted":true,"termsVersion":"1.0","role":"%s"}
                 """.formatted(ra, ra, schoolId, role);
     }
+    @Test void rejectsWeakPasswordsAndMissingOrMismatchedConfirmation() throws Exception {
+        var body = json.readTree(payload("999", Role.STUDENT, school.getId()));
+        for (String password : java.util.List.of("weakpass1", "Weakpass", "Short1", "Á".repeat(36) + "A1")) {
+            var data = (tools.jackson.databind.node.ObjectNode) body.deepCopy();
+            data.put("password", password); data.put("confirmPassword", password);
+            mvc.perform(post("/api/auth/register").contentType("application/json").content(json.writeValueAsString(data)))
+                    .andExpect(status().isBadRequest());
+        }
+        for (boolean omit : java.util.List.of(true, false)) {
+            var data = (tools.jackson.databind.node.ObjectNode) body.deepCopy();
+            if (omit) data.remove("confirmPassword"); else data.put("confirmPassword", "Different123");
+            mvc.perform(post("/api/auth/register").contentType("application/json").content(json.writeValueAsString(data)))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(multipart("/api/auth/register").param("data", json.writeValueAsString(data)))
+                    .andExpect(status().isBadRequest());
+        }
+        assertTrue(requests.findAll().isEmpty());
+    }
+
     long submit(String ra, Role role, Long schoolId) throws Exception {
         var r = mvc.perform(post("/api/auth/register").contentType("application/json").content(payload(ra, role, schoolId)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"))
@@ -83,7 +102,7 @@ class SelfRegistrationTests {
         request.setFullName("Pessoa Teste");
         request.setRa(ra);
         request.setEmail("person" + ra + "@example.com");
-        request.setPasswordHash(passwords.encode("chosen-password-123"));
+        request.setPasswordHash(passwords.encode("Chosen-password-123"));
         request.setRole(role);
         request.setSchool(school);
         request.setTermsVersion(1L);
@@ -96,14 +115,14 @@ class SelfRegistrationTests {
         long id = submit("100", Role.STUDENT, school.getId());
         assertTrue(users.findByEmail("person100@example.com").isEmpty());
         assertThrows(AuthenticationException.class, () -> authentication.authenticate(
-                UsernamePasswordAuthenticationToken.unauthenticated("person100@example.com", "chosen-password-123")));
-        assertTrue(passwords.matches("chosen-password-123", requests.findById(id).orElseThrow().getPasswordHash()));
+                UsernamePasswordAuthenticationToken.unauthenticated("person100@example.com", "Chosen-password-123")));
+        assertTrue(passwords.matches("Chosen-password-123", requests.findById(id).orElseThrow().getPasswordHash()));
         review(id, "coordinator", "APPROVED", 200);
         var u = users.findByEmail("person100@example.com").orElseThrow();
         assertEquals(school.getId(), u.getSchool().getId()); assertEquals(LocalDate.of(2000, 1, 1), u.getBirthDate());
         assertNull(u.getClassroom()); assertTrue(u.isTermsAccepted()); assertEquals(java.util.Set.of(1L), u.getAcceptedTermVersions());
         assertNull(requests.findById(id).orElseThrow().getPasswordHash());
-        assertTrue(authentication.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(u.getEmail(), "chosen-password-123")).isAuthenticated());
+        assertTrue(authentication.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(u.getEmail(), "Chosen-password-123")).isAuthenticated());
         review(id, "coordinator", "APPROVED", 409);
     }
 
@@ -151,9 +170,9 @@ class SelfRegistrationTests {
     @Test void validatesAgePasswordTermsAndSchool() throws Exception {
         String body = payload("109", Role.STUDENT, school.getId());
         for (String invalid : new String[]{body.replace("2000-01-01", LocalDate.now().minusYears(14).toString()),
-                body.replace("chosen-password-123", "short"), body.replace("\"termsAccepted\":true", "\"termsAccepted\":false"),
+                body.replace("Chosen-password-123", "short"), body.replace("\"termsAccepted\":true", "\"termsAccepted\":false"),
                 body.replace("Pessoa Teste", "Pessoa"), body.replace("\"ra\":\"109\"", "\"ra\":\"abc\""),
-                body.replace("chosen-password-123", "á".repeat(40)), body.replace("2000-01-01", "2000-02-31")}) {
+                body.replace("Chosen-password-123", "á".repeat(40)), body.replace("2000-01-01", "2000-02-31")}) {
             mvc.perform(post("/api/auth/register").contentType("application/json").content(invalid)).andExpect(status().isBadRequest());
         }
         mvc.perform(post("/api/auth/register").contentType("application/json").content(body.replace("1.0", "1.99")))
@@ -216,7 +235,7 @@ class SelfRegistrationTests {
         mvc.perform(get("/api/schools/search").param("cep", "50000-000"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(school.getId().toString()))
-                .andExpect(jsonPath("$.content[0].cnpj").doesNotExist());
+                .andExpect(jsonPath("$.content[0].name").exists());
         mvc.perform(get("/api/schools/search").param("city", "recife").param("state", "pe"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
         mvc.perform(get("/api/schools/search").param("cep", "123")).andExpect(status().isBadRequest());
@@ -245,7 +264,7 @@ class SelfRegistrationTests {
         review(id, "coordinator", "APPROVED", 200);
         var created = users.findByEmail("person150@example.com").orElseThrow();
         var result = mvc.perform(post("/api/me/deletion-requests").with(user(created.getEmail()).roles("STUDENT"))
-                        .contentType("application/json").content("{\"reason\":\"Quero excluir minha conta\",\"currentPassword\":\"chosen-password-123\"}"))
+                        .contentType("application/json").content("{\"reason\":\"Quero excluir minha conta\",\"currentPassword\":\"Chosen-password-123\"}"))
                 .andExpect(status().isCreated()).andReturn();
         long deletionId = json.readTree(result.getResponse().getContentAsString()).get("id").asLong();
         mvc.perform(patch("/api/account-deletion-requests/" + deletionId)

@@ -28,6 +28,7 @@ class ActiveSchoolTests {
     @Autowired SchoolRepository schools;
     @Autowired ClassroomRepository classrooms;
     @Autowired jakarta.persistence.EntityManager entityManager;
+    @Autowired pulsoescolar_api.repository.user.StudentTransferRepository transfers;
     MockMvc mvc;
     School first;
     School second;
@@ -35,16 +36,20 @@ class ActiveSchoolTests {
     Classroom firstRoom;
     Classroom secondRoom;
 
-    School school(String cnpj) {
-        var school = new School(); school.setNome(cnpj); school.setCnpj(cnpj);
+    School school(String schoolName) {
+        var school = new School(); school.setNome(schoolName);
         school.setLogradouro("Rua"); school.setBairro("Centro"); school.setCidade("Cidade");
         return schools.saveAndFlush(school);
     }
 
     SchoolUser account(String name, Role role) {
+        return account(name, role, first);
+    }
+
+    SchoolUser account(String name, Role role, School school) {
         var account = new SchoolUser(); account.setFullName(name); account.setRa(name);
         account.setEmail(name + "@active.test"); account.setPasswordHash("unused"); account.setRole(role);
-        account.setSchool(first); account.getSchools().add(second);
+        account.setSchool(school); account.getSchools().add(second);
         return users.saveAndFlush(account);
     }
 
@@ -66,7 +71,10 @@ class ActiveSchoolTests {
     void switchPersistsAndChangesClassroomContextWithoutRemovingMemberships() throws Exception {
         var actor = user(teacher.getEmail()).roles("TEACHER");
         mvc.perform(get("/api/teacher/classrooms").with(actor))
-                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].id").value(firstRoom.getId()));
+                .andExpect(jsonPath("$.length()").value(2)).andExpect(jsonPath("$[0].id").value(firstRoom.getId()))
+                .andExpect(jsonPath("$[0].schoolId").value(first.getId()))
+                .andExpect(jsonPath("$[1].id").value(secondRoom.getId()))
+                .andExpect(jsonPath("$[1].schoolName").value(second.getNome()));
         mvc.perform(patch("/api/me/active-school").with(actor).contentType("application/json")
                 .content("{\"schoolId\":" + second.getId() + "}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.schoolId").value(second.getId()));
@@ -76,13 +84,30 @@ class ActiveSchoolTests {
         assertThat(saved.getEnrollmentSchool().getId()).isEqualTo(first.getId());
         assertThat(saved.getSchools()).hasSize(2);
         mvc.perform(get("/api/teacher/classrooms").with(actor))
+                .andExpect(jsonPath("$.length()").value(2)).andExpect(jsonPath("$[0].id").value(firstRoom.getId()))
+                .andExpect(jsonPath("$[1].id").value(secondRoom.getId()));
+        mvc.perform(get("/api/classrooms").with(actor))
                 .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].id").value(secondRoom.getId()));
         mvc.perform(get("/api/classrooms/" + firstRoom.getId()).with(actor)).andExpect(status().isForbidden());
         mvc.perform(get("/api/classrooms/" + secondRoom.getId()).with(actor)).andExpect(status().isOk());
         mvc.perform(get("/api/me/profile").with(actor)).andExpect(jsonPath("$.schools.length()").value(2))
                 .andExpect(jsonPath("$.classrooms[0].id").value(secondRoom.getId()));
-        mvc.perform(get("/api/me/export").with(actor)).andExpect(jsonPath("$.schools.length()").value(2))
-                .andExpect(jsonPath("$.classrooms[0].id").value(secondRoom.getId()));
+        mvc.perform(get("/api/me/export").with(actor)).andExpect(jsonPath("$.schools").doesNotExist())
+                .andExpect(jsonPath("$.classrooms").doesNotExist());
+    }
+
+    @Test
+    void teacherClassroomsExcludeDeletedUnassignedAndUnauthorizedSchools() throws Exception {
+        var foreign = school("33333333333333");
+        room("Escola sem vínculo", foreign);
+        var deleted = room("Excluída", first);
+        deleted.setDeletedAt(java.time.Instant.now());
+        var unassigned = room("Sem professor", first);
+        unassigned.getTeachers().clear();
+        mvc.perform(get("/api/teacher/classrooms").with(user(teacher.getEmail()).roles("TEACHER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(firstRoom.getId()))
+                .andExpect(jsonPath("$[1].id").value(secondRoom.getId()));
     }
 
     @Test
@@ -125,21 +150,94 @@ class ActiveSchoolTests {
         mvc.perform(put("/api/classrooms/" + firstRoom.getId() + "/students/" + student.getId()).with(actor))
                 .andExpect(status().isForbidden());
         mvc.perform(put("/api/classrooms/" + secondRoom.getId() + "/students/" + student.getId()).with(actor))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    void switchingStudentSchoolHidesClassroomWithoutRemovingEnrollment() throws Exception {
+    void transferRequiresDestinationApprovalAndAClassroomInThatSchool() throws Exception {
+        var source = account("source", Role.PEDAGOGICAL_COORDINATOR);
+        var destination = account("destination", Role.PEDAGOGICAL_COORDINATOR, second);
+        var student = account("student-transfer", Role.STUDENT);
+        student.setClassroom(firstRoom);
+        String body = "{\"fullName\":\"student-transfer\",\"ra\":\"student-transfer\",\"schoolId\":" + second.getId() + "}";
+        mvc.perform(post("/api/students/transfer").with(user(source.getEmail()).roles("PEDAGOGICAL_COORDINATOR"))
+                .contentType("application/json").content(body))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"));
+        assertThat(student.getSchool()).isEqualTo(first);
+        assertThat(student.getClassroom()).isEqualTo(firstRoom);
+        mvc.perform(post("/api/students/transfer").with(user(source.getEmail()).roles("PEDAGOGICAL_COORDINATOR"))
+                .contentType("application/json").content(body)).andExpect(status().isConflict());
+        var transfer = transfers.findAll().getFirst();
+        var sourceActor = user(source.getEmail()).roles("PEDAGOGICAL_COORDINATOR");
+        var destinationActor = user(destination.getEmail()).roles("PEDAGOGICAL_COORDINATOR");
+        mvc.perform(get("/api/students/transfers").with(sourceActor)).andExpect(jsonPath("$").isEmpty());
+        mvc.perform(get("/api/students/transfers").with(destinationActor))
+                .andExpect(jsonPath("$[0].id").value(transfer.getId()));
+        String path = "/api/students/transfers/" + transfer.getId();
+        mvc.perform(patch(path).with(sourceActor).contentType("application/json")
+                .content("{\"status\":\"APPROVED\",\"classroomId\":" + secondRoom.getId() + "}"))
+                .andExpect(status().isForbidden());
+        for (String invalid : new String[]{"{\"status\":\"APPROVED\"}",
+                "{\"status\":\"APPROVED\",\"classroomId\":" + firstRoom.getId() + "}",
+                "{\"status\":\"PENDING\"}"}) {
+            mvc.perform(patch(path).with(destinationActor).contentType("application/json").content(invalid))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(student.getSchool()).isEqualTo(first);
+        mvc.perform(patch(path).with(destinationActor).contentType("application/json")
+                .content("{\"status\":\"APPROVED\",\"classroomId\":" + secondRoom.getId() + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("APPROVED"));
+        entityManager.flush(); entityManager.clear();
+        var saved = users.findById(student.getId()).orElseThrow();
+        assertThat(saved.getSchool().getId()).isEqualTo(second.getId());
+        assertThat(saved.getClassroom().getId()).isEqualTo(secondRoom.getId());
+        assertThat(saved.getSchools()).extracting(School::getId).containsExactly(second.getId());
+        mvc.perform(patch(path).with(destinationActor).contentType("application/json")
+                .content("{\"status\":\"REJECTED\"}")).andExpect(status().isConflict());
+    }
+
+    @Test
+    void rejectedTransferKeepsOriginalSchoolAndClassroom() throws Exception {
+        var source = account("source", Role.PEDAGOGICAL_COORDINATOR);
+        var destination = account("destination", Role.PEDAGOGICAL_COORDINATOR, second);
+        var student = account("student-transfer", Role.STUDENT);
+        student.setClassroom(firstRoom);
+        mvc.perform(post("/api/students/transfer").with(user(source.getEmail()).roles("PEDAGOGICAL_COORDINATOR"))
+                .contentType("application/json").content("{\"fullName\":\"student-transfer\",\"ra\":\"student-transfer\",\"schoolId\":" + second.getId() + "}"))
+                .andExpect(status().isCreated());
+        mvc.perform(patch("/api/students/transfers/" + transfers.findAll().getFirst().getId())
+                .with(user(destination.getEmail()).roles("PEDAGOGICAL_COORDINATOR"))
+                .contentType("application/json").content("{\"status\":\"REJECTED\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REJECTED"));
+        assertThat(student.getSchool()).isEqualTo(first);
+        assertThat(student.getClassroom()).isEqualTo(firstRoom);
+    }
+
+    @Test
+    void studentAndTeacherCannotRequestOrReviewTransfers() throws Exception {
+        var student = account("student-transfer", Role.STUDENT);
+        for (var account : new SchoolUser[]{teacher, student}) {
+            var actor = user(account.getEmail()).roles(account.getRole().name());
+            mvc.perform(post("/api/students/transfer").with(actor).contentType("application/json")
+                    .content("{\"fullName\":\"student-transfer\",\"ra\":\"student-transfer\",\"schoolId\":" + second.getId() + "}"))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get("/api/students/transfers").with(actor)).andExpect(status().isForbidden());
+            mvc.perform(patch("/api/students/transfers/1").with(actor).contentType("application/json")
+                    .content("{\"status\":\"REJECTED\"}")).andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void studentCannotSwitchSchoolAndKeepsEnrollment() throws Exception {
         var student = account("student", Role.STUDENT); student.setClassroom(firstRoom);
         var actor = user(student.getEmail()).roles("STUDENT");
         mvc.perform(patch("/api/me/active-school").with(actor).contentType("application/json")
                 .content("{\"schoolId\":" + second.getId() + "}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.classroomId").doesNotExist());
+                .andExpect(status().isForbidden());
         assertThat(student.getClassroom()).isEqualTo(firstRoom);
-        mvc.perform(get("/api/classrooms").with(actor)).andExpect(jsonPath("$").isEmpty());
-        mvc.perform(get("/api/classrooms/" + firstRoom.getId()).with(actor)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/classrooms/" + firstRoom.getId()).with(actor)).andExpect(status().isOk());
         mvc.perform(patch("/api/me/active-school").with(actor).contentType("application/json")
                 .content("{\"schoolId\":" + first.getId() + "}"))
-                .andExpect(jsonPath("$.classroomId").value(firstRoom.getId()));
+                .andExpect(status().isForbidden());
     }
 }

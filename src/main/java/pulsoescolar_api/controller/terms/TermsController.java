@@ -29,4 +29,7 @@ public class TermsController {
     @PostMapping("/accept")
     @ResponseStatus(NO_CONTENT)
     public void accept(@Valid @RequestBody AcceptTermsRequest request) { service.accept(request); }
+    @PostMapping("/revoke")
+    @ResponseStatus(NO_CONTENT)
+    public void revoke() { service.revoke(); }
 }

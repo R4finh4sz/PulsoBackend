@@ -6,6 +6,19 @@ import pulsoescolar_api.entity.user.Role;
 
 @Component
 public class UserAccessPolicy {
+    public void requireManager(pulsoescolar_api.entity.user.SchoolUser actor) {
+        requireManager(actor.getRole());
+        if (actor.getRole() == Role.PEDAGOGICAL_COORDINATOR && actor.getSchool() == null) {
+            throw new AccessDeniedException("O coordenador precisa estar vinculado a uma escola.");
+        }
+    }
+
+    public void requireCoordinator(pulsoescolar_api.entity.user.SchoolUser actor) {
+        if (actor.getRole() != Role.PEDAGOGICAL_COORDINATOR || actor.getSchool() == null) {
+            throw new AccessDeniedException("Esta operação exige um coordenador vinculado à escola.");
+        }
+    }
+
     public void requireManager(Role actorRole) {
         if (actorRole != Role.ADMIN && actorRole != Role.PEDAGOGICAL_COORDINATOR) {
             throw new AccessDeniedException("Esta operação exige acesso de administrador ou coordenador pedagógico.");
