@@ -33,6 +33,20 @@ build/
 .vscode/
 
 ### Local credentials ###
+/admin-token.txt
+/data/
 .env
 .env.*
 !.env.example
+
+### Local API documentation ###
+/docs/
+
+### Local test logs ###
+/logs/
+
+### Local Thunder Client ###
+/thunder-client/
+
+### Local Postman collections and environments ###
+/postman/

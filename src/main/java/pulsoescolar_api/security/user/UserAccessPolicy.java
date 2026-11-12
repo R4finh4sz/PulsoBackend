@@ -1,0 +1,36 @@
+package pulsoescolar_api.security.user;
+
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Component;
+import pulsoescolar_api.entity.user.Role;
+
+@Component
+public class UserAccessPolicy {
+    public void requireManager(pulsoescolar_api.entity.user.SchoolUser actor) {
+        requireManager(actor.getRole());
+        if (actor.getRole() == Role.PEDAGOGICAL_COORDINATOR && actor.getSchool() == null) {
+            throw new AccessDeniedException("O coordenador precisa estar vinculado a uma escola.");
+        }
+    }
+
+    public void requireCoordinator(pulsoescolar_api.entity.user.SchoolUser actor) {
+        if (actor.getRole() != Role.PEDAGOGICAL_COORDINATOR || actor.getSchool() == null) {
+            throw new AccessDeniedException("Esta operação exige um coordenador vinculado à escola.");
+        }
+    }
+
+    public void requireManager(Role actorRole) {
+        if (actorRole != Role.ADMIN && actorRole != Role.PEDAGOGICAL_COORDINATOR) {
+            throw new AccessDeniedException("Esta operação exige acesso de administrador ou coordenador pedagógico.");
+        }
+    }
+
+    public void requireCreation(Role actorRole, Role requestedRole) {
+        requireManager(actorRole);
+        boolean allowed = requestedRole == Role.STUDENT || requestedRole == Role.TEACHER
+                || (requestedRole == Role.PEDAGOGICAL_COORDINATOR && actorRole == Role.ADMIN);
+        if (!allowed) {
+            throw new AccessDeniedException("Você não tem permissão para cadastrar usuários com este perfil.");
+        }
+    }
+}

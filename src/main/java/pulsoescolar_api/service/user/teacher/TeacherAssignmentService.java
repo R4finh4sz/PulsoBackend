@@ -1,0 +1,55 @@
+package pulsoescolar_api.service.user.teacher;
+
+import pulsoescolar_api.exception.common.BusinessConflictException;
+
+import pulsoescolar_api.repository.subject.SubjectRepository;
+
+import pulsoescolar_api.service.classroom.ClassroomLookupService;
+import pulsoescolar_api.service.user.UserLookupService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import org.springframework.transaction.annotation.Transactional;
+import pulsoescolar_api.dto.classroom.ClassroomResponse;
+import pulsoescolar_api.entity.user.Role;
+import pulsoescolar_api.mapper.classroom.ClassroomMapper;
+import pulsoescolar_api.security.CurrentUser;
+import pulsoescolar_api.security.user.UserAccessPolicy;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class TeacherAssignmentService {
+    private final SubjectRepository subjects;
+    private final ClassroomLookupService classrooms;
+    private final UserLookupService users;
+    private final CurrentUser currentUser;
+    private final UserAccessPolicy accessPolicy;
+    private final ClassroomMapper mapper;
+    private final pulsoescolar_api.security.classroom.ClassroomAccessPolicy classroomPolicy;
+
+    @Transactional
+    public void unassign(Long classroomId, Long teacherId) {
+        accessPolicy.requireCoordinator(currentUser.get());
+        var classroom = classrooms.findById(classroomId);
+        classroomPolicy.requireAccess(classroom, currentUser.get());
+        users.findByRole(teacherId, Role.TEACHER);
+        if (subjects.hasTeacherInClassroom(classroomId, teacherId)) {
+            throw new BusinessConflictException("O professor ainda é responsável por disciplinas desta sala.");
+        }
+        classroom.getTeachers().removeIf(teacher -> teacher.getId().equals(teacherId));
+    }
+
+    @Transactional
+    public ClassroomResponse assign(Long classroomId, Long teacherId) {
+        accessPolicy.requireCoordinator(currentUser.get());
+        var classroom = classrooms.findById(classroomId);
+        classroomPolicy.requireAccess(classroom, currentUser.get());
+        var teacher = users.findByRole(teacherId, Role.TEACHER);
+        if (classroom.getSchool() != null && !teacher.belongsToSchool(classroom.getSchool().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException("O professor deve pertencer à escola da turma.");
+        }
+        classroom.getTeachers().add(teacher);
+        return mapper.toResponse(classroom);
+    }
+}

@@ -1,0 +1,105 @@
+package pulsoescolar_api.service.auth;
+
+import pulsoescolar_api.exception.auth.InvalidVerificationCodeException;
+import pulsoescolar_api.exception.auth.SessionUnavailableException;
+import pulsoescolar_api.exception.auth.VerificationAlreadyCompletedException;
+import pulsoescolar_api.exception.auth.VerificationCodeUnavailableException;
+import pulsoescolar_api.exception.auth.VerificationCooldownException;
+
+import java.security.SecureRandom;
+import java.time.Clock;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pulsoescolar_api.dto.auth.TwoFactorResponse;
+import pulsoescolar_api.entity.auth.AuthSession;
+import pulsoescolar_api.repository.auth.AuthSessionRepository;
+import org.springframework.context.ApplicationEventPublisher;
+import pulsoescolar_api.service.mail.TwoFactorMailRequested;
+import pulsoescolar_api.service.audit.AuthAuditService;
+import static pulsoescolar_api.service.audit.AuthAuditEvent.*;
+
+@Service
+@RequiredArgsConstructor
+public class TwoFactorService {
+    private final AuthSessionRepository sessions;
+    private final PasswordEncoder passwords;
+    private final ApplicationEventPublisher events;
+    private final Clock clock;
+    private final jakarta.persistence.EntityManager entityManager;
+    private final AuthAuditService audit;
+    private final SecureRandom random = new SecureRandom();
+
+    @Transactional
+    public void updateSettings(Jwt jwt, pulsoescolar_api.dto.auth.TwoFactorSettingsRequest request) {
+        var user = entityManager.find(pulsoescolar_api.entity.user.SchoolUser.class,
+                Long.valueOf(jwt.getSubject()), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (user == null || user.getDeletedAt() != null) throw new SessionUnavailableException();
+        if (!passwords.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new pulsoescolar_api.exception.common.BusinessValidationException("Senha atual incorreta.");
+        }
+        if (user.getRole() == pulsoescolar_api.entity.user.Role.ADMIN && !request.enabled()) {
+            throw new pulsoescolar_api.exception.common.BusinessValidationException(
+                    "A verificação em duas etapas é obrigatória para administradores.");
+        }
+        if (user.isTwoFactorEnabled() == request.enabled()) return;
+        user.setTwoFactorEnabled(request.enabled());
+        user.setTwoFactorResendAvailableAt(null);
+        sessions.revokeOthers(user.getId(), UUID.fromString(jwt.getId()));
+    }
+
+    public void issue(AuthSession session) {
+        String code = String.format(java.util.Locale.ROOT, "%06d", random.nextInt(1_000_000));
+        session.setCodeHash(passwords.encode(code));
+        session.setCodeExpiresAt(clock.instant().plusSeconds(600)); // Validade de 10 minutos.
+        
+        session.setResendAvailableAt(clock.instant().plusSeconds(180)); // Reenvio apos 10 segundos.
+        session.getUser().setTwoFactorResendAvailableAt(session.getResendAvailableAt());
+        session.setCodeAttempts(0);
+        events.publishEvent(new TwoFactorMailRequested(session.getUser().getEmail(), code));
+    }
+
+    @Transactional(noRollbackFor = InvalidVerificationCodeException.class)
+    public void verify(Jwt jwt, String code) {
+        var session = pending(jwt);
+        if (session.getCodeAttempts() >= 5 || !session.getCodeExpiresAt().isAfter(clock.instant())) {
+            throw new VerificationCodeUnavailableException();
+        }
+        session.setCodeAttempts(session.getCodeAttempts() + 1);
+        if (!passwords.matches(code, session.getCodeHash())) {
+            throw new InvalidVerificationCodeException();
+        }
+        sessions.revokeOthers(session.getUser().getId(), session.getId());
+        session.setTwoFactorVerified(true);
+        session.setCodeHash(null);
+        session.getUser().setTwoFactorResendAvailableAt(null);
+        audit.record(TWO_FACTOR_SUCCEEDED, session.getUser().getId());
+        audit.record(LOGIN_SUCCEEDED, session.getUser().getId());
+    }
+
+    @Transactional
+    public TwoFactorResponse resend(Jwt jwt) {
+        var session = pending(jwt);
+        var nextSend = session.getUser().getTwoFactorResendAvailableAt();
+        if (clock.instant().isBefore(session.getResendAvailableAt()) || (nextSend != null && clock.instant().isBefore(nextSend))) {
+            throw new VerificationCooldownException("Aguarde 3 minutos entre os envios.");
+        }
+        issue(session);
+        return new TwoFactorResponse(true, session.getCodeExpiresAt(), session.getResendAvailableAt());
+    }
+
+    private AuthSession pending(Jwt jwt) {
+        entityManager.find(pulsoescolar_api.entity.user.SchoolUser.class, Long.valueOf(jwt.getSubject()),
+                jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        var session = sessions.lockById(UUID.fromString(jwt.getId())).orElseThrow(() ->
+                new SessionUnavailableException());
+        if (!session.getUser().getId().toString().equals(jwt.getSubject()) || !session.getExpiresAt().isAfter(clock.instant())) {
+            throw new SessionUnavailableException();
+        }
+        if (session.isTwoFactorVerified()) throw new VerificationAlreadyCompletedException();
+        return session;
+    }
+}

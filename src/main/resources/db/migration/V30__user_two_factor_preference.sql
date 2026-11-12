@@ -1,0 +1,1 @@
+ALTER TABLE school_users ADD COLUMN two_factor_enabled BOOLEAN NOT NULL DEFAULT TRUE;

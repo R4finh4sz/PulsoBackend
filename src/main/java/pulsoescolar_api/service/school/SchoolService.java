@@ -1,0 +1,77 @@
+package pulsoescolar_api.service.school;
+
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pulsoescolar_api.dto.school.*;
+import pulsoescolar_api.entity.school.School;
+import pulsoescolar_api.entity.user.Role;
+import pulsoescolar_api.repository.school.SchoolRepository;
+import pulsoescolar_api.security.CurrentUser;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class SchoolService {
+    private final pulsoescolar_api.service.audit.AuditService audit;
+    private final SchoolRepository schools;
+    private final CurrentUser currentUser;
+    private final pulsoescolar_api.repository.user.UserRepository users;
+
+    private void requireAdmin() {
+        if (currentUser.get().getRole() != Role.ADMIN) {
+            throw new AccessDeniedException("Esta operação exige acesso de administrador.");
+        }
+    }
+
+    @Transactional
+    public SchoolResponse create(CreateSchoolRequest request) {
+        requireAdmin();
+        var school = new School();
+        school.setNome(request.nome().strip());
+        school.setLogradouro(request.logradouro().strip());
+        school.setBairro(request.bairro().strip());
+        school.setCidade(request.cidade().strip());
+        school.setCep(request.cep() == null ? null : request.cep().replace("-", ""));
+        school.setUf(request.uf() == null ? null : request.uf().toUpperCase(java.util.Locale.ROOT));
+        var result = response(schools.saveAndFlush(school));
+        audit.record(pulsoescolar_api.service.audit.AuditEvent.SCHOOL_CREATED);
+        return result;
+    }
+
+    public List<SchoolResponse> list() {
+        requireAdmin();
+        var result = schools.findAll(Sort.by("nome").ascending().and(Sort.by("id")));
+        if (result.isEmpty()) return List.of();
+        var coordinators = users.findByRoleAndDeletedAtIsNullAndSchoolIdIn(Role.PEDAGOGICAL_COORDINATOR,
+                result.stream().map(School::getId).toList()).stream().collect(java.util.stream.Collectors.toMap(
+                        u -> u.getEnrollmentSchool().getId(),
+                        u -> new SchoolResponse.Coordinator(u.getId(), u.getFullName(), u.getEmail())));
+        return result.stream().map(s -> response(s, coordinators.get(s.getId()))).toList();
+    }
+
+    @Transactional
+    public SchoolResponse updateLocation(Long id, UpdateSchoolLocationRequest request) {
+        requireAdmin();
+        var school = schools.findById(id).orElseThrow(() ->
+                new pulsoescolar_api.exception.common.ResourceNotFoundException("Escola não encontrada."));
+        school.setCep(request.cep().replace("-", ""));
+        school.setUf(request.uf().toUpperCase(java.util.Locale.ROOT));
+        return response(school);
+    }
+
+    private SchoolResponse response(School school) {
+        var coordinator = users.findByRoleAndDeletedAtIsNullAndSchoolIdIn(Role.PEDAGOGICAL_COORDINATOR,
+                List.of(school.getId())).stream().findFirst()
+                .map(u -> new SchoolResponse.Coordinator(u.getId(), u.getFullName(), u.getEmail())).orElse(null);
+        return response(school, coordinator);
+    }
+
+    private SchoolResponse response(School school, SchoolResponse.Coordinator coordinator) {
+        return new SchoolResponse(school.getId(), school.getNome(),
+                school.getLogradouro(), school.getBairro(), school.getCidade(), school.getCep(), school.getUf(), coordinator);
+    }
+}

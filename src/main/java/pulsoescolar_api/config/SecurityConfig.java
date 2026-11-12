@@ -1,0 +1,91 @@
+package pulsoescolar_api.config;
+import java.util.Locale;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.cors.*;
+import org.springframework.context.annotation.*;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.*;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.*;
+import pulsoescolar_api.repository.user.UserRepository;
+import pulsoescolar_api.security.auth.SessionJwtAuthenticationConverter;
+@Configuration
+@org.springframework.boot.context.properties.EnableConfigurationProperties(RateLimitProperties.class)
+public class SecurityConfig {
+    @Bean CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins:http://localhost:3001,http://localhost:5173}") List<String> origins) {
+        var cors = new CorsConfiguration();
+        cors.setAllowedOrigins(origins);
+        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        cors.setExposedHeaders(List.of("Retry-After", "X-Session-Expires-At", "X-Session-Warning"));
+        cors.setAllowCredentials(true);
+        var source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", cors);
+        return source;
+    }
+    @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+    @Bean UserDetailsService userDetailsService(UserRepository repository) {
+        return email -> repository.findByEmail(email.strip().toLowerCase(Locale.ROOT))
+                .map(u -> User.withUsername(u.getEmail()).password(u.getPasswordHash())
+                        .disabled(u.getDeletedAt() != null).roles(u.getRole().name()).build())
+                .orElseThrow(() -> new UsernameNotFoundException("Credenciais inválidas."));
+    }
+    @Bean AuthenticationManager authenticationManager(UserDetailsService users, PasswordEncoder encoder) {
+        var provider = new DaoAuthenticationProvider(users);
+        provider.setPasswordEncoder(encoder);
+        return new ProviderManager(provider);
+    }
+    @Bean SecurityFilterChain securityFilterChain(HttpSecurity http,
+            SessionJwtAuthenticationConverter converter, RateLimitProperties rateLimit, java.time.Clock clock,
+            javax.crypto.SecretKey jwtSigningKey) throws Exception {
+        return http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(s -> s.securityContextRepository(new RequestAttributeSecurityContextRepository()))
+                .csrf(c -> c.disable())
+                .cors(org.springframework.security.config.Customizer.withDefaults())
+                .requestCache(c -> c.disable())
+                .httpBasic(c -> c.disable())
+                .formLogin(c -> c.disable())
+                .logout(c -> c.disable())
+                .authorizeHttpRequests(a -> a
+                        .requestMatchers("/api/admin/metrics").hasRole("ADMIN")
+                        .requestMatchers("/api/schools/me/metrics", "/api/schools/me/metrics/**").hasRole("PEDAGOGICAL_COORDINATOR")
+                        .requestMatchers("/actuator/**").denyAll()
+                        .requestMatchers(HttpMethod.POST, "/api/faqs").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/faqs/*").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/faqs/*").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login",
+                                "/api/auth/password-recovery/request", "/api/auth/password-recovery/verify",
+                                "/api/auth/password-recovery/reset", "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/invitations/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/invitations/*/verify", "/api/invitations/*/resend", "/api/invitations/*/complete").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/schools/search", "/api/terms").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/me", "/api/terms/history", "/api/terms/accepted")
+                                .hasAnyAuthority("TERMS_PENDING", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/auth/2fa/verify", "/api/auth/2fa/resend").hasAuthority("TWO_FACTOR_PENDING")
+                        .requestMatchers(HttpMethod.PATCH, "/api/auth/password").hasAnyAuthority("ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/terms").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/terms").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/terms", "/api/terms/history", "/api/terms/accepted").hasAnyAuthority("ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/terms/accept").hasAnyAuthority("TERMS_PENDING", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/terms/revoke").hasAnyAuthority("ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.GET, "/api/teacher/classrooms").hasRole("TEACHER")
+                        .requestMatchers(HttpMethod.GET, "/api/teacher/reports").hasRole("TEACHER")
+                        .anyRequest().hasAnyRole("ADMIN", "PEDAGOGICAL_COORDINATOR", "TEACHER", "STUDENT"))
+                .addFilterAfter(new pulsoescolar_api.security.RateLimitFilter(rateLimit, clock, jwtSigningKey),
+                        org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(new pulsoescolar_api.security.auth.SessionExpiryHeaderFilter(clock),
+                        org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
+                .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)))
+                .build();
+    }
+}

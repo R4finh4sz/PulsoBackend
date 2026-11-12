@@ -1,0 +1,79 @@
+package pulsoescolar_api.service.user;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import pulsoescolar_api.dto.user.UserResponse;
+import pulsoescolar_api.mapper.user.UserMapper;
+import pulsoescolar_api.security.CurrentUser;
+import java.util.List;
+import pulsoescolar_api.dto.user.UserProfileResponse;
+import pulsoescolar_api.dto.user.DeletionResponse;
+import pulsoescolar_api.dto.school.SchoolSearchResponse.SchoolOption;
+import pulsoescolar_api.entity.classroom.Classroom;
+import pulsoescolar_api.mapper.classroom.ClassroomMapper;
+import pulsoescolar_api.repository.classroom.ClassroomRepository;
+import pulsoescolar_api.repository.user.AccountDeletionRepository;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class UserProfileService {
+    private final CurrentUser currentUser;
+    private final UserMapper mapper;
+    private final ClassroomRepository classrooms;
+    private final ClassroomMapper classroomMapper;
+    private final AccountDeletionRepository deletionRequests;
+    private final RegistrationPhotoService photos;
+
+    @Transactional
+    public void updatePhoto(org.springframework.web.multipart.MultipartFile photo) {
+        byte[] image = photos.read(photo);
+        if (image == null) {
+            throw new pulsoescolar_api.exception.common.BusinessValidationException("Informe uma foto de perfil.");
+        }
+        currentUser.get().setProfilePhoto(image);
+    }
+
+    public UserResponse me() {
+        return mapper.toResponse(currentUser.get());
+    }
+
+    @Transactional
+    public UserResponse activeSchool(Long schoolId) {
+        var user = currentUser.get();
+        if (user.getRole() != pulsoescolar_api.entity.user.Role.TEACHER) {
+            throw new org.springframework.security.access.AccessDeniedException("Apenas professores podem alternar escolas.");
+        }
+        var school = user.getSchools().stream().filter(value -> value.getId().equals(schoolId)).findFirst()
+                .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
+                        "Você não possui vínculo com esta escola."));
+        user.setActiveSchool(school);
+        return mapper.toResponse(user);
+    }
+
+    public UserProfileResponse profile() {
+        var user = currentUser.get();
+        var rooms = switch (user.getRole()) {
+            case TEACHER -> classrooms.findByTeachersId(user.getId());
+            case STUDENT -> user.getActiveClassroom() == null ? List.<Classroom>of() : List.of(user.getActiveClassroom());
+            case PEDAGOGICAL_COORDINATOR -> user.getSchool() == null
+                    ? List.<Classroom>of() : classrooms.findBySchoolId(user.getSchool().getId());
+            case ADMIN -> List.<Classroom>of();
+        };
+        return new UserProfileResponse(mapper.toResponse(user),
+                user.getSchools().stream().sorted(java.util.Comparator.comparing(pulsoescolar_api.entity.school.School::getId))
+                        .map(SchoolOption::from).toList(),
+                rooms.stream().filter(room -> room.getDeletedAt() == null)
+                        .filter(user::isInActiveSchool)
+                        .map(classroomMapper::toResponse).toList(),
+                deletionRequests.findFirstByRequesterIdOrderByRequestedAtDescIdDesc(user.getId())
+                        .map(DeletionResponse::from).orElse(null));
+    }
+
+    public byte[] photo() {
+        var photo = currentUser.get().getProfilePhoto();
+        if (photo == null) throw new pulsoescolar_api.exception.common.ResourceNotFoundException("Foto não encontrada.");
+        return photo;
+    }
+}
