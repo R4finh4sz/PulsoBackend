@@ -74,6 +74,7 @@ public class LoginService {
         if (user.isTwoFactorEnabled()) {
             twoFactor.issue(session);
         } else {
+            sessions.revokeAll(user.getId());
             session.setTwoFactorVerified(true);
         }
         sessions.save(session);

@@ -25,7 +25,7 @@ public class SecurityConfig {
         cors.setAllowedOrigins(origins);
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
-        cors.setExposedHeaders(List.of("Retry-After"));
+        cors.setExposedHeaders(List.of("Retry-After", "X-Session-Expires-At", "X-Session-Warning"));
         cors.setAllowCredentials(true);
         var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cors);
@@ -82,6 +82,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/teacher/reports").hasRole("TEACHER")
                         .anyRequest().hasAnyRole("ADMIN", "PEDAGOGICAL_COORDINATOR", "TEACHER", "STUDENT"))
                 .addFilterAfter(new pulsoescolar_api.security.RateLimitFilter(rateLimit, clock, jwtSigningKey),
+                        org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(new pulsoescolar_api.security.auth.SessionExpiryHeaderFilter(clock),
                         org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
                 .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)))
                 .build();
