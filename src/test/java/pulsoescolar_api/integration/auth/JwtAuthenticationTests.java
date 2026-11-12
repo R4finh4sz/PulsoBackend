@@ -132,7 +132,7 @@ class JwtAuthenticationTests {
                 .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
                 .andExpect(status().isOk()).andReturn();
         String token = JsonMapper.builder().build().readTree(result.getResponse().getContentAsString())
-                .get("accessToken").asText();
+                .get("accessToken").asString();
         mvc.perform(patch("/api/auth/2fa").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json")
                 .content("{\"enabled\":false,\"currentPassword\":\"admin-password-123\"}"))
