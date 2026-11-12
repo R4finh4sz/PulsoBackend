@@ -105,12 +105,14 @@ public abstract class HttpIntegrationSupport {
         String[] shifts = {"Manhã", "Tarde", "Noite", "Integral"};
         var used = classrooms.findAll().stream().map(room -> room.getName() + "/" + room.getIdentifier())
                 .collect(java.util.stream.Collectors.toSet());
+        // Salas ficam gravadas entre testes; as letras D-X variam primeiro para que cada letra acumule poucas
+        // salas e os testes com nome/identificador fixo (A-C, Y, Z) nunca colidam, qualquer que seja a ordem.
         int index = 0;
-        while (index < 312 && used.contains((index % 3 + 1) + "º ano · " + shifts[index / 3 % 4]
-                + "/" + (char) ('A' + index / 12))) index++;
-        if (index == 312) throw new IllegalStateException("Combinações de turma esgotadas no teste.");
-        String name = (index % 3 + 1) + "º ano · " + shifts[index / 3 % 4];
-        String identifier = String.valueOf((char) ('A' + index / 12));
+        while (index < 252 && used.contains((index / 21 % 3 + 1) + "º ano · " + shifts[index / 21 / 3 % 4]
+                + "/" + (char) ('D' + index % 21))) index++;
+        if (index == 252) throw new IllegalStateException("Combinações de turma esgotadas no teste.");
+        String name = (index / 21 % 3 + 1) + "º ano · " + shifts[index / 21 / 3 % 4];
+        String identifier = String.valueOf((char) ('D' + index % 21));
         var response = request(HttpMethod.POST, "/api/classrooms", managerToken,
                 Map.of("name", name, "identifier", identifier), ClassroomResponse.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);

@@ -72,6 +72,7 @@ public class TwoFactorService {
         if (!passwords.matches(code, session.getCodeHash())) {
             throw new InvalidVerificationCodeException();
         }
+        sessions.revokeOthers(session.getUser().getId(), session.getId());
         session.setTwoFactorVerified(true);
         session.setCodeHash(null);
         session.getUser().setTwoFactorResendAvailableAt(null);
