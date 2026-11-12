@@ -77,6 +77,25 @@ class RefreshTokenIntegrationTest extends HttpIntegrationSupport {
         assertThat(request(GET, "/api/me/export", second.accessToken(), null, String.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
+    @Test void newLoginWithoutTwoFactorRevokesPreviousAccessAndRefreshOnlyForThatUser() {
+        var first = login();
+        var jwt = decoder.decode(first.accessToken());
+        var account = users.findById(Long.valueOf(jwt.getSubject())).orElseThrow();
+        var otherUser = login();
+        var second = request(POST, "/api/auth/login", null,
+                Map.of("email", account.getEmail(), "password", "SenhaTeste123"), LoginResponse.class);
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(request(GET, "/api/me/export", first.accessToken(), null, String.class).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(request(POST, "/api/auth/refresh", null, Map.of("refreshToken", first.refreshToken()), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(request(GET, "/api/me/export", second.getBody().accessToken(), null, String.class).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(request(GET, "/api/me/export", otherUser.accessToken(), null, String.class).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        refresh(second.getBody().refreshToken());
+    }
+
     @Test void logoutAndTermsRevocationInvalidateRefreshTokens() {
         for (String path : List.of("/api/auth/logout", "/api/terms/revoke")) {
             var login = login();

@@ -52,6 +52,7 @@ class UserExportIntegrationTest extends HttpIntegrationSupport {
 
     @Test
     void exportIncludesOwnDataAndExcludesCredentialsAndOtherUsers() {
+        var room = vincularProfessor(criarSala());
         var school = new School();
         school.setNome("Escola export");
         school.setLogradouro("Rua");
@@ -78,7 +79,6 @@ class UserExportIntegrationTest extends HttpIntegrationSupport {
         registration.setRequestedAt(Instant.now());
         registration.setPasswordHash("registration-secret");
         registrations.saveAndFlush(registration);
-        var room = vincularProfessor(criarSala());
         var schoolRoom = classrooms.findById(room.id()).orElseThrow();
         schoolRoom.setSchool(school);
         classrooms.saveAndFlush(schoolRoom);

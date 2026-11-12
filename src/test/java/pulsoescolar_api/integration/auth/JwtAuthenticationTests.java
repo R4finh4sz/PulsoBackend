@@ -184,30 +184,73 @@ class JwtAuthenticationTests {
                 .getTokenValue();
     }
 
-    @Test void loginCreatesSessionAndLogoutRevokesOnlyThatSession() throws Exception {
+    @Test void newVerifiedLoginRevokesPreviousSessionAndLogoutRevokesCurrentSession() throws Exception {
         String first = login();
         String second = login();
         assertNotEquals(first, second);
-        var jwt = decoder.decode(first);
+        unauthorized(first);
+        var jwt = decoder.decode(second);
         assertEquals(userId.toString(), jwt.getSubject());
         assertEquals(now.plusSeconds(1800), jwt.getExpiresAt());
         assertTrue(sessions.isActive(UUID.fromString(jwt.getId()), userId, now));
-        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + first))
-                .andExpect(status().isOk());
-        mvc.perform(post("/api/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer " + first))
-                .andExpect(status().isNoContent());
-        assertFalse(sessions.isActive(UUID.fromString(jwt.getId()), userId, now));
-        unauthorized(first);
-        mvc.perform(post("/api/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer " + first))
-                .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + second))
                 .andExpect(status().isOk());
+        mvc.perform(post("/api/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer " + second))
+                .andExpect(status().isNoContent());
+        assertFalse(sessions.isActive(UUID.fromString(jwt.getId()), userId, now));
+        unauthorized(second);
+        mvc.perform(post("/api/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer " + second))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test void exposesExpiryWarningToFrontendOnlyDuringLastMinute() throws Exception {
+        String token = login();
+        var expiresAt = decoder.decode(token).getExpiresAt();
+        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Session-Expires-At", expiresAt.toString()))
+                .andExpect(header().doesNotExist("X-Session-Warning"));
+        when(clock.instant()).thenReturn(expiresAt.minusSeconds(60));
+        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header(HttpHeaders.ORIGIN, "http://localhost:3001"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Session-Warning", "expiring"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
+                        org.hamcrest.Matchers.allOf(org.hamcrest.Matchers.containsString("X-Session-Warning"),
+                                org.hamcrest.Matchers.containsString("X-Session-Expires-At"))));
+        mvc.perform(get("/api/me")).andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("X-Session-Warning"));
     }
 
     @Test void rejectsExpiredTokenAtSessionDeadline() throws Exception {
         String token = login();
-        when(clock.instant()).thenReturn(now.plusSeconds(1800));
+        var session = sessions.findById(UUID.fromString(decoder.decode(token).getId())).orElseThrow();
+        when(clock.instant()).thenReturn(session.getExpiresAt());
         unauthorized(token);
+    }
+
+    @Test void pendingOrFailedTwoFactorLoginKeepsPreviousSessionUntilVerification() throws Exception {
+        String previous = login();
+        org.mockito.Mockito.clearInvocations(twoFactorMail);
+        var result = mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"email\":\"admin@example.com\",\"password\":\"admin-password-123\"}"))
+                .andExpect(status().isOk()).andReturn();
+        var pending = JsonMapper.builder().build().readValue(result.getResponse().getContentAsString(), LoginResponse.class);
+        var code = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(twoFactorMail, org.mockito.Mockito.timeout(3000))
+                .send(org.mockito.ArgumentMatchers.eq("admin@example.com"), code.capture());
+        String wrongCode = code.getValue().equals("000000") ? "111111" : "000000";
+        mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + pending.accessToken())
+                .contentType("application/json").content("{\"code\":\"" + wrongCode + "\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + previous))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/auth/2fa/verify").header(HttpHeaders.AUTHORIZATION, "Bearer " + pending.accessToken())
+                .contentType("application/json").content("{\"code\":\"" + code.getValue() + "\"}"))
+                .andExpect(status().isNoContent());
+        unauthorized(previous);
+        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + pending.accessToken()))
+                .andExpect(status().isOk());
     }
 
     @Test void twoFactorResendCooldownExpiryAndAttemptLimit() throws Exception {
