@@ -59,7 +59,7 @@ class AuthMailTests {
     String registration(String name) {
         return """
                 {"name":"%s User","birthDate":"2000-01-01","ra":"%d","email":"%s@example.com",
-                 "schoolId":%d,"password":"chosen-password-123","termsAccepted":true,"termsVersion":"1.0"}
+                 "schoolId":%d,"password":"Chosen-password-123","confirmPassword":"Chosen-password-123","termsAccepted":true,"termsVersion":"1.0"}
                 """.formatted(name, Math.abs((long) name.hashCode()), name, schoolId);
     }
 
@@ -68,7 +68,7 @@ class AuthMailTests {
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.password").doesNotExist()).andExpect(jsonPath("$.passwordHash").doesNotExist());
         verifyNoInteractions(sender);
-        for (var request : requests.findAll()) assertTrue(encoder.matches("chosen-password-123", request.getPasswordHash()));
+        for (var request : requests.findAll()) assertTrue(encoder.matches("Chosen-password-123", request.getPasswordHash()));
     }
 
     @Test void providerFailureDoesNotPreventSubmittingRegistration() throws Exception {
@@ -100,7 +100,7 @@ class AuthMailTests {
     @Test void approvedUserLogsInWithChosenPasswordAndOptedInEmailTwoFactor() throws Exception {
         mvc.perform(post("/api/students").contentType("application/json").content(registration("newstudent")))
                 .andExpect(status().isCreated());
-        String login = "{\"email\":\"NEWSTUDENT@example.com\",\"password\":\"chosen-password-123\"}";
+        String login = "{\"email\":\"NEWSTUDENT@example.com\",\"password\":\"Chosen-password-123\"}";
         mvc.perform(post("/api/auth/login").contentType("application/json").content(login)).andExpect(status().isUnauthorized());
         verifyNoInteractions(sender);
         long requestId = requests.findAll().getFirst().getId();
@@ -124,7 +124,7 @@ class AuthMailTests {
         mvc.perform(get("/api/me").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
         var message = org.mockito.ArgumentCaptor.forClass(CreateEmailOptions.class);
         verify(sender, timeout(3000)).send(message.capture());
-        assertFalse(message.getValue().getText().contains("chosen-password-123"));
+        assertFalse(message.getValue().getText().contains("Chosen-password-123"));
         String code = message.getValue().getText().split("\n")[0].replaceAll("[^0-9]", "");
         mvc.perform(post("/api/auth/2fa/verify").header("Authorization", "Bearer " + token)
                         .contentType("application/json").content("{\"code\":\"" + code + "\"}"))

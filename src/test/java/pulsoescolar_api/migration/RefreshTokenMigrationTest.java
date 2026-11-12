@@ -14,7 +14,7 @@ class RefreshTokenMigrationTest {
             sql.execute("INSERT INTO school_users(id,full_name,ra,email,password_hash,role) VALUES(1,'Ana','RA1','ana@test','unused','STUDENT')");
             sql.execute("""
                     INSERT INTO auth_sessions(id,user_id,created_at,expires_at,two_factor_verified)
-                    VALUES('00000000-0000-0000-0000-000000000001',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,TRUE)
+                    VALUES('00000000-0000-0000-0000-000000000001',1,CURRENT_TIMESTAMP,DATEADD('HOUR',1,CURRENT_TIMESTAMP),TRUE)
                     """);
             sql.execute("""
                     INSERT INTO refresh_tokens(token_hash,session_id,used_at) VALUES

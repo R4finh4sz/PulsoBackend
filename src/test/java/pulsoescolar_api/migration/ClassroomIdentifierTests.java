@@ -14,10 +14,10 @@ class ClassroomIdentifierTests {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
             for (char letter = 'A'; letter <= 'Z'; letter++) {
-                assertTrue(validator.validate(new CreateClassroomRequest("3 ano", String.valueOf(letter))).isEmpty());
+                assertTrue(validator.validate(new CreateClassroomRequest("3º ano · Manhã", String.valueOf(letter))).isEmpty());
             }
             for (String identifier : new String[] {null, "", " ", "a", "AB", "1", "Á", " A", "A "}) {
-                assertFalse(validator.validate(new CreateClassroomRequest("3 ano", identifier)).isEmpty(),
+                assertFalse(validator.validate(new CreateClassroomRequest("3º ano · Manhã", identifier)).isEmpty(),
                         "Should reject: " + identifier);
             }
         }

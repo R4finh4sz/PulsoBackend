@@ -22,22 +22,27 @@ class ClassroomManagementTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
     @Autowired ClassroomRepository classrooms;
+    @Autowired pulsoescolar_api.repository.school.SchoolRepository schools;
+    pulsoescolar_api.entity.school.School school;
     MockMvc mvc;
     Classroom room;
 
     SchoolUser create(String name, Role role) {
         var user = new SchoolUser();
         user.setFullName(name); user.setRa(name); user.setEmail(name + "@example.com");
-        user.setPasswordHash("unused"); user.setRole(role);
+        user.setPasswordHash("unused"); user.setRole(role); user.setSchool(school);
         return users.saveAndFlush(user);
     }
 
     @BeforeEach void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        school = new pulsoescolar_api.entity.school.School();
+        school.setNome("Escola"); school.setLogradouro("Rua A"); school.setBairro("Centro"); school.setCidade("Recife");
+        school = schools.saveAndFlush(school);
         create("manager", Role.PEDAGOGICAL_COORDINATOR);
         var teacher = create("teacher", Role.TEACHER);
         create("outsider", Role.TEACHER);
-        room = new Classroom(); room.setName("3 ano"); room.setIdentifier("A");
+        room = new Classroom(); room.setName("3 ano"); room.setIdentifier("A"); room.setSchool(school);
         room.getTeachers().add(teacher); classrooms.saveAndFlush(room);
         create("student", Role.STUDENT).setClassroom(room);
     }
@@ -69,7 +74,7 @@ class ClassroomManagementTests {
     }
 
     @Test void rejectsDuplicateClassroom() throws Exception {
-        var other = new Classroom(); other.setName("3 ano"); other.setIdentifier("B");
+        var other = new Classroom(); other.setName("3 ano"); other.setIdentifier("B"); other.setSchool(school);
         classrooms.saveAndFlush(other);
         mvc.perform(patch("/api/classrooms/" + room.getId()).with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))
                 .contentType("application/json").content("{\"identifier\":\"B\"}"))

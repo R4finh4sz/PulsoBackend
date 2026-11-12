@@ -36,14 +36,13 @@ class ClassroomAccessPolicyTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = Role.class, names = {"ADMIN", "TEACHER", "STUDENT"})
-    void devePermitirAdministradorProfessorVinculadoEAlunoDaSala(Role role) {
+    @EnumSource(value = Role.class, names = {"TEACHER", "STUDENT"})
+    void devePermitirProfessorVinculadoEAlunoDaSala(Role role) {
         // Arrange
         var user = usuario(role);
         user.setSchool(classroom.getSchool());
         user.setClassroom(sala(1L));
-        var professor = usuario(Role.TEACHER);
-        classroom.getTeachers().add(professor);
+        classroom.getTeachers().add(user);
         // Act
         // Assert
         assertDoesNotThrow(() -> policy.requireAccess(classroom, user));
@@ -74,6 +73,17 @@ class ClassroomAccessPolicyTest {
     }
 
     @Test
+    void deveNegarAdministradorNoAcessoASala() {
+        // Arrange
+        var user = usuario(Role.ADMIN);
+        user.setSchool(classroom.getSchool());
+        // Act
+        var erro = assertThrows(AccessDeniedException.class, () -> policy.requireAccess(classroom, user));
+        // Assert
+        assertEquals("Você não tem permissão para acessar esta sala.", erro.getMessage());
+    }
+
+    @Test
     void deveNegarAlunoSemSala() {
         // Arrange
         var user = usuario(Role.STUDENT);
@@ -92,7 +102,7 @@ class ClassroomAccessPolicyTest {
         // Act
         var erro = assertThrows(AccessDeniedException.class, () -> policy.requireRosterAccess(classroom, user));
         // Assert
-        assertEquals("A consulta de alunos exige acesso de administrador, coordenador pedagógico ou professor vinculado à sala.", erro.getMessage());
+        assertEquals("A consulta de participantes exige coordenador ou professor vinculado à sala.", erro.getMessage());
     }
 
     @ParameterizedTest

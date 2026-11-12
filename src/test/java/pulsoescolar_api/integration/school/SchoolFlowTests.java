@@ -39,7 +39,7 @@ class SchoolFlowTests {
    .build();
   var coordinator = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("coord@example.com").roles("PEDAGOGICAL_COORDINATOR");
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/classrooms")
-    .with(coordinator).contentType("application/json").content("{\"name\":\"3 year\",\"identifier\":\"C\"}"))
+    .with(coordinator).contentType("application/json").content("{\"name\":\"3º ano · Manhã\",\"identifier\":\"C\"}"))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated());
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/classrooms").with(coordinator))
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());

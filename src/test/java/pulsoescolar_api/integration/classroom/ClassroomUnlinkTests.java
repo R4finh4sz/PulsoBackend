@@ -26,6 +26,8 @@ class ClassroomUnlinkTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
     @Autowired ClassroomRepository classrooms;
+    @Autowired pulsoescolar_api.repository.school.SchoolRepository schools;
+    pulsoescolar_api.entity.school.School school;
     @Autowired SubjectRepository subjects;
     @Autowired EntityManager entityManager;
     MockMvc mvc;
@@ -36,16 +38,19 @@ class ClassroomUnlinkTests {
     SchoolUser create(String name, Role role) {
         var user = new SchoolUser();
         user.setFullName(name); user.setRa(name); user.setEmail(name + "@example.com");
-        user.setPasswordHash("unused"); user.setRole(role);
+        user.setPasswordHash("unused"); user.setRole(role); user.setSchool(school);
         return users.saveAndFlush(user);
     }
 
     @BeforeEach void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        school = new pulsoescolar_api.entity.school.School();
+        school.setNome("Escola"); school.setLogradouro("Rua A"); school.setBairro("Centro"); school.setCidade("Recife");
+        school = schools.saveAndFlush(school);
         create("manager", Role.PEDAGOGICAL_COORDINATOR);
         teacher = create("teacher", Role.TEACHER);
         student = create("student", Role.STUDENT);
-        room = new Classroom(); room.setName("3 ano"); room.setIdentifier("A");
+        room = new Classroom(); room.setName("3 ano"); room.setIdentifier("A"); room.setSchool(school);
         room.getTeachers().add(teacher); classrooms.saveAndFlush(room);
         student.setClassroom(room);
     }
@@ -64,7 +69,7 @@ class ClassroomUnlinkTests {
     }
 
     @Test void preservesOtherClassroomAndChecksPermissionsAndRoles() throws Exception {
-        var other = new Classroom(); other.setName("4 ano"); other.setIdentifier("A");
+        var other = new Classroom(); other.setName("4 ano"); other.setIdentifier("A"); other.setSchool(school);
         classrooms.saveAndFlush(other);
         String path = "/api/classrooms/" + room.getId() + "/students/" + student.getId();
         mvc.perform(delete(path).with(user("teacher@example.com").roles("TEACHER"))).andExpect(status().isForbidden());
