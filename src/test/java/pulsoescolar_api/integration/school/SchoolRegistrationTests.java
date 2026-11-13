@@ -22,10 +22,12 @@ class SchoolRegistrationTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
     @Autowired SchoolRepository schools;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    pulsoescolar_api.service.school.SchoolAddressValidator addressValidator;
 
     MockMvc mvc;
     static final String SCHOOL = """
-            {"nome":"Escola A","logradouro":"Rua A","bairro":"Centro","cidade":"Recife"}
+            {"nome":"Escola A","logradouro":"Rua A","bairro":"Centro","cidade":"Recife","cep":"50000-000","uf":"PE"}
             """;
 
     @BeforeEach void setup() {
@@ -38,7 +40,7 @@ class SchoolRegistrationTests {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
-    @Test void createsSchoolsUsingOnlyNameAndAddress() throws Exception {
+    @Test void createsSchoolsWithAddressCepAndState() throws Exception {
         mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
                 .contentType("application/json").content(SCHOOL)).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.nome").value("Escola A"));
@@ -46,6 +48,44 @@ class SchoolRegistrationTests {
                 .contentType("application/json").content(SCHOOL.replace("Escola A", "Escola B")))
                 .andExpect(status().isCreated());
         org.junit.jupiter.api.Assertions.assertEquals(2L, schools.count());
+        org.mockito.Mockito.verify(addressValidator, org.mockito.Mockito.times(2))
+                .validate("50000-000", pulsoescolar_api.dto.school.BrazilianState.PE, "Recife", "Centro", "Rua A");
+    }
+
+    @Test void requiresCepAndState() throws Exception {
+        for (String field : new String[]{",\"cep\":\"50000-000\"", ",\"uf\":\"PE\""}) {
+            mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
+                    .contentType("application/json").content(SCHOOL.replace(field, "")))
+                    .andExpect(status().isBadRequest());
+        }
+        org.mockito.Mockito.verifyNoInteractions(addressValidator);
+    }
+
+    @Test void rejectsInconsistentAddressesAndLookupFailuresWithoutSaving() throws Exception {
+        for (RuntimeException failure : new RuntimeException[]{
+                new pulsoescolar_api.exception.common.BusinessValidationException("Endereço divergente."),
+                new pulsoescolar_api.exception.common.AddressLookupUnavailableException(null)}) {
+            org.mockito.Mockito.doThrow(failure).when(addressValidator)
+                    .validate("50000-000", pulsoescolar_api.dto.school.BrazilianState.PE, "Recife", "Centro", "Rua A");
+            int expected = failure instanceof pulsoescolar_api.exception.common.BusinessValidationException ? 400 : 503;
+            mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
+                    .contentType("application/json").content(SCHOOL)).andExpect(status().is(expected));
+            org.junit.jupiter.api.Assertions.assertEquals(0L, schools.count());
+        }
+    }
+
+    @Test void locationUpdateComparesStoredAddressBeforeChangingCep() throws Exception {
+        mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
+                .contentType("application/json").content(SCHOOL)).andExpect(status().isCreated());
+        var school = schools.findAll().getFirst();
+        org.mockito.Mockito.doThrow(new pulsoescolar_api.exception.common.BusinessValidationException("Endereço divergente."))
+                .when(addressValidator).validate("01001-000", pulsoescolar_api.dto.school.BrazilianState.SP,
+                        "Recife", "Centro", "Rua A");
+        mvc.perform(patch("/api/schools/{id}/location", school.getId()).with(user("ADMIN@school.test").roles("ADMIN"))
+                .contentType("application/json").content("{\"cep\":\"01001-000\",\"uf\":\"SP\"}"))
+                .andExpect(status().isBadRequest());
+        org.junit.jupiter.api.Assertions.assertEquals("50000000", school.getCep());
+        org.junit.jupiter.api.Assertions.assertEquals("PE", school.getUf());
     }
 
     @Test void validatesAllFields() throws Exception {
@@ -54,6 +94,41 @@ class SchoolRegistrationTests {
                     .contentType("application/json").content(SCHOOL.replace(value, " ")))
                     .andExpect(status().isBadRequest());
         }
+    }
+
+    @Test void stateMustBeOneOfTheExactDropdownCodesOnCreateUpdateAndSearch() throws Exception {
+        mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
+                .contentType("application/json").content(SCHOOL))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.uf").value("PE"));
+        Long id = schools.findAll().getFirst().getId();
+        for (String invalid : new String[]{"\"ZZ\"", "\"pe\"", "\" PE \"", "\"Pernambuco\"", "0", "\"0\"", "true"}) {
+            mvc.perform(post("/api/schools").with(user("ADMIN@school.test").roles("ADMIN"))
+                    .contentType("application/json").content(SCHOOL.replace("\"uf\":\"PE\"", "\"uf\":" + invalid)))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(patch("/api/schools/{id}/location", id).with(user("ADMIN@school.test").roles("ADMIN"))
+                    .contentType("application/json").content("{\"cep\":\"50000-000\",\"uf\":" + invalid + "}"))
+                    .andExpect(status().isBadRequest());
+        }
+        for (String invalid : new String[]{"ZZ", "pe", "Pernambuco", "0"}) {
+            mvc.perform(get("/api/schools/search").param("state", invalid)).andExpect(status().isBadRequest());
+        }
+        mvc.perform(get("/api/schools/search").param("state", "PE"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+        org.junit.jupiter.api.Assertions.assertEquals(1, schools.count());
+    }
+
+    @Test void enumChoicesCannotBeSubmittedAsNumbersThroughHttp() throws Exception {
+        for (String invalid : new String[]{"1", "\"1\"", "\"teacher\"", "\" TEACHER \""}) {
+            mvc.perform(post("/api/faqs").with(user("ADMIN@school.test").roles("ADMIN"))
+                    .contentType("application/json").content("{\"title\":\"Aviso\",\"message\":\"Mensagem\",\"targetRole\":" + invalid + "}"))
+                    .andExpect(status().isBadRequest());
+        }
+        mvc.perform(patch("/api/registration-requests/999999").with(user("ADMIN@school.test").roles("ADMIN"))
+                .contentType("application/json").content("{\"status\":1}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(patch("/api/registration-requests/999999").with(user("ADMIN@school.test").roles("ADMIN"))
+                .contentType("application/json").content("{\"status\":\"APPROVED\",\"type\":1}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test void schoolsReturnOnlyTheirActiveCoordinator() throws Exception {

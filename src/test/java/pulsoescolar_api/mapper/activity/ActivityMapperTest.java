@@ -38,6 +38,35 @@ class ActivityMapperTest {
     }
 
     @Test
+    void shufflesPerStudentWithoutChangingOriginalOrderAndKeepsLegacyQuizzesUnchanged() {
+        var activity = submission().getActivity();
+        var mapper = new ActivityMapper(Clock.fixed(NOW, ZoneOffset.UTC));
+        var original = java.util.stream.IntStream.range(0, 10).boxed().toList();
+        var first = mapper.questionOrder(activity, 2L);
+        assertThat(first).containsExactlyInAnyOrderElementsOf(original).isNotEqualTo(original);
+        assertThat(mapper.questionOrder(activity, 2L)).isEqualTo(first);
+        assertThat(mapper.questionOrder(activity, 3L)).isNotEqualTo(first);
+        assertThat(mapper.questionOrder(activity, null)).isEqualTo(original);
+        activity.setQuestionsShuffled(false);
+        assertThat(mapper.questionOrder(activity, 2L)).isEqualTo(original);
+        assertThat(mapper.questionOrder(activity, 3L)).isEqualTo(original);
+    }
+
+    @Test
+    void studentAnswersFollowDisplayedOrderWhileTeacherAnswersAndThemesKeepOriginalOrder() {
+        var submission = submission(); submission.setGradedAt(NOW);
+        var mapper = new ActivityMapper(Clock.fixed(NOW, ZoneOffset.UTC));
+        var original = List.copyOf(submission.getAnswers());
+        var studentResult = mapper.toResponse(submission, 2L);
+        var teacherResult = mapper.toResponse(submission);
+        assertThat(studentResult.answers()).containsExactlyElementsOf(mapper.questionOrder(submission.getActivity(), 2L)
+                .stream().map(original::get).toList());
+        assertThat(teacherResult.answers()).isEqualTo(original);
+        assertThat(studentResult.themePerformance()).isEqualTo(teacherResult.themePerformance());
+        assertThat(submission.getAnswers()).isEqualTo(original);
+    }
+
+    @Test
     void gradedResultGroupsInterleavedQuestionsAndIdentifiesThemesToReview() {
         var submission = submission(); submission.setGradedAt(NOW);
         var result = new ActivityMapper(Clock.fixed(NOW, ZoneOffset.UTC)).toResponse(submission);
@@ -67,11 +96,21 @@ class ActivityMapperTest {
                 Arguments.of(NOW.minusSeconds(1), ActivityStatus.FINISHED));
     }
 
+    @Test
+    void activityYearUsesCreationDateInBrazilInsteadOfUtcYearOrClientInput() {
+        var classroom = new Classroom(); classroom.setId(1L);
+        var subject = new Subject(); subject.setId(2L); subject.setClassroom(classroom);
+        var activity = new Activity(); activity.setId(3L); activity.setSubject(subject);
+        activity.setCreatedAt(Instant.parse("2027-01-01T02:59:59Z"));
+        assertThat(new ActivityMapper(Clock.fixed(NOW, ZoneOffset.UTC)).toResponse(activity).year()).isEqualTo(2026);
+    }
+
     @ParameterizedTest @MethodSource("deadlines")
     void statusReflectsDeadlineIncludingExactClosingInstant(Instant closesAt, ActivityStatus expected) {
         var classroom = new Classroom(); classroom.setId(1L);
         var subject = new Subject(); subject.setId(2L); subject.setClassroom(classroom);
         var activity = new Activity(); activity.setId(3L); activity.setSubject(subject); activity.setClosesAt(closesAt);
+        activity.setCreatedAt(NOW);
         var mapper = new ActivityMapper(Clock.fixed(NOW, ZoneOffset.UTC));
 
         assertThat(mapper.toResponse(activity).status()).isEqualTo(expected);

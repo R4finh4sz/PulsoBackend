@@ -20,9 +20,10 @@ public class RegistrationRequestController {
             @RequestParam(defaultValue = "PENDING") RegistrationStatus status,
             @RequestParam(required = false) Role role,
             @RequestParam(required = false) @Positive Long schoolId,
+            @RequestParam(required = false) RegistrationRequestType type,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return service.list(status, role, schoolId, page, size);
+        return service.list(status, role, schoolId, page, size, type);
     }
 
     @PatchMapping("/{id}")
@@ -31,7 +32,7 @@ public class RegistrationRequestController {
     }
 
     @GetMapping(value = "/{id}/photo", produces = MediaType.IMAGE_PNG_VALUE)
-    public ResponseEntity<byte[]> photo(@PathVariable Long id) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.photo(id));
+    public ResponseEntity<byte[]> photo(@PathVariable Long id, @RequestParam(required = false) RegistrationRequestType type) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.photo(id, type));
     }
 }

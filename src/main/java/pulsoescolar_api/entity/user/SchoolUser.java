@@ -21,7 +21,14 @@ public class SchoolUser {
  @ManyToMany
  @JoinTable(name="user_schools", joinColumns=@JoinColumn(name="user_id"), inverseJoinColumns=@JoinColumn(name="school_id"))
  private java.util.Set<School> schools = new java.util.HashSet<>();
- public School getSchool() { return role == Role.STUDENT || activeSchool == null ? school : activeSchool; }
+ public School getSchool() {
+  var selected = role == Role.STUDENT || activeSchool == null ? school : activeSchool;
+  return selected == null || !selected.isActive() ? null : selected;
+ }
+ public boolean isSchoolUnavailable() {
+  var selected = role == Role.STUDENT || activeSchool == null ? school : activeSchool;
+  return role != Role.ADMIN && selected != null && !selected.isActive();
+ }
  public School getEnrollmentSchool() { return school; }
  public void setSchool(School school) {
   this.school = school;
@@ -31,10 +38,12 @@ public class SchoolUser {
           || school.getId() != null && school.getId().equals(value.getId()))) schools.add(school);
  }
  public boolean belongsToSchool(Long schoolId) {
-  if (role == Role.STUDENT) return school != null && java.util.Objects.equals(school.getId(), schoolId);
-  return schools.stream().anyMatch(value -> value.getId().equals(schoolId));
+  if (role == Role.STUDENT) return school != null && school.isActive() && java.util.Objects.equals(school.getId(), schoolId);
+  return schools.stream().anyMatch(value -> value.isActive() && value.getId().equals(schoolId));
  }
  public boolean isInActiveSchool(Classroom room) {
+  if (isSchoolUnavailable()) return false;
+  if (room.getSchool() != null && !room.getSchool().isActive()) return false;
   return java.util.Objects.equals(getSchool() == null ? null : getSchool().getId(),
           room.getSchool() == null ? null : room.getSchool().getId());
  }

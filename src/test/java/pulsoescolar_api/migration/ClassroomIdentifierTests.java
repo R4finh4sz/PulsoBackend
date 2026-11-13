@@ -36,9 +36,14 @@ class ClassroomIdentifierTests {
                 assertEquals("3 ano", result.getString("name"));
                 assertEquals("A", result.getString("identifier"));
             }
-            statement.execute("INSERT INTO classrooms(name, identifier) VALUES ('3 ano', 'B')");
+            statement.execute("INSERT INTO schools(id, nome, logradouro, bairro, cidade) VALUES (101, 'Escola A', 'Rua', 'Centro', 'Recife'), (102, 'Escola B', 'Rua', 'Centro', 'Recife')");
+            statement.execute("UPDATE classrooms SET school_id = 101");
+            statement.execute("INSERT INTO classrooms(school_id, name, identifier) VALUES (101, '3 ano', 'B')");
+            statement.execute("INSERT INTO classrooms(school_id, name, identifier) VALUES (102, '3 ano', 'B')");
             assertThrows(SQLException.class, () ->
-                    statement.execute("INSERT INTO classrooms(name, identifier) VALUES ('3 ano', 'B')"));
+                    statement.execute("INSERT INTO classrooms(school_id, name, identifier) VALUES (101, '3 ano', 'B')"));
+            assertThrows(SQLException.class, () ->
+                    statement.execute("UPDATE classrooms SET school_id = 101 WHERE school_id = 102"));
             assertThrows(SQLException.class, () ->
                     statement.execute("INSERT INTO classrooms(name, identifier) VALUES ('4 ano', 'a')"));
             assertThrows(SQLException.class, () ->

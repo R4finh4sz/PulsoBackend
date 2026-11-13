@@ -43,7 +43,7 @@ public class SchoolMetricsService {
         var rows = entityManager.createNativeQuery("""
                 select extract(month from u.created_at at time zone 'America/Sao_Paulo'), u.role, count(*)
                 from school_users u join user_schools s on s.user_id = u.id
-                where s.school_id = :schoolId and u.deleted_at is null
+                where s.school_id = :schoolId
                   and u.role in ('STUDENT', 'TEACHER')
                   and u.created_at >= :start and u.created_at < :end
                 group by extract(month from u.created_at at time zone 'America/Sao_Paulo'), u.role
@@ -86,7 +86,7 @@ public class SchoolMetricsService {
 
     private long countUndatedUsers(Long schoolId, Role role) {
         return entityManager.createQuery("select count(u) from SchoolUser u join u.schools s "
-                + "where s.id = :schoolId and u.role = :role and u.deletedAt is null and u.createdAt is null", Long.class)
+                + "where s.id = :schoolId and u.role = :role and u.createdAt is null", Long.class)
                 .setParameter("schoolId", schoolId).setParameter("role", role).getSingleResult();
     }
 

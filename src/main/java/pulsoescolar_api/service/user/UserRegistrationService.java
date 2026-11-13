@@ -45,7 +45,7 @@ public class UserRegistrationService {
             if (request.schoolId() == null || request.schoolId() <= 0) {
                 throw new BusinessValidationException("schoolId é obrigatório para cadastros feitos pelo administrador.");
             }
-            user.setSchool(schools.findById(request.schoolId()).orElseThrow(() ->
+            user.setSchool(schools.findById(request.schoolId()).filter(pulsoescolar_api.entity.school.School::isActive).orElseThrow(() ->
                     new ResourceNotFoundException("Escola não encontrada.")));
         } else {
             if (actor.getSchool() == null) {

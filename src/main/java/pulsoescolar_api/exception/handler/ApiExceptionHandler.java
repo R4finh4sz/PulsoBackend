@@ -16,6 +16,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 @RestControllerAdvice
 public class ApiExceptionHandler {
+ @ExceptionHandler(pulsoescolar_api.exception.common.AddressLookupUnavailableException.class)
+ public ProblemDetail addressLookup(pulsoescolar_api.exception.common.AddressLookupUnavailableException ex) {
+  return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+ }
  @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
  public ProblemDetail accessDenied(org.springframework.security.access.AccessDeniedException ex) {
   return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());

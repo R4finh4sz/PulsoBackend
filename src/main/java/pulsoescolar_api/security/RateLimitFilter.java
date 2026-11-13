@@ -6,14 +6,6 @@ import java.io.IOException;
 import java.time.*;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Base64;
-import java.util.UUID;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import javax.crypto.Mac;
-import javax.crypto.SecretKey;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -23,15 +15,12 @@ import pulsoescolar_api.config.RateLimitProperties;
 public class RateLimitFilter extends OncePerRequestFilter {
     private final RateLimitProperties properties;
     private final Clock clock;
-    private final SecretKey signingKey;
-    private static final String DEVICE_COOKIE = "pulso_device";
     private final Map<String, Client> clients = new HashMap<>();
     private static final int MAX_CLIENTS = 10_000;
 
-    public RateLimitFilter(RateLimitProperties properties, Clock clock, SecretKey signingKey) {
+    public RateLimitFilter(RateLimitProperties properties, Clock clock) {
         this.properties = properties;
         this.clock = clock;
-        this.signingKey = signingKey;
     }
 
     @Override protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -48,7 +37,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (principal != null && principal.isAuthenticated() && !(principal instanceof AnonymousAuthenticationToken)) {
             identity = "user:" + (principal instanceof JwtAuthenticationToken jwt ? jwt.getToken().getSubject() : principal.getName());
         } else {
-            identity = "device:" + device(request, response);
+            identity = "ip:" + request.getRemoteAddr();
         }
         long retry = retryAfter(identity, auth);
         if (retry == 0) {
@@ -66,35 +55,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private String path(HttpServletRequest request) {
         return request.getRequestURI().substring(request.getContextPath().length());
-    }
-
-    private String device(HttpServletRequest request, HttpServletResponse response) {
-        if (request.getCookies() != null) {
-            for (var cookie : request.getCookies()) {
-                if (!DEVICE_COOKIE.equals(cookie.getName())) continue;
-                var value = cookie.getValue();
-                if (value == null || !value.matches("[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\\.[A-Za-z0-9_-]{43}")) continue;
-                var id = value.substring(0, 36);
-                if (MessageDigest.isEqual(signature(id).getBytes(StandardCharsets.US_ASCII),
-                        value.substring(37).getBytes(StandardCharsets.US_ASCII))) return id;
-            }
-        }
-        var id = UUID.randomUUID().toString();
-        response.addHeader("Set-Cookie", ResponseCookie.from(DEVICE_COOKIE, id + "." + signature(id))
-                .httpOnly(true).secure(request.isSecure()).sameSite(request.isSecure() ? "None" : "Lax")
-                .path("/api").maxAge(Duration.ofDays(365)).build().toString());
-        return id;
-    }
-
-    private String signature(String id) {
-        try {
-            var mac = Mac.getInstance("HmacSHA256");
-            mac.init(signingKey);
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                    mac.doFinal(("pulso-rate-limit-device:" + id).getBytes(StandardCharsets.US_ASCII)));
-        } catch (GeneralSecurityException ex) {
-            throw new IllegalStateException("Assinatura de dispositivo indisponível.", ex);
-        }
     }
 
     private synchronized long retryAfter(String identity, boolean auth) {
