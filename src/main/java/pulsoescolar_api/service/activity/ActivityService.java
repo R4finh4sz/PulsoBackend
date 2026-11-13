@@ -37,17 +37,25 @@ public class ActivityService {
     private final EntityManager entityManager;
     private final Clock clock;
     private final ActivityRecipientService recipients;
+    private final ActivityNotificationService notifications;
 
     @Transactional
     public ActivityResponse create(Long subjectId, CreateActivityRequest input) {
         var subject = subject(subjectId);
         var user = currentUser.get();
         requireTeacher(subject, user);
+        var now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        var closesAt = input.closesAt() == null ? null : input.closesAt().truncatedTo(ChronoUnit.MICROS);
+        var zone = java.time.ZoneId.of("America/Sao_Paulo");
+        int year = now.atZone(zone).getYear();
+        if (closesAt == null || !closesAt.isAfter(now) || closesAt.atZone(zone).getYear() != year) {
+            throw new BusinessValidationException("A atividade deve encerrar em uma data futura do ano atual (" + year + ").");
+        }
         var activity = new Activity();
         activity.setSubject(subject);
         activity.setCreatedBy(user);
-        activity.setClosesAt(input.closesAt() == null ? null : input.closesAt().truncatedTo(ChronoUnit.MICROS));
-        activity.setCreatedAt(clock.instant().truncatedTo(ChronoUnit.MICROS));
+        activity.setClosesAt(closesAt);
+        activity.setCreatedAt(now);
         for (var item : input.questions()) {
             if (item.correctOption() >= item.options().size()) {
                 throw new BusinessValidationException("O gabarito deve indicar uma alternativa existente.");
@@ -68,7 +76,9 @@ public class ActivityService {
             activity.getQuestions().add(question);
         }
         recipients.capture(activity);
-        return mapper.toResponse(activities.saveAndFlush(activity));
+        activities.saveAndFlush(activity);
+        notifications.opened(activity);
+        return mapper.toResponse(activity);
     }
 
     public List<ActivityResponse> list(Long subjectId, Long classroomId) {
@@ -92,17 +102,17 @@ public class ActivityService {
         return visible.values().stream()
                 .map(activity -> new StudentActivityResponse(mapper.toResponse(activity),
                         submissions.findByActivityIdAndStudentId(activity.getId(), user.getId())
-                                .map(mapper::toResponse).orElse(null))).toList();
+                                .map(submission -> mapper.toResponse(submission, user.getId())).orElse(null))).toList();
     }
 
     public QuizResponse open(Long id) {
         var activity = activity(id);
         var user = currentUser.get();
         if (user.getRole() == Role.STUDENT && submissions.existsByActivityIdAndStudentId(id, user.getId())) {
-            return mapper.toQuiz(activity);
+            return mapper.toQuiz(activity, user.getId());
         }
         requireReader(activity.getSubject(), currentUser.get());
-        return mapper.toQuiz(activity);
+        return mapper.toQuiz(activity, user.getRole() == Role.STUDENT ? user.getId() : null);
     }
 
     @Transactional
@@ -122,18 +132,22 @@ public class ActivityService {
         if (input.answers().size() != activity.getQuestions().size()) {
             throw new BusinessValidationException("Responda todas as questões da atividade, na ordem apresentada.");
         }
+        var order = mapper.questionOrder(activity, user.getId());
+        var answers = new java.util.ArrayList<>(java.util.Collections.nCopies(input.answers().size(), 0));
         for (int i = 0; i < input.answers().size(); i++) {
-            if (input.answers().get(i) >= activity.getQuestions().get(i).getOptions().size()) {
+            int originalIndex = order.get(i);
+            if (input.answers().get(i) >= activity.getQuestions().get(originalIndex).getOptions().size()) {
                 throw new BusinessValidationException("A resposta deve indicar uma alternativa existente.");
             }
+            answers.set(originalIndex, input.answers().get(i));
         }
         var submission = new QuizSubmission();
         submission.setActivity(activity);
         submission.setStudent(user);
-        submission.getAnswers().addAll(input.answers());
+        submission.getAnswers().addAll(answers);
         submission.setSubmittedAt(clock.instant().truncatedTo(ChronoUnit.MICROS));
         calculateGrade(submission);
-        return mapper.toResponse(submissions.saveAndFlush(submission));
+        return mapper.toResponse(submissions.saveAndFlush(submission), user.getId());
     }
 
     @Transactional
@@ -172,7 +186,7 @@ public class ActivityService {
         } else {
             requireTeacher(submission.getActivity().getSubject(), user);
         }
-        return mapper.toResponse(submission);
+        return mapper.toResponse(submission, user.getRole() == Role.STUDENT ? user.getId() : null);
     }
 
     public List<TeacherActivityResponse> teacherActivities() {

@@ -48,6 +48,7 @@ public class StudentTransferService {
         }
         var destination = schools.findById(input.schoolId())
                 .orElseThrow(() -> new ResourceNotFoundException("Escola de destino não encontrada."));
+        destination.requireActive();
         if (transfers.existsByStudentIdAndStatus(student.getId(), RegistrationStatus.PENDING)) {
             throw new BusinessConflictException("O aluno já possui uma transferência pendente.");
         }

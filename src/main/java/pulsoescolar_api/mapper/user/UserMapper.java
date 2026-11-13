@@ -9,6 +9,6 @@ public class UserMapper {
     public UserResponse toResponse(SchoolUser user) {
         return new UserResponse(user.getId(), user.getFullName(), user.getRa(), user.getEmail(),
                 user.getRole(), user.getActiveClassroom() == null ? null : user.getActiveClassroom().getId(),
-                user.getSchool() == null ? null : user.getSchool().getId());
+                user.getSchool() == null ? null : user.getSchool().getId(), user.isSchoolUnavailable());
     }
 }

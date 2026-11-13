@@ -6,7 +6,8 @@ import pulsoescolar_api.entity.user.Role;
 public record LoginResponse(String accessToken, String tokenType, Instant expiresAt, LoginUser user,
         boolean twoFactorRequired, Instant codeExpiresAt, Instant resendAvailableAt,
         String refreshToken, Instant refreshExpiresAt) {
-    public record LoginUser(Role role, Long classroomId, Long schoolId, boolean termsAccepted, java.util.List<String> termsAcceptedVersions) {}
+    public record LoginUser(Role role, Long classroomId, Long schoolId, boolean termsAccepted,
+                            java.util.List<String> termsAcceptedVersions, boolean schoolUnavailable) {}
 
     @Override public String toString() { return "LoginResponse[accessToken=REDACTED, expiresAt=" + expiresAt + "]"; }
 }

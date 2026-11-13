@@ -4,7 +4,6 @@ import java.time.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
 import jakarta.servlet.http.Cookie;
-import javax.crypto.spec.SecretKeySpec;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -16,12 +15,11 @@ import static org.mockito.Mockito.*;
 class RateLimitFilterTest {
     private final Clock clock = mock(Clock.class);
     private final Instant now = Instant.parse("2026-11-08T12:00:00Z");
-    private final SecretKeySpec key = new SecretKeySpec(new byte[32], "HmacSHA256");
     @AfterEach void clearContext() { SecurityContextHolder.clearContext(); }
 
     @Test void limitsByUserAcrossTokensAndSeparatesUsersOnSameWifi() throws Exception {
         when(clock.instant()).thenReturn(now);
-        var filter = new RateLimitFilter(new RateLimitProperties(2, Duration.ofMinutes(1), 1, Duration.ofMinutes(1)), clock, key);
+        var filter = new RateLimitFilter(new RateLimitProperties(2, Duration.ofMinutes(1), 1, Duration.ofMinutes(1)), clock);
         assertThat(request(filter, "/api/faqs", "10.0.0.1", "GET").getStatus()).isEqualTo(200);
         assertThat(request(filter, "/api/teacher/classrooms", "10.0.0.1", "GET").getStatus()).isEqualTo(200);
         var blocked = request(filter, "/api/me/export", "10.0.0.1", "GET");
@@ -34,35 +32,65 @@ class RateLimitFilterTest {
 
     @Test void authenticationHasStricterSharedLimitAndOptionsAreNotCounted() throws Exception {
         when(clock.instant()).thenReturn(now);
-        var filter = new RateLimitFilter(new RateLimitProperties(10, Duration.ofMinutes(1), 1, Duration.ofMinutes(1)), clock, key);
+        var filter = new RateLimitFilter(new RateLimitProperties(10, Duration.ofMinutes(1), 1, Duration.ofMinutes(1)), clock);
         request(filter, "/api/auth/login", "10.0.0.1", "OPTIONS");
         assertThat(request(filter, "/api/auth/login", "10.0.0.1", "POST").getStatus()).isEqualTo(200);
         assertThat(request(filter, "/api/auth/refresh", "10.0.0.1", "POST").getStatus()).isEqualTo(429);
         assertThat(request(filter, "/api/faqs", "10.0.0.1", "GET").getStatus()).isEqualTo(200);
     }
 
-    @Test void publicRequestsUseSignedDeviceCookiesAndNotSharedIp() throws Exception {
+    @Test void publicRequestsShareIpLimitAcrossCookiesAndIgnoreForgedForwardedHeaders() throws Exception {
         when(clock.instant()).thenReturn(now);
-        var filter = new RateLimitFilter(new RateLimitProperties(10, Duration.ofMinutes(1), 1, Duration.ofMinutes(1)), clock, key);
-        var first = anonymous(filter, null);
-        var cookie = deviceCookie(first);
-        assertThat(first.getHeader("Set-Cookie")).contains("HttpOnly", "Path=/api");
-        assertThat(anonymous(filter, cookie).getStatus()).isEqualTo(429);
-        assertThat(anonymous(filter, null).getStatus()).isEqualTo(200);
-        var forged = new Cookie("pulso_device", cookie.getValue().substring(0, 37) + "x".repeat(43));
-        assertThat(anonymous(filter, forged).getHeader("Set-Cookie")).isNotNull();
+        var filter = new RateLimitFilter(new RateLimitProperties(10, Duration.ofMinutes(1), 1, Duration.ofMinutes(1)), clock);
+        var first = anonymous(filter, "192.168.1.10");
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(first.getHeader("Set-Cookie")).isNull();
+        var blocked = anonymous(filter, "192.168.1.10");
+        assertThat(blocked.getStatus()).isEqualTo(429);
+        assertThat(blocked.getHeader("Retry-After")).isEqualTo("60");
+        assertThat(anonymous(filter, "192.168.1.11").getStatus()).isEqualTo(200);
+        when(clock.instant()).thenReturn(now.plusSeconds(60));
+        assertThat(anonymous(filter, "192.168.1.10").getStatus()).isEqualTo(200);
     }
 
-    private Cookie deviceCookie(MockHttpServletResponse response) {
-        var value = response.getHeader("Set-Cookie").split(";", 2)[0].split("=", 2);
-        return new Cookie(value[0], value[1]);
+    @Test void publicAndAuthenticatedCountersAreIndependentAndUserFollowsIpChanges() throws Exception {
+        when(clock.instant()).thenReturn(now);
+        var filter = new RateLimitFilter(new RateLimitProperties(10, Duration.ofMinutes(1), 1, Duration.ofMinutes(1)), clock);
+        assertThat(anonymous(filter, "192.168.1.10").getStatus()).isEqualTo(200);
+        assertThat(anonymous(filter, "192.168.1.10").getStatus()).isEqualTo(429);
+        assertThat(request(filter, "/api/auth/refresh", "42", "POST").getStatus()).isEqualTo(200);
+        var differentIp = new MockHttpServletRequest("POST", "/api/auth/refresh");
+        differentIp.setRemoteAddr("192.168.1.11");
+        var response = new MockHttpServletResponse();
+        filter.doFilter(differentIp, response, new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(429);
+        assertThat(request(filter, "/api/auth/refresh", "43", "POST").getStatus()).isEqualTo(200);
     }
 
-    private MockHttpServletResponse anonymous(RateLimitFilter filter, Cookie cookie) throws Exception {
+    @Test void publicGeneralLimitIsSharedAcrossRoutesAndOptionsAreSkipped() throws Exception {
+        when(clock.instant()).thenReturn(now);
+        var filter = new RateLimitFilter(new RateLimitProperties(1, Duration.ofMinutes(1), 10, Duration.ofMinutes(1)), clock);
+        SecurityContextHolder.clearContext();
+        for (var entry : java.util.List.of(
+                new String[]{"OPTIONS", "/api/auth/register", "200"},
+                new String[]{"GET", "/api/schools/search", "200"},
+                new String[]{"POST", "/api/students", "429"})) {
+            var request = new MockHttpServletRequest(entry[0], entry[1]);
+            request.setRemoteAddr("192.168.1.10");
+            var response = new MockHttpServletResponse();
+            filter.doFilter(request, response, new MockFilterChain());
+            assertThat(response.getStatus()).isEqualTo(Integer.parseInt(entry[2]));
+        }
+    }
+
+    private MockHttpServletResponse anonymous(RateLimitFilter filter, String ip) throws Exception {
         SecurityContextHolder.clearContext();
         var request = new MockHttpServletRequest("POST", "/api/auth/login");
-        request.setRemoteAddr("192.168.1.10");
-        if (cookie != null) request.setCookies(cookie);
+        request.setRemoteAddr(ip);
+        request.setCookies(new Cookie("pulso_device", java.util.UUID.randomUUID().toString()));
+        request.addHeader("X-Forwarded-For", java.util.UUID.randomUUID().toString());
+        request.addHeader("X-Real-IP", java.util.UUID.randomUUID().toString());
+        request.addHeader("Forwarded", "for=" + java.util.UUID.randomUUID());
         var response = new MockHttpServletResponse();
         filter.doFilter(request, response, new MockFilterChain());
         return response;

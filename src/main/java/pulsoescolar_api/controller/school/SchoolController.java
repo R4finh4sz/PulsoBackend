@@ -29,4 +29,21 @@ public class SchoolController {
     public SchoolResponse updateLocation(@PathVariable Long id, @Valid @RequestBody UpdateSchoolLocationRequest request) {
         return service.updateLocation(id, request);
     }
+
+    @PatchMapping("/{id}/deactivate")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void deactivate(@PathVariable Long id) {
+        service.deactivate(id);
+    }
+
+    @PatchMapping("/{id}/users/{userId}")
+    public pulsoescolar_api.dto.user.UserResponse assignUser(@PathVariable Long id, @PathVariable Long userId) {
+        return service.assignUser(id, userId);
+    }
+
+    @PatchMapping("/{id}/coordinator")
+    public SchoolResponse updateCoordinator(@PathVariable Long id,
+            @Valid @RequestBody UpdateSchoolCoordinatorRequest request) {
+        return service.updateCoordinator(id, request);
+    }
 }

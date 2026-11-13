@@ -26,7 +26,7 @@ import pulsoescolar_api.service.user.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:audit_tests;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
 class AuditTests {
     @Autowired JdbcTemplate jdbc;
     @Autowired AuditService audit;
@@ -38,6 +38,7 @@ class AuditTests {
     @Autowired org.springframework.security.crypto.password.PasswordEncoder passwords;
     @Autowired PlatformTransactionManager transactions;
     @MockitoBean WelcomeMailService mail;
+    @MockitoBean pulsoescolar_api.service.school.SchoolAddressValidator addressValidator;
 
     private void login(SchoolUser user) {
         SecurityContextHolder.getContext().setAuthentication(
@@ -69,7 +70,7 @@ class AuditTests {
     @Test @Transactional
     void recordsSchoolAndOnlyCoordinatorRegistration() {
         var admin = actor(Role.ADMIN);
-        var school = schools.create(new CreateSchoolRequest("Private school", "Street", "Area", "City"));
+        var school = schools.create(new CreateSchoolRequest("Private school", "Street", "Area", "City", "50000000", pulsoescolar_api.dto.school.BrazilianState.PE));
         assertEquals(1, count(AuditEvent.SCHOOL_CREATED));
         for (Role role : new Role[]{Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR}) {
             registration.createUser(new CreateUser("Private name", role.name(), role + "@new.test", school.id()), role);
@@ -125,7 +126,7 @@ class AuditTests {
         long schoolsBefore = jdbc.queryForObject("SELECT COUNT(*) FROM schools", Long.class);
         new TransactionTemplate(transactions).executeWithoutResult(status -> {
             actor(Role.ADMIN);
-            schools.create(new CreateSchoolRequest("Private school", "Street", "Area", "City"));
+            schools.create(new CreateSchoolRequest("Private school", "Street", "Area", "City", "50000000", pulsoescolar_api.dto.school.BrazilianState.PE));
             assertEquals(before + 1, count(AuditEvent.SCHOOL_CREATED));
             status.setRollbackOnly();
         });

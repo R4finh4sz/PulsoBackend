@@ -90,6 +90,7 @@ public class SchoolInvitationService {
             throw new BusinessConflictException("Este convite já foi respondido ou expirou.");
         }
         if (input.status() == SchoolInvitationStatus.ACCEPTED) {
+            invitation.getSchool().requireActive();
             var inviter = invitation.getInvitedBy();
             entityManager.refresh(inviter, LockModeType.PESSIMISTIC_READ);
             if (inviter.getDeletedAt() != null || inviter.getRole() != Role.PEDAGOGICAL_COORDINATOR

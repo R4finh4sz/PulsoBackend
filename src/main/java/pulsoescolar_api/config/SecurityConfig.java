@@ -44,8 +44,7 @@ public class SecurityConfig {
         return new ProviderManager(provider);
     }
     @Bean SecurityFilterChain securityFilterChain(HttpSecurity http,
-            SessionJwtAuthenticationConverter converter, RateLimitProperties rateLimit, java.time.Clock clock,
-            javax.crypto.SecretKey jwtSigningKey) throws Exception {
+            SessionJwtAuthenticationConverter converter, RateLimitProperties rateLimit, java.time.Clock clock) throws Exception {
         return http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(s -> s.securityContextRepository(new RequestAttributeSecurityContextRepository()))
                 .csrf(c -> c.disable())
@@ -61,6 +60,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/faqs").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/faqs/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/faqs/*").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/schools/*/deactivate", "/api/schools/*/users/*").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/schools/*/coordinator").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/auth/login",
                                 "/api/auth/password-recovery/request", "/api/auth/password-recovery/verify",
                                 "/api/auth/password-recovery/reset", "/api/auth/refresh").permitAll()
@@ -81,7 +82,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/teacher/classrooms").hasRole("TEACHER")
                         .requestMatchers(HttpMethod.GET, "/api/teacher/reports").hasRole("TEACHER")
                         .anyRequest().hasAnyRole("ADMIN", "PEDAGOGICAL_COORDINATOR", "TEACHER", "STUDENT"))
-                .addFilterAfter(new pulsoescolar_api.security.RateLimitFilter(rateLimit, clock, jwtSigningKey),
+                .addFilterAfter(new pulsoescolar_api.security.RateLimitFilter(rateLimit, clock),
                         org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(new pulsoescolar_api.security.auth.SessionExpiryHeaderFilter(clock),
                         org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)

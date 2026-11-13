@@ -45,7 +45,7 @@ public class UserProfileService {
         if (user.getRole() != pulsoescolar_api.entity.user.Role.TEACHER) {
             throw new org.springframework.security.access.AccessDeniedException("Apenas professores podem alternar escolas.");
         }
-        var school = user.getSchools().stream().filter(value -> value.getId().equals(schoolId)).findFirst()
+        var school = user.getSchools().stream().filter(value -> value.isActive() && value.getId().equals(schoolId)).findFirst()
                 .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
                         "Você não possui vínculo com esta escola."));
         user.setActiveSchool(school);
@@ -62,7 +62,8 @@ public class UserProfileService {
             case ADMIN -> List.<Classroom>of();
         };
         return new UserProfileResponse(mapper.toResponse(user),
-                user.getSchools().stream().sorted(java.util.Comparator.comparing(pulsoescolar_api.entity.school.School::getId))
+                user.getSchools().stream().filter(pulsoescolar_api.entity.school.School::isActive)
+                        .sorted(java.util.Comparator.comparing(pulsoescolar_api.entity.school.School::getId))
                         .map(SchoolOption::from).toList(),
                 rooms.stream().filter(room -> room.getDeletedAt() == null)
                         .filter(user::isInActiveSchool)

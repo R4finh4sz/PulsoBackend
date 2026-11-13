@@ -6,6 +6,11 @@ import org.springframework.data.jpa.repository.Query;
 import pulsoescolar_api.entity.activity.Activity;
 
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Activity a where a.closingReminderSent = false "
+            + "and a.closesAt > :now and a.closesAt < :endOfDay order by a.id")
+    List<Activity> findForClosingReminder(java.time.Instant now, java.time.Instant endOfDay);
+
     interface Recipient {
         Long getActivityId();
         Long getStudentId();
@@ -24,6 +29,7 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
             join s.classroom.teachers teacher
             where teacher.id = :teacherId and (s.teacher.id = :teacherId or collaborator.id = :teacherId)
             and s.classroom.deletedAt is null
+            and (s.classroom.school is null or s.classroom.school.active = true)
             and (s.classroom.school is null or s.classroom.school member of teacher.schools)
             order by a.createdAt desc, a.id desc
             """)

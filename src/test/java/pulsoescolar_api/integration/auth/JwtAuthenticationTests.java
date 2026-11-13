@@ -146,7 +146,7 @@ class JwtAuthenticationTests {
                 .content("{\"email\":\"ADMIN@example.com\",\"password\":\"admin-password-123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("pulso_device=")))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresAt").exists())
                 .andExpect(jsonPath("$.user.role").value("ADMIN"))

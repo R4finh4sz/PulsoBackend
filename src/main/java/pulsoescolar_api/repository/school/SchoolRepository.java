@@ -8,4 +8,6 @@ public interface SchoolRepository extends JpaRepository<School, Long>,
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("select s from School s where s.id = :id")
     java.util.Optional<School> findForUpdate(Long id);
+
+    java.util.List<School> findByActiveTrue(org.springframework.data.domain.Sort sort);
 }
