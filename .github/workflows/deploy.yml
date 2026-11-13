@@ -1,0 +1,67 @@
+name: Deploy (Square Cloud)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Evita dois deploys ao mesmo tempo.
+concurrency:
+  group: deploy-square-cloud
+  cancel-in-progress: false
+
+jobs:
+  # 1. Os testes rodam primeiro. Se falharem, o deploy nem começa.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Permissão do Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Build e testes
+        run: ./mvnw -B verify
+
+  # 2. Só roda se o job "test" passou.
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Permissão do Maven Wrapper
+        run: chmod +x mvnw
+
+      # A Square Cloud não compila Java: precisa receber o .jar pronto.
+      - name: Gerar o jar (testes já passaram no job anterior)
+        run: ./mvnw -B package -DskipTests
+
+      - name: Montar a pasta de deploy
+        run: |
+          mkdir deploy
+          cp target/pulsoescolar-api-*.jar deploy/app.jar
+          cat > deploy/squarecloud.app <<'EOF'
+          MAIN=app.jar
+          MEMORY=512
+          VERSION=recommended
+          DISPLAY_NAME=Pulso Escolar API
+          EOF
+
+      - uses: squarecloudofc/github-action@v2
+        with:
+          token: ${{ secrets.SQUARECLOUD_API_KEY }}
+          workdir: deploy
+          command: commit ${{ vars.SQUARECLOUD_APP_ID }} --restart
