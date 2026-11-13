@@ -26,7 +26,7 @@ import pulsoescolar_api.service.user.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:audit_tests;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
 class AuditTests {
     @Autowired JdbcTemplate jdbc;
     @Autowired AuditService audit;
