@@ -1,0 +1,105 @@
+<mxfile host="app.diagrams.net" modified="2026-09-30T00:00:00.000Z" agent="Mozilla/5.0" version="24.7.17" type="device">
+  <diagram id="pulso-bpmn" name="BPMN - Pulso Escolar">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="BPMN — Acompanhamento de dificuldades de aprendizagem | Pulso Escolar" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=20;fontStyle=1;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1100" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Pool: Professor -->
+        <mxCell id="pool-professor" value="Professor" style="swimlane;html=1;horizontal=0;startSize=120;fillColor=#e0f2fe;strokeColor=#0284c7;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="1440" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="prof-start" value="" style="ellipse;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#111827;strokeWidth=2;" vertex="1" parent="pool-professor">
+          <mxGeometry x="145" y="76" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="prof-task-questions" value="Cadastrar questões" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;" vertex="1" parent="pool-professor">
+          <mxGeometry x="230" y="60" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="prof-task-relate" value="Relacionar questões a conteúdos e habilidades" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;" vertex="1" parent="pool-professor">
+          <mxGeometry x="440" y="60" width="210" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="prof-task-publish" value="Publicar atividade para a turma" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;" vertex="1" parent="pool-professor">
+          <mxGeometry x="710" y="60" width="190" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="prof-task-followup" value="Acompanhar estudantes com dificuldade" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;" vertex="1" parent="pool-professor">
+          <mxGeometry x="1160" y="60" width="210" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Pool: Sistema -->
+        <mxCell id="pool-system" value="Sistema Pulso Escolar / API" style="swimlane;html=1;horizontal=0;startSize=120;fillColor=#ecfdf5;strokeColor=#059669;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="1440" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="sys-event-publish" value="Atividade publicada" style="ellipse;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#111827;strokeWidth=2;" vertex="1" parent="pool-system">
+          <mxGeometry x="790" y="35" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="sys-task-store" value="Disponibilizar atividade e registrar dados" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;" vertex="1" parent="pool-system">
+          <mxGeometry x="870" y="20" width="210" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="sys-task-evaluate" value="Corrigir respostas e calcular indicadores por conteúdo/habilidade" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;" vertex="1" parent="pool-system">
+          <mxGeometry x="850" y="140" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="sys-gateway" value="Desempenho indica dificuldade?" style="rhombus;html=1;whiteSpace=wrap;fillColor=#fef3c7;strokeColor=#d97706;" vertex="1" parent="pool-system">
+          <mxGeometry x="1160" y="135" width="130" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="sys-task-report" value="Gerar relatório individual e recomendações" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;" vertex="1" parent="pool-system">
+          <mxGeometry x="1140" y="245" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="sys-end" value="" style="ellipse;html=1;aspect=fixed;fillColor=#111827;strokeColor=#111827;strokeWidth=3;" vertex="1" parent="pool-system">
+          <mxGeometry x="1390" y="260" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Pool: Estudante -->
+        <mxCell id="pool-student" value="Estudante" style="swimlane;html=1;horizontal=0;startSize=120;fillColor=#f5f3ff;strokeColor=#7c3aed;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="620" width="1440" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="student-start" value="Início" style="ellipse;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#111827;strokeWidth=2;" vertex="1" parent="pool-student">
+          <mxGeometry x="145" y="75" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="student-task-login" value="Acessar aplicativo e autenticar" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;" vertex="1" parent="pool-student">
+          <mxGeometry x="230" y="60" width="190" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="student-task-terms" value="Confirmar código 2FA e termos de uso" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;" vertex="1" parent="pool-student">
+          <mxGeometry x="480" y="60" width="210" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="student-task-answer" value="Consultar e responder atividade" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;" vertex="1" parent="pool-student">
+          <mxGeometry x="750" y="60" width="190" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="student-task-results" value="Visualizar resultados e dificuldades por conteúdo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;" vertex="1" parent="pool-student">
+          <mxGeometry x="1010" y="60" width="230" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="student-end" value="Fim" style="ellipse;html=1;aspect=fixed;fillColor=#111827;strokeColor=#111827;strokeWidth=3;fontColor=#ffffff;" vertex="1" parent="pool-student">
+          <mxGeometry x="1340" y="75" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Sequence flows: Professor -->
+        <mxCell id="f1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-professor" source="prof-start" target="prof-task-questions"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-professor" source="prof-task-questions" target="prof-task-relate"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-professor" source="prof-task-relate" target="prof-task-publish"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- Sequence flows: Student -->
+        <mxCell id="f4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-student" source="student-start" target="student-task-login"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-student" source="student-task-login" target="student-task-terms"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-student" source="student-task-terms" target="student-task-answer"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-student" source="student-task-answer" target="student-task-results"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-student" source="student-task-results" target="student-end"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- Message flows between pools -->
+        <mxCell id="m1" value="Publicação" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;strokeColor=#64748b;" edge="1" parent="1" source="prof-task-publish" target="sys-event-publish"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m2" value="Nova atividade" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;strokeColor=#64748b;" edge="1" parent="1" source="sys-task-store" target="student-task-answer"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m3" value="Respostas" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;strokeColor=#64748b;" edge="1" parent="1" source="student-task-answer" target="sys-task-evaluate"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m4" value="Resultados" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;strokeColor=#64748b;" edge="1" parent="1" source="sys-task-report" target="student-task-results"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m5" value="Alerta / acompanhamento" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=open;strokeColor=#64748b;" edge="1" parent="1" source="sys-gateway" target="prof-task-followup"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- Internal system flows -->
+        <mxCell id="s1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-system" source="sys-event-publish" target="sys-task-store"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-system" source="sys-task-evaluate" target="sys-gateway"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s3" value="Sim" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-system" source="sys-gateway" target="sys-task-report"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s4" value="Não" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="pool-system" source="sys-gateway" target="sys-end"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
