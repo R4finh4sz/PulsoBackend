@@ -70,6 +70,7 @@ public class InvitationService {
     }
 
     private InvitationReceipt create(String rawEmail, Role role, School school, SchoolUser actor) {
+        school.requireActive();
         String email = rawEmail.strip().toLowerCase(Locale.ROOT);
         var now = clock.instant();
         if (users.findByEmail(email).isPresent() || registrations.existsByEmail(email)
@@ -158,6 +159,7 @@ public class InvitationService {
         if (invitation.getUsedAt() != null || !invitation.getExpiresAt().isAfter(clock.instant())) {
             throw new InvitationUnavailableException();
         }
+        invitation.getSchool().requireActive();
         return invitation;
     }
 

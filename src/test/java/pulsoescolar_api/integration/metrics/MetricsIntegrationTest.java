@@ -29,6 +29,7 @@ class MetricsIntegrationTest {
     @Autowired WebApplicationContext context;
     @Autowired EntityManager em;
     @Autowired SchoolMetricsService schoolMetrics;
+    @Autowired pulsoescolar_api.service.user.AccountDeletionService deletion;
 
     @Test void routesRestrictRolesAndRetainCors() throws Exception {
         var mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
@@ -100,7 +101,7 @@ class MetricsIntegrationTest {
         coordinator.setSchool(null); coordinator.setActiveSchool(null);
         try {
             SecurityContextHolder.getContext().setAuthentication(
-                    new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(coordinator.getEmail(), ""));
+                    new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(coordinator.getEmail(), "", java.util.List.of()));
             assertThatThrownBy(() -> schoolMetrics.get()).isInstanceOf(AccessDeniedException.class);
         } finally { SecurityContextHolder.clearContext(); }
     }
@@ -130,14 +131,14 @@ class MetricsIntegrationTest {
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.schoolId").value(first.getId()))
                 .andExpect(jsonPath("$.year").value(2027)).andExpect(jsonPath("$.months.length()").value(12))
-                .andExpect(jsonPath("$.months[0].students").value(1))
+                .andExpect(jsonPath("$.months[0].students").value(2))
                 .andExpect(jsonPath("$.months[0].teachers").value(1))
                 .andExpect(jsonPath("$.months[1].students").value(1))
-                .andExpect(jsonPath("$.months[1].cumulativeStudents").value(2))
+                .andExpect(jsonPath("$.months[1].cumulativeStudents").value(3))
                 .andExpect(jsonPath("$.months[11].students").value(0))
-                .andExpect(jsonPath("$.months[11].cumulativeStudents").value(2))
+                .andExpect(jsonPath("$.months[11].cumulativeStudents").value(3))
                 .andExpect(jsonPath("$.months[11].cumulativeTeachers").value(1))
-                .andExpect(jsonPath("$.averageMonthlyStudents").value(0.17))
+                .andExpect(jsonPath("$.averageMonthlyStudents").value(0.25))
                 .andExpect(jsonPath("$.averageMonthlyTeachers").value(0.08))
                 .andExpect(jsonPath("$.studentsWithoutRegistrationDate").value(1));
         mvc.perform(get("/api/schools/me/metrics/growth?year=2029").with(auth))
@@ -150,6 +151,57 @@ class MetricsIntegrationTest {
         coordinator.setSchool(null); coordinator.setActiveSchool(null);
         mvc.perform(get("/api/schools/me/metrics/growth?year=2027").with(auth))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test void deletingStudentAndTeacherReducesCurrentTotalsButKeepsEntireGrowthHistory() {
+        var school = school("historical-metrics");
+        var coordinator = person("historical-coordinator", Role.PEDAGOGICAL_COORDINATOR, school);
+        var student = datedPerson("historical-student", Role.STUDENT, school, "2026-01-15T12:00:00Z");
+        var teacher = datedPerson("historical-teacher", Role.TEACHER, school, "2026-02-15T12:00:00Z");
+        em.flush();
+        try {
+            SecurityContextHolder.getContext().setAuthentication(
+                    new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(coordinator.getEmail(), "", java.util.List.of()));
+            var before = schoolMetrics.growth(2026);
+            assertThat(schoolMetrics.get().bigNumbers().students()).isEqualTo(1);
+            assertThat(schoolMetrics.get().bigNumbers().teachers()).isEqualTo(1);
+            for (var account : java.util.List.of(student, teacher)) {
+                var request = new AccountDeletionRequest();
+                request.setRequester(account); request.setReason("Excluir conta"); request.setStatus(DeletionStatus.PENDING);
+                request.setRequestedAt(Instant.now().minus(16, java.time.temporal.ChronoUnit.DAYS));
+                em.persist(request); em.flush();
+                deletion.approveExpired(request.getId());
+                assertThat(account.getDeletedAt()).isNotNull();
+                assertThat(account.getFullName()).startsWith("DeletedUser_");
+            }
+            em.flush();
+            assertThat(schoolMetrics.growth(2026)).isEqualTo(before);
+            assertThat(schoolMetrics.get().bigNumbers().students()).isZero();
+            assertThat(schoolMetrics.get().bigNumbers().teachers()).isZero();
+        } finally { SecurityContextHolder.clearContext(); }
+    }
+
+    @Test void deletedAccountsWithoutCreationDateRemainInHistoricalUnknownDateCounts() {
+        var school = school("unknown-date-metrics");
+        var coordinator = person("unknown-date-coordinator", Role.PEDAGOGICAL_COORDINATOR, school);
+        for (Role role : java.util.List.of(Role.STUDENT, Role.TEACHER)) {
+            var account = person("unknown-date-" + role, role, school);
+            account.setDeletedAt(Instant.now());
+            em.flush();
+            em.createNativeQuery("update school_users set created_at = null where id = :id")
+                    .setParameter("id", account.getId()).executeUpdate();
+        }
+        try {
+            SecurityContextHolder.getContext().setAuthentication(
+                    new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(coordinator.getEmail(), "", java.util.List.of()));
+            var growth = schoolMetrics.growth(2026);
+            assertThat(growth.studentsWithoutRegistrationDate()).isEqualTo(1);
+            assertThat(growth.teachersWithoutRegistrationDate()).isEqualTo(1);
+            assertThat(growth.months()).allSatisfy(month -> {
+                assertThat(month.students()).isZero();
+                assertThat(month.teachers()).isZero();
+            });
+        } finally { SecurityContextHolder.clearContext(); }
     }
 
     private SchoolUser datedPerson(String name, Role role, School school, String date) {

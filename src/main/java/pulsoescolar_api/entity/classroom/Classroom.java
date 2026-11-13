@@ -5,7 +5,7 @@ import pulsoescolar_api.entity.school.School;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.*;
-@Entity @Table(name="classrooms", uniqueConstraints=@UniqueConstraint(name="uk_classroom_name_identifier", columnNames={"name", "identifier"}))
+@Entity @Table(name="classrooms", uniqueConstraints=@UniqueConstraint(name="uk_classroom_school_name_identifier", columnNames={"school_id", "name", "identifier"}))
 @Getter @Setter @NoArgsConstructor
 public class Classroom {
  private java.time.Instant deletedAt;

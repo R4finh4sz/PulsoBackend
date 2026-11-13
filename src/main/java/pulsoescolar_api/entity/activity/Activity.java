@@ -15,6 +15,8 @@ public class Activity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "subject_id") private Subject subject;
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "created_by_id") private SchoolUser createdBy;
     private Instant closesAt;
+    @Column(nullable = false) private boolean closingReminderSent;
+    @Column(nullable = false) private boolean questionsShuffled = true;
     @Column(nullable = false) private Instant createdAt;
     @Column(nullable = false) private boolean recipientHistoryComplete;
     @ManyToMany

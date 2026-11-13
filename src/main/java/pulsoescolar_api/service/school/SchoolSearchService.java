@@ -21,6 +21,7 @@ public class SchoolSearchService {
     public SchoolSearchResponse search(String cep, String city, String state, String q, int page, int size) {
         Specification<School> filter = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.isTrue(root.get("active")));
             if (cep != null) predicates.add(cb.equal(root.get("cep"), cep.replace("-", "")));
             if (city != null && !city.isBlank()) {
                 predicates.add(cb.equal(cb.lower(root.get("cidade")), city.strip().toLowerCase(Locale.ROOT)));

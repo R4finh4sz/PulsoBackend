@@ -7,7 +7,6 @@ import pulsoescolar_api.exception.common.ResourceNotFoundException;
 import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.user.*;
@@ -29,32 +28,40 @@ public class RegistrationReviewService {
     private final Clock clock;
     private final org.springframework.context.ApplicationEventPublisher events;
     private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
+    private final StudentTransferRepository transfers;
+    private final pulsoescolar_api.service.user.student.StudentTransferService transferService;
 
-    public RegistrationPageResponse list(RegistrationStatus status, Role role, Long schoolId, int page, int size) {
+    public RegistrationPageResponse list(RegistrationStatus status, Role role, Long schoolId, int page, int size,
+                                         RegistrationRequestType type) {
         var actor = currentUser.get();
         policy.requireReviewer(actor);
-        Specification<RegistrationRequest> filter = (root, query, cb) -> {
-            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
-            predicates.add(cb.equal(root.get("status"), status));
-            if (actor.getRole() == Role.ADMIN) {
-                predicates.add(cb.equal(root.get("role"), Role.PEDAGOGICAL_COORDINATOR));
-            } else {
-                predicates.add(root.get("role").in(Role.STUDENT, Role.TEACHER));
-                predicates.add(cb.equal(root.get("school").get("id"), actor.getSchool().getId()));
-            }
-            if (role != null) predicates.add(cb.equal(root.get("role"), role));
-            if (schoolId != null) predicates.add(cb.equal(root.get("school").get("id"), schoolId));
-            return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
-        };
-        return RegistrationPageResponse.from(requests.findAll(filter,
-                PageRequest.of(page, size, Sort.by("requestedAt").ascending().and(Sort.by("id"))))
-                .map(RegistrationResponse::from));
+        boolean admin = actor.getRole() == Role.ADMIN;
+        var roles = admin ? java.util.List.of(Role.PEDAGOGICAL_COORDINATOR) : java.util.List.of(Role.STUDENT, Role.TEACHER);
+        if (role != null && !roles.contains(role)
+                || !admin && schoolId != null && !schoolId.equals(actor.getSchool().getId())) {
+            return RegistrationPageResponse.from(Page.empty(PageRequest.of(page, size)));
+        }
+        var result = requests.findInbox(status.name(), (role == null ? roles : java.util.List.of(role)).stream()
+                        .map(Enum::name).toList(), admin ? schoolId : actor.getSchool().getId(),
+                type != RegistrationRequestType.TRANSFER, !admin && type != RegistrationRequestType.REGISTRATION,
+                PageRequest.of(page, size));
+        return RegistrationPageResponse.from(result.map(entry -> "TRANSFER".equals(entry.getType())
+                ? RegistrationResponse.from(transfers.findById(entry.getId()).orElseThrow())
+                : RegistrationResponse.from(requests.findById(entry.getId()).orElseThrow())));
     }
 
     @Transactional
     public RegistrationResponse review(Long id, ReviewRegistrationRequest input) {
+        if (input.type() == RegistrationRequestType.TRANSFER) {
+            transferService.review(id, new ReviewStudentTransferRequest(input.status(), input.classroomId()));
+            return RegistrationResponse.from(transfers.findById(id).orElseThrow());
+        }
         var actor = currentUser.get();
         policy.requireReviewer(actor);
+        if (input.type() == null && actor.getRole() == Role.PEDAGOGICAL_COORDINATOR
+                && transfers.findById(id).filter(transfer -> transfer.getDestination().getId().equals(actor.getSchool().getId())).isPresent()) {
+            throw new BusinessConflictException("Informe type REGISTRATION ou TRANSFER para identificar a solicitação.");
+        }
         if (input.status() != RegistrationStatus.APPROVED && input.status() != RegistrationStatus.REJECTED) {
             throw new BusinessValidationException("Informe APPROVED ou REJECTED.");
         }
@@ -65,6 +72,7 @@ public class RegistrationReviewService {
             throw new BusinessConflictException("Esta solicitação já foi analisada.");
         }
         if (input.status() == RegistrationStatus.APPROVED) {
+            request.getSchool().requireActive();
             // Same lock order as registration: terms before persisting a user.
             var term = terms.lockCurrent();
             if (request.getRole() == Role.PEDAGOGICAL_COORDINATOR) {
@@ -97,9 +105,21 @@ public class RegistrationReviewService {
         return RegistrationResponse.from(request);
     }
 
-    public byte[] photo(Long id) {
+    public byte[] photo(Long id, RegistrationRequestType type) {
         var actor = currentUser.get();
         policy.requireReviewer(actor);
+        if (type == RegistrationRequestType.TRANSFER) {
+            var transfer = transfers.findById(id)
+                    .filter(value -> value.getStudent().getDeletedAt() == null)
+                    .orElseThrow(() -> new ResourceNotFoundException("Transferência não encontrada."));
+            if (actor.getRole() != Role.PEDAGOGICAL_COORDINATOR
+                    || !actor.getSchool().getId().equals(transfer.getDestination().getId())) {
+                throw new org.springframework.security.access.AccessDeniedException("Esta transferência não pertence à sua escola.");
+            }
+            var photo = transfer.getStudent().getProfilePhoto();
+            if (photo == null) throw new ResourceNotFoundException("Foto não encontrada.");
+            return photo;
+        }
         var request = requests.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitação não encontrada."));
         policy.requireAccess(actor, request);

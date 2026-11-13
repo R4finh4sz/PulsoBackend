@@ -36,6 +36,8 @@ class SelfRegistrationTests {
     @Autowired PasswordEncoder passwords;
     @Autowired AuthenticationManager authentication;
     @Autowired JsonMapper json;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    pulsoescolar_api.service.school.SchoolAddressValidator addressValidator;
     MockMvc mvc;
     School school, other;
 
@@ -65,6 +67,15 @@ class SelfRegistrationTests {
                  "termsAccepted":true,"termsVersion":"1.0","role":"%s"}
                 """.formatted(ra, ra, schoolId, role);
     }
+    @Test void rejectsRegistrationIntoDeactivatedSchool() throws Exception {
+        school.setActive(false);
+        schools.flush();
+        mvc.perform(post("/api/auth/register").contentType("application/json")
+                .content(payload("999999", Role.STUDENT, school.getId())))
+                .andExpect(status().isConflict());
+        assertTrue(requests.findAll().isEmpty());
+    }
+
     @Test void rejectsWeakPasswordsAndMissingOrMismatchedConfirmation() throws Exception {
         var body = json.readTree(payload("999", Role.STUDENT, school.getId()));
         for (String password : java.util.List.of("weakpass1", "Weakpass", "Short1", "Á".repeat(36) + "A1")) {
@@ -167,6 +178,36 @@ class SelfRegistrationTests {
                 .andExpect(status().isForbidden());
     }
 
+    @Test void blocksExistingStudentByEmailOrRaOnJsonMultipartAndStudentRoute() throws Exception {
+        var student = new SchoolUser();
+        student.setFullName("Aluno Existente"); student.setRa("900"); student.setEmail("Aluno.Existente@Example.com");
+        student.setRole(Role.STUDENT); student.setSchool(other); student.setPasswordHash("hash");
+        users.saveAndFlush(student);
+        long before = requests.count();
+        for (String body : new String[]{payload("901", Role.STUDENT, school.getId())
+                .replace("person901@example.com", "ALUNO.EXISTENTE@example.com"),
+                payload("900", Role.STUDENT, school.getId())}) {
+            mvc.perform(post("/api/auth/register").contentType("application/json").content(body))
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.detail").value(
+                            "Já existe uma conta com este e-mail ou RA. Entre na sua conta ou recupere sua senha."));
+            mvc.perform(multipart("/api/auth/register").param("data", body)).andExpect(status().isConflict());
+            mvc.perform(post("/api/students").contentType("application/json").content(body))
+                    .andExpect(status().isConflict());
+        }
+        assertEquals(before, requests.count());
+    }
+
+    @Test void blocksExistingRequestEvenWhenStoredEmailUsesUppercase() throws Exception {
+        long id = pending("902", Role.STUDENT, other);
+        requests.findById(id).orElseThrow().setEmail("PENDING@EXAMPLE.COM");
+        requests.flush();
+        mvc.perform(post("/api/auth/register").contentType("application/json").content(
+                payload("903", Role.STUDENT, school.getId()).replace("person903@example.com", "pending@example.com")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.detail").value(
+                        "Já existe uma solicitação de cadastro com este e-mail ou RA."));
+        assertEquals(1, requests.count());
+    }
+
     @Test void validatesAgePasswordTermsAndSchool() throws Exception {
         String body = payload("109", Role.STUDENT, school.getId());
         for (String invalid : new String[]{body.replace("2000-01-01", LocalDate.now().minusYears(14).toString()),
@@ -236,14 +277,14 @@ class SelfRegistrationTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(school.getId().toString()))
                 .andExpect(jsonPath("$.content[0].name").exists());
-        mvc.perform(get("/api/schools/search").param("city", "recife").param("state", "pe"))
+        mvc.perform(get("/api/schools/search").param("city", "recife").param("state", "PE"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
         mvc.perform(get("/api/schools/search").param("cep", "123")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/schools/search").param("size", "101")).andExpect(status().isBadRequest());
         for (String actor : new String[]{"coordinator", "admin"}) {
             mvc.perform(patch("/api/schools/" + school.getId() + "/location")
                             .with(user(actor + "@test.com").roles(actor.equals("admin") ? "ADMIN" : "PEDAGOGICAL_COORDINATOR"))
-                            .contentType("application/json").content("{\"cep\":\"50000-001\",\"uf\":\"pe\"}"))
+                            .contentType("application/json").content("{\"cep\":\"50000-001\",\"uf\":\"PE\"}"))
                     .andExpect(status().is(actor.equals("admin") ? 200 : 403));
         }
         assertEquals("50000001", schools.findById(school.getId()).orElseThrow().getCep());

@@ -54,11 +54,15 @@ public class SelfRegistrationService {
         }
         String email = input.email().strip().toLowerCase(Locale.ROOT);
         String ra = input.ra().strip();
-        if (users.existsByEmailOrRa(email, ra) || requests.existsByEmailOrRa(email, ra)) {
-            throw new BusinessConflictException("Já existe uma conta ou solicitação com este e-mail ou RA.");
+        if (users.existsByEmailOrRa(email, ra)) {
+            throw new BusinessConflictException("Já existe uma conta com este e-mail ou RA. Entre na sua conta ou recupere sua senha.");
+        }
+        if (requests.existsByEmailOrRa(email, ra)) {
+            throw new BusinessConflictException("Já existe uma solicitação de cadastro com este e-mail ou RA.");
         }
         var school = schools.findById(input.schoolId())
                 .orElseThrow(() -> new ResourceNotFoundException("Escola não encontrada."));
+        school.requireActive();
         // Share the publication lock so an outdated acceptance cannot race a new terms version.
         var term = terms.lockCurrent();
         if (term == null || term.getVersion() == 0) {

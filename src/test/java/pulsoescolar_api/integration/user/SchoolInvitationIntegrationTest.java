@@ -69,6 +69,28 @@ class SchoolInvitationIntegrationTest extends HttpIntegrationSupport {
     }
 
     @Test
+    void refusesPendingInvitationToDeactivatedSchool() {
+        var invitation = invite();
+        tx().executeWithoutResult(status -> schools.findById(target.getId()).orElseThrow().setActive(false));
+        assertThat(request(PATCH, PATH + "/" + invitation.internalInvitationId(), teacherToken,
+                Map.of("status", "ACCEPTED"), String.class).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(linked(target.getId())).isFalse();
+        assertThat(invitations.findById(invitation.internalInvitationId()).orElseThrow().getStatus())
+                .isEqualTo(SchoolInvitationStatus.PENDING);
+    }
+
+    @Test
+    void acceptsAnotherSchoolWhenOriginalWasDeactivated() {
+        var invitation = invite();
+        tx().executeWithoutResult(status -> schools.findById(original.getId()).orElseThrow().setActive(false));
+        assertThat(request(PATCH, PATH + "/" + invitation.internalInvitationId(), teacherToken,
+                Map.of("status", "ACCEPTED"), String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        var response = request(GET, "/api/me", teacherToken, null, UserResponse.class).getBody();
+        assertThat(response.schoolId()).isEqualTo(target.getId());
+        assertThat(response.schoolUnavailable()).isFalse();
+    }
+
+    @Test
     void acceptLinksExistingAccountWithoutRegistrationMailOrChangingActiveSchool() {
         long userCount = users.count(); long registrationCount = registrations.count();
         clearInvocations(emailSender);

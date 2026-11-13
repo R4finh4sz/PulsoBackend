@@ -154,6 +154,117 @@ class ActiveSchoolTests {
     }
 
     @Test
+    void sharedIdsRequireTypeAndCannotReviewWrongRequest() throws Exception {
+        var source = account("collision-source", Role.PEDAGOGICAL_COORDINATOR);
+        var destination = account("collision-destination", Role.PEDAGOGICAL_COORDINATOR, second);
+        var student = account("collision-student", Role.STUDENT);
+        entityManager.persist(new pulsoescolar_api.entity.terms.TermsVersion(998L, "Termos", "Conteúdo"));
+        var registration = new RegistrationRequest();
+        registration.setFullName("Outro Aluno"); registration.setRa("collision-new");
+        registration.setEmail("collision-new@active.test"); registration.setRole(Role.STUDENT);
+        registration.setSchool(second); registration.setTermsVersion(998L); registration.setStatus(RegistrationStatus.PENDING);
+        registration.setRequestedAt(java.time.Instant.now()); entityManager.persist(registration); entityManager.flush();
+        entityManager.createNativeQuery("""
+                insert into student_transfers (id, student_id, origin_id, destination_id, requested_by_id, requested_at, status)
+                values (:id, :student, :origin, :destination, :actor, :now, 'PENDING')
+                """).setParameter("id", registration.getId()).setParameter("student", student.getId())
+                .setParameter("origin", first.getId()).setParameter("destination", second.getId())
+                .setParameter("actor", source.getId()).setParameter("now", java.time.Instant.now()).executeUpdate();
+        var actor = user(destination.getEmail()).roles("PEDAGOGICAL_COORDINATOR");
+        String path = "/api/registration-requests/" + registration.getId();
+        mvc.perform(patch(path).with(actor).contentType("application/json").content("{\"status\":\"REJECTED\"}"))
+                .andExpect(status().isConflict());
+        assertThat(registration.getStatus()).isEqualTo(RegistrationStatus.PENDING);
+        assertThat(transfers.findById(registration.getId()).orElseThrow().getStatus()).isEqualTo(RegistrationStatus.PENDING);
+        mvc.perform(patch(path).with(actor).contentType("application/json")
+                .content("{\"type\":\"TRANSFER\",\"status\":\"REJECTED\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.type").value("TRANSFER"));
+        assertThat(registration.getStatus()).isEqualTo(RegistrationStatus.PENDING);
+    }
+
+    @Test
+    void transfersShareRegistrationInboxAndApprovalWithoutLosingStudentHistory() throws Exception {
+        var source = account("unified-source", Role.PEDAGOGICAL_COORDINATOR);
+        var destination = account("unified-destination", Role.PEDAGOGICAL_COORDINATOR, second);
+        var student = account("unified-student", Role.STUDENT);
+        student.setClassroom(firstRoom);
+        student.setProfilePhoto(new byte[]{1, 2});
+        var subject = new pulsoescolar_api.entity.subject.Subject();
+        subject.setName("Matemática"); subject.setClassroom(firstRoom); subject.setTeacher(teacher);
+        entityManager.persist(subject);
+        var activity = new pulsoescolar_api.entity.activity.Activity();
+        activity.setSubject(subject); activity.setCreatedBy(teacher); activity.setCreatedAt(java.time.Instant.now());
+        for (int i = 0; i < 10; i++) {
+            var question = new pulsoescolar_api.entity.activity.QuizQuestion();
+            question.setText("Questão " + i); question.setTheme("Números");
+            question.getOptions().addAll(java.util.List.of("A", "B", "C", "D"));
+            activity.getQuestions().add(question);
+        }
+        entityManager.persist(activity);
+        var submission = new pulsoescolar_api.entity.activity.QuizSubmission();
+        submission.setActivity(activity); submission.setStudent(student); submission.setSubmittedAt(java.time.Instant.now());
+        submission.setGradedAt(java.time.Instant.now()); submission.setGradedBy(teacher);
+        submission.setCorrectAnswers(10); submission.setScore(new java.math.BigDecimal("100.00"));
+        submission.getAnswers().addAll(java.util.Collections.nCopies(10, 0));
+        entityManager.persist(submission);
+        var term = new pulsoescolar_api.entity.terms.TermsVersion(999L, "Termos", "Conteúdo");
+        entityManager.persist(term);
+        var registration = new RegistrationRequest();
+        registration.setFullName("Novo Aluno"); registration.setRa("unified-new");
+        registration.setEmail("unified-new@active.test"); registration.setRole(Role.STUDENT);
+        registration.setSchool(second); registration.setTermsVersion(999L); registration.setStatus(RegistrationStatus.PENDING);
+        registration.setRequestedAt(java.time.Instant.now().minusSeconds(3600));
+        entityManager.persist(registration); entityManager.flush();
+        var sourceActor = user(source.getEmail()).roles("PEDAGOGICAL_COORDINATOR");
+        var destinationActor = user(destination.getEmail()).roles("PEDAGOGICAL_COORDINATOR");
+        mvc.perform(post("/api/students/transfer").with(sourceActor).contentType("application/json")
+                .content("{\"fullName\":\"unified-student\",\"ra\":\"unified-student\",\"schoolId\":" + second.getId() + "}"))
+                .andExpect(status().isCreated());
+        var transfer = transfers.findAll().getFirst();
+        mvc.perform(get("/api/registration-requests").with(destinationActor).param("size", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].type").value("REGISTRATION"));
+        mvc.perform(get("/api/registration-requests").with(destinationActor).param("size", "1").param("page", "1"))
+                .andExpect(jsonPath("$.content[0].type").value("TRANSFER"))
+                .andExpect(jsonPath("$.content[0].id").value(transfer.getId()))
+                .andExpect(jsonPath("$.content[0].userId").value(student.getId()))
+                .andExpect(jsonPath("$.content[0].originSchoolId").value(first.getId()));
+        mvc.perform(get("/api/registration-requests").with(destinationActor).param("type", "TRANSFER"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+        mvc.perform(get("/api/registration-requests").with(destinationActor).param("role", "TEACHER"))
+                .andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(get("/api/registration-requests").with(sourceActor))
+                .andExpect(jsonPath("$.totalElements").value(0));
+        String path = "/api/registration-requests/" + transfer.getId();
+        mvc.perform(get(path + "/photo").with(destinationActor).param("type", "TRANSFER"))
+                .andExpect(status().isOk()).andExpect(content().bytes(new byte[]{1, 2}));
+        mvc.perform(get(path + "/photo").with(sourceActor).param("type", "TRANSFER"))
+                .andExpect(status().isForbidden());
+        String approval = "{\"type\":\"TRANSFER\",\"status\":\"APPROVED\",\"classroomId\":" + secondRoom.getId() + "}";
+        mvc.perform(patch(path).with(sourceActor).contentType("application/json").content(approval))
+                .andExpect(status().isForbidden());
+        mvc.perform(patch(path).with(destinationActor).contentType("application/json")
+                .content("{\"type\":\"TRANSFER\",\"status\":\"APPROVED\"}"))
+                .andExpect(status().isBadRequest());
+        long userCount = users.count();
+        mvc.perform(patch(path).with(destinationActor).contentType("application/json").content(approval))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.type").value("TRANSFER"))
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+        assertThat(users.count()).isEqualTo(userCount);
+        assertThat(student.getSchool().getId()).isEqualTo(second.getId());
+        assertThat(student.getClassroom().getId()).isEqualTo(secondRoom.getId());
+        assertThat(student.getPasswordHash()).isEqualTo("unused");
+        assertThat(registration.getStatus()).isEqualTo(RegistrationStatus.PENDING);
+        mvc.perform(get("/api/student/activities").with(user(student.getEmail()).roles("STUDENT")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].activity.id").value(activity.getId()))
+                .andExpect(jsonPath("$[0].submission.score").value(100));
+        mvc.perform(get("/api/submissions/{id}/result", submission.getId()).with(user(student.getEmail()).roles("STUDENT")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.score").value(100));
+        mvc.perform(patch(path).with(destinationActor).contentType("application/json").content(approval))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void transferRequiresDestinationApprovalAndAClassroomInThatSchool() throws Exception {
         var source = account("source", Role.PEDAGOGICAL_COORDINATOR);
         var destination = account("destination", Role.PEDAGOGICAL_COORDINATOR, second);

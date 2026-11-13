@@ -22,17 +22,38 @@ public class ActivityMapper {
                 activity.getQuestions().size(),
                 activity.getCreatedAt(), activity.getClosesAt(),
                 activity.getClosesAt() == null || clock.instant().isBefore(activity.getClosesAt())
-                        ? ActivityStatus.OPEN : ActivityStatus.FINISHED);
+                        ? ActivityStatus.OPEN : ActivityStatus.FINISHED,
+                activity.getCreatedAt().atZone(java.time.ZoneId.of("America/Sao_Paulo")).getYear());
     }
 
     public QuizResponse toQuiz(Activity activity) {
-        return new QuizResponse(toResponse(activity), activity.getQuestions().stream()
+        return toQuiz(activity, null);
+    }
+
+    public List<Integer> questionOrder(Activity activity, Long studentId) {
+        var order = new ArrayList<>(java.util.stream.IntStream.range(0, activity.getQuestions().size()).boxed().toList());
+        if (activity.isQuestionsShuffled() && studentId != null) {
+            java.util.Collections.shuffle(order, new java.util.Random(31L * activity.getId() + studentId));
+        }
+        return order;
+    }
+
+    public QuizResponse toQuiz(Activity activity, Long studentId) {
+        return new QuizResponse(toResponse(activity), questionOrder(activity, studentId).stream()
+                .map(activity.getQuestions()::get)
                 .map(q -> new QuizResponse.Question(q.getId(), q.getText(), List.copyOf(q.getOptions()), q.getTheme())).toList());
     }
 
     public SubmissionResponse toResponse(QuizSubmission submission) {
+        return toResponse(submission, null);
+    }
+
+    public SubmissionResponse toResponse(QuizSubmission submission, Long studentId) {
+        var answers = studentId != null && submission.getActivity().isQuestionsShuffled()
+                ? questionOrder(submission.getActivity(), studentId).stream().map(submission.getAnswers()::get).toList()
+                : List.copyOf(submission.getAnswers());
         return new SubmissionResponse(submission.getId(), submission.getActivity().getId(),
-                submission.getStudent().getId(), List.copyOf(submission.getAnswers()), submission.getSubmittedAt(),
+                submission.getStudent().getId(), answers, submission.getSubmittedAt(),
                 submission.getGradedAt(), submission.getCorrectAnswers(),
                 submission.getActivity().getQuestions().size(), submission.getScore(), themePerformance(submission));
     }

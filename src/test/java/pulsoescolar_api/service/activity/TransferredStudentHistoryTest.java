@@ -23,7 +23,7 @@ class TransferredStudentHistoryTest {
     private final ActivityMapper mapper = mock(ActivityMapper.class);
     private final ActivityService service = new ActivityService(activities, submissions,
             mock(SubjectRepository.class), current, access, mapper, mock(EntityManager.class), Clock.systemUTC(),
-            mock(ActivityRecipientService.class));
+            mock(ActivityRecipientService.class), mock(ActivityNotificationService.class));
     private final SchoolUser student = new SchoolUser();
     private final Activity activity = new Activity();
     private final QuizSubmission submission = new QuizSubmission();
@@ -44,15 +44,15 @@ class TransferredStudentHistoryTest {
         when(submissions.findByActivityIdAndStudentId(10L, 1L)).thenReturn(Optional.of(submission));
         assertThat(service.studentActivities()).hasSize(1);
         verify(mapper).toResponse(activity);
-        verify(mapper).toResponse(submission);
+        verify(mapper).toResponse(submission, student.getId());
     }
 
     @Test void readsOwnResultAndCompletedQuizAfterTransfer() {
         service.result(20L);
         when(submissions.existsByActivityIdAndStudentId(10L, 1L)).thenReturn(true);
         service.open(10L);
-        verify(mapper).toResponse(submission);
-        verify(mapper).toQuiz(activity);
+        verify(mapper).toResponse(submission, student.getId());
+        verify(mapper).toQuiz(activity, student.getId());
         verifyNoInteractions(access);
     }
 

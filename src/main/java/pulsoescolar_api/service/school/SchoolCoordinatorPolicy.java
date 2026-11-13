@@ -20,7 +20,7 @@ public class SchoolCoordinatorPolicy {
     @Transactional(propagation = Propagation.MANDATORY)
     public void requireVacancy(Long schoolId) {
         schools.findForUpdate(schoolId)
-                .orElseThrow(() -> new ResourceNotFoundException("Escola não encontrada."));
+                .orElseThrow(() -> new ResourceNotFoundException("Escola não encontrada.")).requireActive();
         if (users.existsBySchoolIdAndRoleAndDeletedAtIsNull(schoolId, Role.PEDAGOGICAL_COORDINATOR)) {
             throw new SchoolAlreadyHasCoordinatorException();
         }

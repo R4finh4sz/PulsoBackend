@@ -144,7 +144,8 @@ public class LoginService {
         boolean termsSatisfied = user.getRole() == Role.ADMIN || user.isTermsAccepted();
         var loginUser = new LoginResponse.LoginUser(user.getRole(),
                 user.getActiveClassroom() == null ? null : user.getActiveClassroom().getId(),
-                user.getSchool() == null ? null : user.getSchool().getId(), termsSatisfied, user.getTermsAcceptedVersions());
+                user.getSchool() == null ? null : user.getSchool().getId(), termsSatisfied, user.getTermsAcceptedVersions(),
+                user.isSchoolUnavailable());
         return new LoginResponse(token.getTokenValue(), "Bearer", expiresAt, loginUser,
                 !session.isTwoFactorVerified(), session.getCodeExpiresAt(), session.getResendAvailableAt(),
                 refreshToken, refreshToken == null ? null : session.getExpiresAt());

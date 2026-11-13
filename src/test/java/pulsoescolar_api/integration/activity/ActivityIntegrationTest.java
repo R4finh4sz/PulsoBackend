@@ -46,6 +46,19 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     String activityPath() { return "/api/subjects/" + subject.id() + "/activities"; }
 
     @Test
+    void publishingQuizNotifiesStudentThroughExistingEndpoint() {
+        create();
+        var result = request(GET, "/api/notifications", studentToken, null,
+                pulsoescolar_api.dto.notification.NotificationResponse[].class);
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(result.getBody()).filteredOn(n -> n.type().equals("QUIZ_OPENED"))
+                .singleElement().satisfies(n -> {
+                    assertThat(n.message()).contains("Matemática", "disponível");
+                    assertThat(n.read()).isFalse();
+                });
+    }
+
+    @Test
     @org.springframework.test.context.jdbc.Sql(scripts = {
             "/db/migration/V14__audit_events.sql", "/db/migration/V16__audit_actor.sql"})
     void inactiveStudentsDisappearFromRostersSubmissionsAndRankingWhileHistoryRemains() {
@@ -176,8 +189,14 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
                 .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    java.time.Instant deadline() {
+        var zone = java.time.ZoneId.of("America/Sao_Paulo");
+        return java.time.LocalDate.now(zone).with(java.time.temporal.TemporalAdjusters.lastDayOfYear())
+                .plusDays(1).atStartOfDay(zone).toInstant().minusMillis(1);
+    }
+
     Map<String, Object> input() {
-        return Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(10, Map.of("question", " 1 + 1? ",
+        return Map.of("closesAt", deadline().toString(), "questions", Collections.nCopies(10, Map.of("question", " 1 + 1? ",
                 "options", List.of("1", "2", "3", "4"), "theme", " Números ", "correctOption", 1)));
     }
 
@@ -188,9 +207,10 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     ActivityResponse create() {
         var response = request(POST, activityPath(), teacherToken, input(), ActivityResponse.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(response.getBody().closesAt()).isEqualTo(java.time.Instant.parse("2099-01-01T00:00:00Z"));
+        assertThat(response.getBody().closesAt()).isEqualTo(deadline());
         assertThat(response.getBody().status()).isEqualTo(ActivityStatus.OPEN);
         assertThat(response.getBody().questionCount()).isEqualTo(10);
+        assertThat(response.getBody().year()).isEqualTo(java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo")).getYear());
         return response.getBody();
     }
 
@@ -231,10 +251,75 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         var teacherActivities = request(GET, "/api/teacher/activities", teacherToken, null, TeacherActivityResponse[].class);
         assertThat(teacherActivities.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(teacherActivities.getBody()).hasSize(1);
-        assertThat(teacherActivities.getBody()[0].submissions()).containsExactly(grade.getBody());
+        var teacherResult = request(GET, "/api/submissions/" + submission.id() + "/result", teacherToken, null,
+                SubmissionResponse.class).getBody();
+        assertThat(teacherActivities.getBody()[0].submissions()).containsExactly(teacherResult);
+        assertThat(teacherResult.score()).isEqualByComparingTo(grade.getBody().score());
         assertThat(submissions.findById(submission.id()).orElseThrow().getScore()).isEqualByComparingTo("70.00");
         assertThat(request(PATCH, "/api/submissions/" + submission.id() + "/grade", teacherToken, null,
                 String.class).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void shufflesQuestionsPerStudentAndCorrectsByOriginalQuestionAcrossAllResults() throws Exception {
+        var questions = new ArrayList<Map<String, Object>>();
+        for (int i = 0; i < 10; i++) questions.add(Map.of("question", "Questão " + i,
+                "options", List.of("A", "B", "C", "D"), "theme", "Números", "correctOption", i % 4));
+        var created = request(POST, activityPath(), teacherToken,
+                Map.of("closesAt", deadline().toString(), "questions", questions), ActivityResponse.class);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        var activity = created.getBody();
+        String path = "/api/activities/" + activity.id() + "/quiz";
+        var original = request(GET, path, teacherToken, null, QuizResponse.class).getBody();
+        var first = request(GET, path, studentToken, null, QuizResponse.class).getBody();
+        assertThat(first.questions()).containsExactlyInAnyOrderElementsOf(original.questions())
+                .isNotEqualTo(original.questions());
+        assertThat(request(GET, path, studentToken, null, QuizResponse.class).getBody()).isEqualTo(first);
+        var another = criarUsuario(Role.STUDENT);
+        request(PUT, "/api/classrooms/" + room.id() + "/students/" + another.getId(), managerToken, null, String.class);
+        String anotherToken = autenticar(another);
+        var second = request(GET, path, anotherToken, null, QuizResponse.class).getBody();
+        assertThat(second.questions()).isNotEqualTo(first.questions());
+        var displayedAnswers = first.questions().stream().map(q -> {
+            int index = Integer.parseInt(q.question().substring("Questão ".length()));
+            return index == 3 ? 0 : index % 4;
+        }).toList();
+        var submitted = submit(activity, displayedAnswers);
+        assertThat(submitted.answers()).isEqualTo(displayedAnswers);
+        assertThat(submitted.score()).isEqualByComparingTo("90.00");
+        assertThat(request(GET, path, studentToken, null, QuizResponse.class).getBody()).isEqualTo(first);
+        assertThat(request(GET, "/api/submissions/" + submitted.id() + "/result", studentToken, null,
+                SubmissionResponse.class).getBody()).isEqualTo(submitted);
+        assertThat(request(GET, "/api/student/activities", studentToken, null, StudentActivityResponse[].class).getBody())
+                .filteredOn(a -> a.activity().id().equals(activity.id())).singleElement()
+                .satisfies(a -> assertThat(a.submission()).isEqualTo(submitted));
+        var canonicalAnswers = java.util.stream.IntStream.range(0, 10).map(i -> i == 3 ? 0 : i % 4).boxed().toList();
+        List<Integer> storedAnswers = tx().execute(status ->
+                List.copyOf(submissions.findById(submitted.id()).orElseThrow().getAnswers()));
+        assertThat(storedAnswers).isEqualTo(canonicalAnswers);
+        var teacherResult = request(GET, "/api/submissions/" + submitted.id() + "/result", teacherToken, null,
+                SubmissionResponse.class).getBody();
+        assertThat(teacherResult.answers()).isEqualTo(canonicalAnswers);
+        assertThat(teacherResult.themePerformance()).isEqualTo(submitted.themePerformance());
+        var secondAnswers = second.questions().stream()
+                .map(q -> Integer.parseInt(q.question().substring("Questão ".length())) % 4).toList();
+        var secondResult = request(POST, "/api/activities/" + activity.id() + "/submissions", anotherToken,
+                Map.of("answers", secondAnswers), SubmissionResponse.class);
+        assertThat(secondResult.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(secondResult.getBody().score()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void existingQuizzesKeepOriginalOrderAndCorrection() {
+        var activity = create();
+        tx().executeWithoutResult(status -> activities.findById(activity.id()).orElseThrow().setQuestionsShuffled(false));
+        String path = "/api/activities/" + activity.id() + "/quiz";
+        assertThat(request(GET, path, studentToken, null, QuizResponse.class).getBody())
+                .isEqualTo(request(GET, path, teacherToken, null, QuizResponse.class).getBody());
+        var result = submit(activity, partialAnswers());
+        assertThat(result.answers()).isEqualTo(partialAnswers());
+        assertThat(request(GET, "/api/submissions/" + result.id() + "/result", teacherToken, null,
+                SubmissionResponse.class).getBody()).isEqualTo(result);
     }
 
     @Test
@@ -300,19 +385,19 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     void createValidatesQuizAndAnswerKeyBeforePersisting() {
         long count = activities.count();
         var invalid = new ArrayList<Map<String, Object>>();
-        invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", List.of()));
-        invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Arrays.asList((Object) null)));
+        invalid.add(Map.of("closesAt", deadline().toString(), "questions", List.of()));
+        invalid.add(Map.of("closesAt", deadline().toString(), "questions", Arrays.asList((Object) null)));
         var valid = Map.<String, Object>of("question", "Questão", "options", List.of("A", "B", "C", "D"),
                 "theme", "Números", "correctOption", 0);
-        invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(9, valid)));
-        invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(11, valid)));
+        invalid.add(Map.of("closesAt", deadline().toString(), "questions", Collections.nCopies(9, valid)));
+        invalid.add(Map.of("closesAt", deadline().toString(), "questions", Collections.nCopies(11, valid)));
         for (var change : List.of(Map.of("correctOption", 4), Map.of("correctOption", -1),
                 Map.of("correctOption", 1.5), Map.of("correctOption", "1"), Map.of("options", List.of(" A ", "a", "C", "D")),
                 Map.of("options", List.of("A", "B", "C")), Map.of("options", List.of("A", "B", "C", "D", "E")),
                 Map.of("question", "x".repeat(1001)), Map.of("question", " "), Map.of("theme", " "),
                 Map.of("theme", "Tema inexistente"), Map.of("options", List.of("A", "B", "C", "x".repeat(501))))) {
             var question = new HashMap<String, Object>(valid); question.putAll(change);
-            invalid.add(Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(10, question)));
+            invalid.add(Map.of("closesAt", deadline().toString(), "questions", Collections.nCopies(10, question)));
         }
         for (var body : invalid) {
             assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -473,6 +558,23 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
     }
 
     @Test
+    void creationYearIsAutomaticAndCannotBeChosenByClient() {
+        var year = java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo")).getYear();
+        var body = new HashMap<String, Object>(input());
+        body.put("closesAt", java.time.LocalDate.of(year + 1, 1, 1)
+                .atStartOfDay(java.time.ZoneId.of("America/Sao_Paulo")).toInstant().toString());
+        long before = activities.count();
+        assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(activities.count()).isEqualTo(before);
+        body.put("closesAt", deadline().toString());
+        body.put("year", year + 1);
+        var created = request(POST, activityPath(), teacherToken, body, ActivityResponse.class);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(created.getBody().year()).isEqualTo(year);
+    }
+
+    @Test
     void deadlineIsRequiredAndClosedQuizzesRejectSubmissionsButPreserveResults() {
         var body = new HashMap<String, Object>(input());
         long count = activities.count();
@@ -486,7 +588,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
         body.put("closesAt", "2099-02-30T00:00:00Z");
         assertThat(request(POST, activityPath(), teacherToken, body, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(activities.count()).isEqualTo(count);
-        body.put("closesAt", "2099-01-01T00:00:00Z");
+        body.put("closesAt", deadline().toString());
         var open = request(POST, activityPath(), teacherToken, body, ActivityResponse.class).getBody();
         var submission = submit(open, correctAnswers());
         tx().executeWithoutResult(status -> activities.findById(open.id()).orElseThrow().setClosesAt(java.time.Instant.EPOCH));
@@ -506,7 +608,7 @@ class ActivityIntegrationTest extends HttpIntegrationSupport {
                 "options", List.of("  " + "y".repeat(500) + "  ", "B", "C", "D"),
                 "theme", "\uFEFF Números \u00A0", "correctOption", 3);
         var created = request(POST, activityPath(), teacherToken,
-                Map.of("closesAt", "2099-01-01T00:00:00Z", "questions", Collections.nCopies(10, question)), ActivityResponse.class);
+                Map.of("closesAt", deadline().toString(), "questions", Collections.nCopies(10, question)), ActivityResponse.class);
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         var quiz = request(GET, "/api/activities/" + created.getBody().id() + "/quiz", studentToken, null, QuizResponse.class).getBody();
         assertThat(quiz.questions().getFirst().question()).hasSize(1000);

@@ -16,10 +16,10 @@ public class SchoolSearchController {
     public SchoolSearchResponse search(
             @RequestParam(required = false) @Pattern(regexp = "[0-9]{5}-?[0-9]{3}") String cep,
             @RequestParam(required = false) @Size(max = 100) String city,
-            @RequestParam(required = false) @Pattern(regexp = "[A-Za-z]{2}") String state,
+            @RequestParam(required = false) pulsoescolar_api.dto.school.BrazilianState state,
             @RequestParam(required = false) @Size(max = 200) String q,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return service.search(cep, city, state, q, page, size);
+        return service.search(cep, city, state == null ? null : state.name(), q, page, size);
     }
 }
