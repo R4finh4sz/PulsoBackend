@@ -80,9 +80,9 @@ class AuditTests {
         assertEquals(java.util.List.of(admin.getId(), admin.getId()), jdbc.queryForList(
                 "SELECT actor_user_id FROM audit_events", Long.class));
         assertEquals("SCHOOL_CREATED", jdbc.queryForObject(
-                "SELECT event_name FROM audit_events_grafana WHERE event_name = 'SCHOOL_CREATED'", String.class));
+                "SELECT event_name FROM audit_event_details WHERE event_name = 'SCHOOL_CREATED'", String.class));
         assertEquals(admin.getId(), jdbc.queryForObject(
-                "SELECT actor_user_id FROM audit_events_grafana WHERE event_name = 'SCHOOL_CREATED'", Long.class));
+                "SELECT actor_user_id FROM audit_event_details WHERE event_name = 'SCHOOL_CREATED'", Long.class));
     }
 
     @Test @Transactional
@@ -139,7 +139,7 @@ class AuditTests {
     @Test @Transactional
     void schemaIncludesActorAllowsLegacyRowsAndRejectsUnknownCodes() {
         var columns = jdbc.queryForList("SELECT column_name FROM information_schema.columns WHERE table_name = 'AUDIT_EVENTS'", String.class);
-        assertEquals(java.util.Set.of("OCCURRED_AT", "EVENT_TYPE", "ACTOR_USER_ID"), new java.util.HashSet<>(columns));
+        assertEquals(java.util.Set.of("OCCURRED_AT", "EVENT_TYPE", "EVENT_NAME", "ACTOR_USER_ID"), new java.util.HashSet<>(columns));
         jdbc.update("INSERT INTO audit_events (occurred_at, event_type) VALUES (CURRENT_TIMESTAMP, 1)");
         assertNull(jdbc.queryForObject("SELECT actor_user_id FROM audit_events WHERE event_type = 1", Long.class));
         assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
