@@ -9,6 +9,22 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: pulso_test
+          POSTGRES_USER: pulso_test
+          POSTGRES_PASSWORD: Disposable-test-123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pulso_test -d pulso_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PULSO_TEST_POSTGRES_URL: jdbc:postgresql://127.0.0.1:5432/pulso_test
+      PULSO_TEST_POSTGRES_USER: pulso_test
+      PULSO_TEST_POSTGRES_PASSWORD: Disposable-test-123
     steps:
       - uses: actions/checkout@v4
 

@@ -1,0 +1,64 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Pulso - escopo DAST descartavel", "version": "1.0"},
+  "servers": [{"url": "http://api:8080"}],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Login"}}}
+        },
+        "responses": {"default": {"description": "Resultado da tentativa de login"}}
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "operationId": "refresh",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {
+            "type": "object", "required": ["refreshToken"],
+            "properties": {"refreshToken": {"type": "string", "example": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}}
+          }}}
+        },
+        "responses": {"default": {"description": "Resultado da renovacao"}}
+      }
+    },
+    "/api/schools/search": {
+      "get": {
+        "operationId": "searchSchools",
+        "parameters": [
+          {"name": "q", "in": "query", "schema": {"type": "string", "example": "Escola"}},
+          {"name": "page", "in": "query", "schema": {"type": "integer", "example": 0}},
+          {"name": "size", "in": "query", "schema": {"type": "integer", "example": 20}}
+        ],
+        "responses": {"default": {"description": "Busca publica"}}
+      }
+    },
+    "/api/terms": {
+      "get": {"operationId": "terms", "responses": {"default": {"description": "Termos publicados"}}}
+    },
+    "/api/me": {
+      "get": {"operationId": "privateProfile", "responses": {"default": {"description": "Exige autenticacao"}}}
+    },
+    "/api/me/export": {
+      "get": {"operationId": "privateExport", "responses": {"default": {"description": "Exige autenticacao"}}}
+    },
+    "/api/admin/metrics": {
+      "get": {"operationId": "adminMetrics", "responses": {"default": {"description": "Exige administrador"}}}
+    }
+  },
+  "components": {
+    "schemas": {
+      "Login": {
+        "type": "object", "required": ["email", "password"],
+        "properties": {
+          "email": {"type": "string", "format": "email", "example": "nonexistent@security.invalid"},
+          "password": {"type": "string", "example": "Invalid-password-123"}
+        }
+      }
+    }
+  }
+}
