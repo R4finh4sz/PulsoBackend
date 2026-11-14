@@ -15,7 +15,7 @@ class AdminBootstrapTest {
     final PasswordEncoder passwords = mock(PasswordEncoder.class);
     final MockEnvironment environment = new MockEnvironment();
 
-    @Test void bootstrapAndGeneratedPasswordsFollowTheSharedPolicy() {
+    @Test void bootstrapPasswordsFollowTheSharedPolicy() {
         environment.setProperty("BOOTSTRAP_ADMIN_EMAIL", "admin@example.com");
         var policy = new pulsoescolar_api.security.user.PasswordPolicy();
         var bootstrap = new AdminBootstrap(users, passwords, environment, policy);
@@ -24,8 +24,6 @@ class AdminBootstrapTest {
             assertThrows(IllegalStateException.class, bootstrap::run);
         }
         verifyNoInteractions(users);
-        var generator = new pulsoescolar_api.service.auth.PasswordGenerator();
-        for (int i = 0; i < 10; i++) assertDoesNotThrow(() -> policy.requireValidNewPassword(generator.generate()));
     }
 
     @Test void refusesStartupWithoutAdminOrBootstrapConfiguration() {

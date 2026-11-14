@@ -24,9 +24,8 @@ class ResendEmailSenderTests {
         var invitations = new InvitationMailService(sender, "https://app.example.com/invitations");
         invitations.sendInvitation("person@example.com", "invitation-token");
         invitations.sendCode("person@example.com", "654321");
-        new WelcomeMailService(sender).send("person@example.com", "Pessoa Teste", "initial-password");
         var captor = org.mockito.ArgumentCaptor.forClass(CreateEmailOptions.class);
-        verify(emails, times(4)).send(captor.capture());
+        verify(emails, times(3)).send(captor.capture());
         var messages = captor.getAllValues();
         for (var message : messages) {
             assertEquals("Pulso <no-reply@example.com>", message.getFrom());
@@ -37,8 +36,6 @@ class ResendEmailSenderTests {
         assertTrue(messages.get(0).getText().contains("123456"));
         assertTrue(messages.get(1).getText().contains("https://app.example.com/invitations/invitation-token"));
         assertTrue(messages.get(2).getText().contains("654321"));
-        assertTrue(messages.get(3).getText().contains("Pessoa Teste"));
-        assertTrue(messages.get(3).getText().contains("initial-password"));
     }
 
     @Test void missingConfigurationDoesNotContactProvider() {

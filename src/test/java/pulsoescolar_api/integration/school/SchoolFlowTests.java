@@ -11,19 +11,17 @@ import pulsoescolar_api.service.classroom.ClassroomService;
 import pulsoescolar_api.service.user.student.StudentEnrollmentService;
 import pulsoescolar_api.service.subject.SubjectService;
 import pulsoescolar_api.service.user.teacher.TeacherAssignmentService;
-import pulsoescolar_api.service.user.UserRegistrationService;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.entity.user.Role;
 import pulsoescolar_api.entity.user.SchoolUser;
 import pulsoescolar_api.dto.classroom.CreateClassroomRequest;
-import pulsoescolar_api.dto.user.CreateUser;
+import pulsoescolar_api.dto.user.UserResponse;
 import pulsoescolar_api.dto.subject.CreateSubjectRequest;
 import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest @Transactional
 class SchoolFlowTests {
- @org.springframework.test.context.bean.override.mockito.MockitoBean
- pulsoescolar_api.service.mail.WelcomeMailService mail;
- @Autowired UserRegistrationService registration;
+ @Autowired pulsoescolar_api.mapper.user.UserMapper mapper;
+ pulsoescolar_api.entity.school.School school;
  @Autowired ClassroomService classrooms;
  @Autowired StudentEnrollmentService enrollment;
  @Autowired TeacherAssignmentService assignment;
@@ -51,7 +49,7 @@ class SchoolFlowTests {
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound())
    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.detail").value("Sala não encontrada."));
   login("coord@example.com");
-  var teacher = registration.createUser(request("httpTeacher"), Role.TEACHER);
+  var teacher = createUser("httpTeacher", Role.TEACHER);
   var room = classrooms.createClassroom(new CreateClassroomRequest("HTTP room", "A"));
   mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
      "/api/classrooms/" + room.id() + "/students/" + teacher.id()).with(coordinator))
@@ -63,7 +61,7 @@ class SchoolFlowTests {
  }
  @BeforeEach void setup() {
   var coordinator=new SchoolUser();
-  var school = new pulsoescolar_api.entity.school.School();
+  school = new pulsoescolar_api.entity.school.School();
   school.setNome("Escola");
   school.setLogradouro("Rua A"); school.setBairro("Centro"); school.setCidade("Recife");
   coordinator.setSchool(schools.saveAndFlush(school));
@@ -77,12 +75,17 @@ class SchoolFlowTests {
   SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(email,"",java.util.List.of()));
  }
  CreateSubjectRequest subjectRequest(String name) { return new CreateSubjectRequest(name,"",java.util.List.of(new CreateSubjectRequest.Topic("Tema","Conteudo",""))); }
- CreateUser request(String name) { return new CreateUser(name,name,name+"@example.com"); }
+ UserResponse createUser(String name, Role role) {
+  var user = new SchoolUser();
+  user.setFullName(name); user.setRa(name); user.setEmail(name + "@example.com");
+  user.setRole(role); user.setSchool(school); user.setPasswordHash(encoder.encode("Fixture-password-123"));
+  return mapper.toResponse(users.saveAndFlush(user));
+ }
  @Test void studentsInheritSubjectsIncludingLateEnrollmentAndTransfer() {
   var room=classrooms.createClassroom(new CreateClassroomRequest("3 year", "B"));
   var other=classrooms.createClassroom(new CreateClassroomRequest("3 year", "A"));
-  var teacher=registration.createUser(request("teacher"),Role.TEACHER);
-  var student=registration.createUser(request("student"),Role.STUDENT);
+  var teacher=createUser("teacher",Role.TEACHER);
+  var student=createUser("student",Role.STUDENT);
   assignment.assign(room.id(),teacher.id()); assignment.assign(other.id(),teacher.id());
   login(teacher.email());
   assertEquals(2,classrooms.listClassrooms().size());
@@ -97,20 +100,10 @@ class SchoolFlowTests {
  }
  @Test void unassignedTeachersCannotAccessOrCreateSubjects() {
   var room=classrooms.createClassroom(new CreateClassroomRequest("3 year", "B"));
-  var teacher=registration.createUser(request("teacher"),Role.TEACHER);
+  var teacher=createUser("teacher",Role.TEACHER);
   login(teacher.email());
   assertTrue(classrooms.listClassrooms().isEmpty());
   assertThrows(AccessDeniedException.class,()->subjects.subjects(room.id()));
   assertThrows(AccessDeniedException.class,()->subjects.createSubject(room.id(),subjectRequest("Math")));
-  assertThrows(AccessDeniedException.class,()->registration.createUser(request("student"),Role.STUDENT));
- }
- @Test void coordinatorCannotCreateAdminOrCoordinatorAndPasswordsAreHashed() {
-  assertThrows(AccessDeniedException.class,()->registration.createUser(request("admin"),Role.ADMIN));
-  assertThrows(AccessDeniedException.class,()->registration.createUser(request("coord2"),Role.PEDAGOGICAL_COORDINATOR));
-  var teacher=registration.createUser(request("teacher"),Role.TEACHER);
-  var password = org.mockito.ArgumentCaptor.forClass(String.class);
-  org.mockito.Mockito.verify(mail).send(org.mockito.ArgumentMatchers.eq(teacher.email()),
-    org.mockito.ArgumentMatchers.eq(teacher.fullName()), password.capture());
-  assertTrue(encoder.matches(password.getValue(),users.findById(teacher.id()).orElseThrow().getPasswordHash()));
  }
 }
