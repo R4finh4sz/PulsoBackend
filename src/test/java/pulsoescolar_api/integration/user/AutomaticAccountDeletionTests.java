@@ -28,9 +28,55 @@ class AutomaticAccountDeletionTests {
     @Autowired UserRepository users;
     @Autowired AuthSessionRepository sessions;
     @Autowired JdbcTemplate jdbc;
+    @Autowired jakarta.persistence.EntityManager entityManager;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
 
     @BeforeEach void setup() { when(clock.instant()).thenReturn(NOW); }
+
+    @Test void retentionDeletesWithoutPendingRequestAndIsIdempotent() {
+        var user = request(Role.TEACHER, NOW, DeletionStatus.REJECTED).getRequester();
+        user.setLastAuthenticatedAt(NOW.atZone(ZoneId.of("America/Sao_Paulo")).minusMonths(6).toInstant());
+        users.flush();
+        long before = requests.count();
+        job.processRetention();
+        assertEquals(NOW, user.getDeletedAt());
+        assertTrue(requests.findByRequesterIdOrderByRequestedAtDesc(user.getId()).stream()
+                .anyMatch(r -> r.isAutomatic() && r.getStatus() == DeletionStatus.APPROVED));
+        assertEquals(before + 1, requests.count());
+        job.processRetention();
+        assertEquals(before + 1, requests.count());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void graduationHistoryControlsDeadlineAndReenrollmentProtectsStudent(boolean schoolRemoved) {
+        var user = request(Role.STUDENT, NOW, DeletionStatus.REJECTED).getRequester();
+        var school = new pulsoescolar_api.entity.school.School();
+        school.setNome("Escola"); school.setLogradouro("Rua"); school.setBairro("Centro"); school.setCidade("Cidade");
+        entityManager.persist(school);
+        user.setSchool(school);
+        user.setLastAuthenticatedAt(NOW);
+        var room = new pulsoescolar_api.entity.classroom.Classroom();
+        room.setName("Final"); room.setIdentifier("A"); room.setSchool(school);
+        entityManager.persist(room);
+        var graduation = new pulsoescolar_api.entity.classroom.ClassroomDeliberation();
+        graduation.setClassroom(room); graduation.setSchool(school); graduation.setPerformedBy(user);
+        graduation.setAction(pulsoescolar_api.entity.classroom.DeliberationAction.GRADUATE);
+        graduation.setPerformedAt(Instant.parse("2026-12-15T12:00:00Z"));
+        graduation.getEntries().add(new pulsoescolar_api.entity.classroom.DeliberationEntry(user,
+                pulsoescolar_api.entity.classroom.DeliberationResult.APPROVED, null));
+        entityManager.persist(graduation); entityManager.flush();
+        var deadline = Instant.parse("2027-01-31T03:00:00Z");
+        when(clock.instant()).thenReturn(deadline.minusSeconds(1));
+        job.processRetention(); assertNull(user.getDeletedAt());
+        when(clock.instant()).thenReturn(deadline);
+        user.setClassroom(room); entityManager.flush();
+        job.processRetention(); assertNull(user.getDeletedAt());
+        user.setClassroom(null);
+        if (schoolRemoved) user.setSchool(null);
+        entityManager.flush();
+        job.processRetention(); assertEquals(deadline, user.getDeletedAt());
+    }
 
     AccountDeletionRequest request(Role role, Instant requestedAt, DeletionStatus status) {
         var user = new SchoolUser();

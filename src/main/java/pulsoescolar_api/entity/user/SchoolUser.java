@@ -7,6 +7,7 @@ import lombok.*;
 @Entity @Table(name="school_users")
 @Getter @Setter @NoArgsConstructor
 public class SchoolUser {
+ private java.time.Instant lastAuthenticatedAt;
  @Column(updatable=false) private java.time.Instant createdAt;
  @PrePersist void recordCreationTime() { if (createdAt == null) createdAt = java.time.Instant.now(); }
  private java.time.LocalDate birthDate;
