@@ -74,6 +74,7 @@ public class TwoFactorService {
         }
         sessions.revokeOthers(session.getUser().getId(), session.getId());
         session.setTwoFactorVerified(true);
+        session.getUser().setLastAuthenticatedAt(clock.instant());
         session.setCodeHash(null);
         session.getUser().setTwoFactorResendAvailableAt(null);
         audit.record(TWO_FACTOR_SUCCEEDED, session.getUser().getId());

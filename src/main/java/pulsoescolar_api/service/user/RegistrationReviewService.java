@@ -22,6 +22,7 @@ import pulsoescolar_api.security.user.RegistrationAccessPolicy;
 public class RegistrationReviewService {
     private final RegistrationRepository requests;
     private final UserRepository users;
+    private final pulsoescolar_api.service.audit.AuditService audit;
     private final TermsRepository terms;
     private final CurrentUser currentUser;
     private final RegistrationAccessPolicy policy;
@@ -93,6 +94,9 @@ public class RegistrationReviewService {
             user.getAcceptedTermVersions().add(request.getTermsVersion());
             user.setTermsAccepted(term != null && request.getTermsVersion().equals(term.getVersion()));
             request.setUser(users.saveAndFlush(user));
+            if (user.getRole() == Role.PEDAGOGICAL_COORDINATOR) {
+                audit.record(pulsoescolar_api.service.audit.AuditEvent.COORDINATOR_CREATED, actor.getId());
+            }
         }
         request.setPasswordHash(null);
         request.setStatus(input.status());

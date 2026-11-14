@@ -205,6 +205,7 @@ class JwtAuthenticationTests {
 
     @Test void exposesExpiryWarningToFrontendOnlyDuringLastMinute() throws Exception {
         String token = login();
+        assertEquals(now, users.findById(userId).orElseThrow().getLastAuthenticatedAt());
         var expiresAt = decoder.decode(token).getExpiresAt();
         mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
@@ -218,6 +219,7 @@ class JwtAuthenticationTests {
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
                         org.hamcrest.Matchers.allOf(org.hamcrest.Matchers.containsString("X-Session-Warning"),
                                 org.hamcrest.Matchers.containsString("X-Session-Expires-At"))));
+        assertEquals(expiresAt.minusSeconds(60), users.findById(userId).orElseThrow().getLastAuthenticatedAt());
         mvc.perform(get("/api/me")).andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("X-Session-Warning"));
     }

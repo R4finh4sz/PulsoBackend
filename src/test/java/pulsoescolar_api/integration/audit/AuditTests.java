@@ -19,7 +19,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import pulsoescolar_api.exception.common.BusinessConflictException;
 import pulsoescolar_api.exception.terms.TermsVersionChangedException;
 import pulsoescolar_api.service.audit.*;
-import pulsoescolar_api.service.mail.WelcomeMailService;
 import pulsoescolar_api.service.school.SchoolService;
 import pulsoescolar_api.service.terms.TermsService;
 import pulsoescolar_api.service.user.*;
@@ -32,12 +31,14 @@ class AuditTests {
     @Autowired AuditService audit;
     @Autowired SchoolService schools;
     @Autowired TermsService terms;
-    @Autowired UserRegistrationService registration;
+    @Autowired RegistrationReviewService registration;
+    @Autowired pulsoescolar_api.repository.user.RegistrationRepository registrations;
+    @Autowired pulsoescolar_api.repository.school.SchoolRepository schoolRepository;
     @Autowired AccountDeletionService deletion;
     @Autowired UserRepository users;
     @Autowired org.springframework.security.crypto.password.PasswordEncoder passwords;
     @Autowired PlatformTransactionManager transactions;
-    @MockitoBean WelcomeMailService mail;
+    @MockitoBean pulsoescolar_api.service.mail.EmailSender mail;
     @MockitoBean pulsoescolar_api.service.school.SchoolAddressValidator addressValidator;
 
     private void login(SchoolUser user) {
@@ -72,17 +73,27 @@ class AuditTests {
         var admin = actor(Role.ADMIN);
         var school = schools.create(new CreateSchoolRequest("Private school", "Street", "Area", "City", "50000000", pulsoescolar_api.dto.school.BrazilianState.PE));
         assertEquals(1, count(AuditEvent.SCHOOL_CREATED));
-        for (Role role : new Role[]{Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR}) {
-            registration.createUser(new CreateUser("Private name", role.name(), role + "@new.test", school.id()), role);
-        }
+        terms.publish(new TermsRequest("Terms", "Content"), true);
+        var request = new RegistrationRequest();
+        request.setFullName("New coordinator"); request.setRa("new-coordinator");
+        request.setEmail("coordinator@new.test"); request.setPasswordHash(passwords.encode("Chosen-password-123"));
+        request.setRole(Role.PEDAGOGICAL_COORDINATOR);
+        request.setSchool(schoolRepository.findById(school.id()).orElseThrow());
+        request.setTermsVersion(1L); request.setStatus(RegistrationStatus.PENDING);
+        request.setRequestedAt(java.time.Instant.now());
+        registrations.saveAndFlush(request);
+        var approval = new ReviewRegistrationRequest(RegistrationStatus.APPROVED, "Approved", RegistrationRequestType.REGISTRATION, null);
+        registration.review(request.getId(), approval);
+        assertThrows(BusinessConflictException.class, () -> registration.review(request.getId(), approval));
+        assertTrue(passwords.matches("Chosen-password-123", request.getUser().getPasswordHash()));
         assertEquals(1, count(AuditEvent.COORDINATOR_CREATED));
         assertEquals(2L, jdbc.queryForObject("SELECT COUNT(*) FROM audit_events", Long.class));
         assertEquals(java.util.List.of(admin.getId(), admin.getId()), jdbc.queryForList(
                 "SELECT actor_user_id FROM audit_events", Long.class));
         assertEquals("SCHOOL_CREATED", jdbc.queryForObject(
-                "SELECT event_name FROM audit_events_grafana WHERE event_name = 'SCHOOL_CREATED'", String.class));
+                "SELECT event_name FROM audit_event_details WHERE event_name = 'SCHOOL_CREATED'", String.class));
         assertEquals(admin.getId(), jdbc.queryForObject(
-                "SELECT actor_user_id FROM audit_events_grafana WHERE event_name = 'SCHOOL_CREATED'", Long.class));
+                "SELECT actor_user_id FROM audit_event_details WHERE event_name = 'SCHOOL_CREATED'", Long.class));
     }
 
     @Test @Transactional
@@ -139,7 +150,7 @@ class AuditTests {
     @Test @Transactional
     void schemaIncludesActorAllowsLegacyRowsAndRejectsUnknownCodes() {
         var columns = jdbc.queryForList("SELECT column_name FROM information_schema.columns WHERE table_name = 'AUDIT_EVENTS'", String.class);
-        assertEquals(java.util.Set.of("OCCURRED_AT", "EVENT_TYPE", "ACTOR_USER_ID"), new java.util.HashSet<>(columns));
+        assertEquals(java.util.Set.of("OCCURRED_AT", "EVENT_TYPE", "EVENT_NAME", "ACTOR_USER_ID"), new java.util.HashSet<>(columns));
         jdbc.update("INSERT INTO audit_events (occurred_at, event_type) VALUES (CURRENT_TIMESTAMP, 1)");
         assertNull(jdbc.queryForObject("SELECT actor_user_id FROM audit_events WHERE event_type = 1", Long.class));
         assertThrows(org.springframework.dao.DataIntegrityViolationException.class,

@@ -36,6 +36,49 @@ public class AccountDeletionService {
     private final PasswordEncoder passwords;
     private final Clock clock;
 
+    static final java.time.ZoneId RETENTION_ZONE = java.time.ZoneId.of("America/Sao_Paulo");
+
+    @Transactional
+    public void deleteByRetention(Long id) {
+        var user = entityManager.find(SchoolUser.class, id, LockModeType.PESSIMISTIC_WRITE);
+        if (user == null || user.getDeletedAt() != null || user.getRole() == Role.ADMIN) return;
+        var graduation = user.getRole() == Role.STUDENT && user.getClassroom() == null
+                ? entityManager.createQuery("""
+                    select max(d.performedAt) from ClassroomDeliberation d join d.entries e
+                    where e.student = :user and (:school is null or d.school = :school)
+                    and d.action = pulsoescolar_api.entity.classroom.DeliberationAction.GRADUATE
+                    """, java.time.Instant.class)
+                    .setParameter("user", user).setParameter("school", user.getEnrollmentSchool()).getSingleResult()
+                : null;
+        if (!retentionDue(user, graduation, clock.instant())) return;
+        var request = new AccountDeletionRequest();
+        request.setRequester(user);
+        request.setReason("Prazo de retencao encerrado.");
+        request.setRequestedAt(clock.instant());
+        request.setReviewedAt(clock.instant());
+        request.setStatus(DeletionStatus.APPROVED);
+        request.setAutomatic(true);
+        requests.saveAndFlush(request);
+        anonymize(user, null);
+        request.setReviewReason(graduation != null
+                ? "Exclusao automatica em 31 de janeiro do ano seguinte a conclusao."
+                : "Exclusao automatica apos seis meses sem atividade autenticada e sem vinculo ativo.");
+    }
+
+    static boolean retentionDue(SchoolUser user, java.time.Instant graduation, java.time.Instant now) {
+        if (user.getDeletedAt() != null || user.getRole() == Role.ADMIN) return false;
+        if (graduation != null && user.getRole() == Role.STUDENT && user.getClassroom() == null) {
+            var deadline = java.time.LocalDate.of(graduation.atZone(RETENTION_ZONE).getYear() + 1, 1, 31)
+                    .atStartOfDay(RETENTION_ZONE).toInstant();
+            return !now.isBefore(deadline);
+        }
+        boolean linked = user.getRole() == Role.STUDENT ? user.getSchool() != null
+                : user.getSchool() != null || user.getSchools().stream().anyMatch(s -> s.isActive());
+        var activity = user.getLastAuthenticatedAt() == null ? user.getCreatedAt() : user.getLastAuthenticatedAt();
+        return !linked && activity != null
+                && !activity.atZone(RETENTION_ZONE).plusMonths(6).toInstant().isAfter(now);
+    }
+
     @Transactional
     public DeletionResponse create(CreateDeletionRequest input) {
         var requester = requireRequester();

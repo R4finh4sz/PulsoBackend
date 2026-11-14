@@ -1,0 +1,119 @@
+name: Security (SAST e DAST)
+
+on:
+  pull_request:
+    branches: [main, Development]
+  push:
+    branches: [main, Development]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  sast:
+    name: SAST - CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v4
+
+  dast:
+    name: DAST - ZAP em API descartavel
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Empacotar API
+        run: bash mvnw -B package -DskipTests
+      - name: Preparar imagens e arquivos sem credenciais reais
+        run: |
+          docker pull postgres:17
+          docker pull eclipse-temurin:21-jre
+          docker pull ghcr.io/zaproxy/zaproxy:stable
+          docker pull curlimages/curl:8.12.1
+          mkdir -p "$RUNNER_TEMP/pulso-zap"
+          cp .security/openapi.json .security/zap-rules.conf "$RUNNER_TEMP/pulso-zap/"
+          chmod 777 "$RUNNER_TEMP/pulso-zap"
+      - name: Iniciar banco e API sem acesso externo nem portas publicadas
+        run: |
+          docker network create --internal pulso-security
+          docker run -d --name pulso-security-db --network pulso-security --network-alias db \
+            --read-only --user 999:999 --cap-drop ALL --security-opt no-new-privileges \
+            --memory 512m --cpus 1 --pids-limit 128 --log-opt max-size=10m --log-opt max-file=1 \
+            --tmpfs /var/lib/postgresql/data:rw,uid=999,gid=999,mode=0700,size=256m \
+            --tmpfs /var/run/postgresql:rw,uid=999,gid=999,size=16m \
+            --tmpfs /tmp:rw,size=32m \
+            -e POSTGRES_DB=pulso_test -e POSTGRES_USER=pulso_test -e POSTGRES_PASSWORD=Disposable-test-123 \
+            postgres:17
+          for attempt in $(seq 1 30); do
+            if docker exec pulso-security-db pg_isready -U pulso_test -d pulso_test; then break; fi
+            sleep 2
+          done
+          docker exec pulso-security-db pg_isready -U pulso_test -d pulso_test
+          docker run -d --name pulso-security-api --network pulso-security --network-alias api \
+            --read-only --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges \
+            --memory 1g --cpus 2 --pids-limit 128 --log-opt max-size=10m --log-opt max-file=1 \
+            --tmpfs /tmp:rw,uid=10001,gid=10001,size=128m \
+            -v "$GITHUB_WORKSPACE/target/pulsoescolar-api-0.0.1-SNAPSHOT.jar:/app.jar:ro" \
+            -e DB_URL=jdbc:postgresql://db:5432/pulso_test \
+            -e DB_USERNAME=pulso_test -e DB_PASSWORD=Disposable-test-123 \
+            -e JWT_SECRET=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY= \
+            -e BOOTSTRAP_ADMIN_EMAIL=admin@security.invalid -e BOOTSTRAP_ADMIN_PASSWORD=Disposable-admin-123 \
+            -e CORS_ALLOWED_ORIGINS=https://frontend.security.invalid \
+            -e RATE_LIMIT_MAX_REQUESTS=100000 -e AUTH_RATE_LIMIT_MAX_REQUESTS=100000 \
+            eclipse-temurin:21-jre java -Xmx512m -jar /app.jar --spring.config.import= --server.port=8080
+      - name: Aguardar API
+        run: |
+          docker run --rm --network pulso-security --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --memory 64m --cpus 0.5 --pids-limit 32 \
+            --entrypoint sh curlimages/curl:8.12.1 -ec '
+              for attempt in $(seq 1 60); do
+                status=$(curl --max-time 2 -s -o /dev/null -w "%{http_code}" http://api:8080/api/me || true)
+                if [ "$status" = 401 ]; then exit 0; fi
+                sleep 2
+              done
+              exit 1'
+      - name: Scan ativo de API com ZAP
+        run: |
+          timeout 15m docker run --rm --name pulso-security-zap --network pulso-security \
+            --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --pids-limit 256 \
+            --log-opt max-size=10m --log-opt max-file=1 \
+            -v "$RUNNER_TEMP/pulso-zap:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py \
+            -t /zap/wrk/openapi.json -f openapi -c /zap/wrk/zap-rules.conf \
+            -r zap-report.html -J zap-report.json -I \
+            -z '-silent -config scanner.maxScanDurationInMins=10 -config scanner.threadPerHost=2'
+      - name: Relatorios DAST
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-security-reports
+          path: ${{ runner.temp }}/pulso-zap/zap-report.*
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Encerrar ambiente descartavel
+        if: always()
+        run: |
+          docker rm -f pulso-security-zap pulso-security-api pulso-security-db 2>/dev/null || true
+          docker network rm pulso-security 2>/dev/null || true
