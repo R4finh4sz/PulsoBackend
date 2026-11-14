@@ -23,7 +23,7 @@ public class SessionJwtAuthenticationConverter implements Converter<Jwt, Abstrac
     private final Clock clock;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AbstractAuthenticationToken convert(Jwt jwt) {
         UUID sessionId;
         Long userId;
@@ -36,7 +36,7 @@ public class SessionJwtAuthenticationConverter implements Converter<Jwt, Abstrac
         if (!sessions.isActive(sessionId, userId, clock.instant())) {
             throw new InvalidBearerTokenException("Sessão expirada ou encerrada.");
         }
-        var user = users.findById(userId)
+        var user = users.lockById(userId)
                 .orElseThrow(() -> new InvalidBearerTokenException("Sessão inválida."));
         if (user.getDeletedAt() != null) throw new InvalidBearerTokenException("Conta excluída.");
         var session = sessions.findById(sessionId).orElseThrow(() -> new InvalidBearerTokenException("Sessão inválida."));
@@ -44,6 +44,7 @@ public class SessionJwtAuthenticationConverter implements Converter<Jwt, Abstrac
             return new JwtAuthenticationToken(jwt,
                     List.of(new SimpleGrantedAuthority("TWO_FACTOR_PENDING")), user.getEmail());
         }
+        user.setLastAuthenticatedAt(clock.instant());
         if (user.getRole() != pulsoescolar_api.entity.user.Role.ADMIN && !user.isTermsAccepted()) {
             return new JwtAuthenticationToken(jwt,
                     List.of(new SimpleGrantedAuthority("TERMS_PENDING")), user.getEmail());

@@ -76,6 +76,7 @@ public class LoginService {
         } else {
             sessions.revokeAll(user.getId());
             session.setTwoFactorVerified(true);
+            user.setLastAuthenticatedAt(now);
         }
         sessions.save(session);
         var result = response(session, issueRefreshToken(session), now);
@@ -104,6 +105,7 @@ public class LoginService {
             throw new InvalidRefreshTokenException();
         }
         found.setUsedAt(now);
+        user.setLastAuthenticatedAt(now);
         var extendedUntil = now.truncatedTo(ChronoUnit.SECONDS).plus(properties.refreshTtl());
         if (extendedUntil.isBefore(session.getExpiresAt())) session.setExpiresAt(extendedUntil);
         var result = response(session, null, now);
