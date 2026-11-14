@@ -25,12 +25,4 @@ public class UserAccessPolicy {
         }
     }
 
-    public void requireCreation(Role actorRole, Role requestedRole) {
-        requireManager(actorRole);
-        boolean allowed = requestedRole == Role.STUDENT || requestedRole == Role.TEACHER
-                || (requestedRole == Role.PEDAGOGICAL_COORDINATOR && actorRole == Role.ADMIN);
-        if (!allowed) {
-            throw new AccessDeniedException("Você não tem permissão para cadastrar usuários com este perfil.");
-        }
-    }
 }

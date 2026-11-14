@@ -9,7 +9,7 @@ public class InvitationMailService {
     private final String baseUrl;
 
     public InvitationMailService(EmailSender sender,
-            @Value("${app.invitation.base-url:http://localhost:8080/api/invite}") String baseUrl) {
+            @Value("${app.invitation.base-url:https://pulsoescolar.com.br/invite}") String baseUrl) {
         this.sender = sender;
         this.baseUrl = baseUrl;
     }
