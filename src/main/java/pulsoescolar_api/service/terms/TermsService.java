@@ -55,14 +55,15 @@ public class TermsService {
         term.setVersion(term.getVersion() + 1);
         terms.saveAndFlush(term);
         versions.saveAndFlush(new pulsoescolar_api.entity.terms.TermsVersion(term.getVersion(), term.getTitle(), term.getContent()));
-        users.resetGeneralTermsAcceptance();
+        users.resetGeneralTermsAcceptance(
+                java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("America/Sao_Paulo")).minusYears(18));
         return response(term);
     }
 
     @Transactional
     public void accept(AcceptTermsRequest request) {
         var user = currentUser.get();
-        if (user.getRole() == Role.STUDENT) {
+        if (user.usesStudentTerm()) {
             var document = legalDocuments.lockCurrentForAcceptance(pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM);
             if (!Boolean.TRUE.equals(request.termsAccepted())) {
                 throw new BusinessValidationException("É necessário aceitar o termo do estudante.");

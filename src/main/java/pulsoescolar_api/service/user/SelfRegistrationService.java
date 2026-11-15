@@ -29,6 +29,7 @@ public class SelfRegistrationService {
     private final pulsoescolar_api.service.legal.LegalDocumentService legalDocuments;
     private final PasswordEncoder passwords;
     private final Validator validator;
+    private final pulsoescolar_api.repository.terms.TermsRepository generalTerms;
     private final Clock clock;
     private final pulsoescolar_api.security.user.PasswordPolicy passwordPolicy;
     private final pulsoescolar_api.service.guardian.GuardianConfirmationService guardians;
@@ -48,6 +49,9 @@ public class SelfRegistrationService {
         if (input.birthDate().isAfter(LocalDate.now(clock.withZone(ZoneId.of("America/Sao_Paulo"))).minusYears(15))) {
             throw new BusinessValidationException("É necessário ter pelo menos 15 anos.");
         }
+        if (input.birthDate().isBefore(LocalDate.now(clock.withZone(ZoneId.of("America/Sao_Paulo"))).minusYears(90))) {
+            throw new BusinessValidationException("A idade máxima permitida é de 90 anos.");
+        }
         passwordPolicy.requireValidNewPassword(input.password());
         if (!input.password().equals(input.confirmPassword())) {
             throw new BusinessValidationException("A confirmação de senha deve ser igual à senha.");
@@ -64,12 +68,25 @@ public class SelfRegistrationService {
         var school = schools.findById(input.schoolId())
                 .orElseThrow(() -> new ResourceNotFoundException("Escola não encontrada."));
         school.requireActive();
-        var term = legalDocuments.lockCurrentForAcceptance(pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM);
-        if (!pulsoescolar_api.service.legal.LegalDocumentService.label(term.getVersion()).equals(input.termsVersion())) {
-            throw new TermsVersionChangedException();
+        var request = new RegistrationRequest();
+        if (guardians.requiresGuardian(input.birthDate())) {
+            var term = legalDocuments.lockCurrentForAcceptance(pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM);
+            if (!pulsoescolar_api.service.legal.LegalDocumentService.label(term.getVersion()).equals(input.termsVersion())) {
+                throw new TermsVersionChangedException();
+            }
+            request.setStudentTermVersion(term.getVersion());
+        } else {
+            // Maior de 18 anos: termos gerais, sem responsável legal.
+            var general = generalTerms.lockCurrent();
+            if (general == null || general.getVersion() == 0) {
+                throw new ResourceNotFoundException("Nenhum termo publicado.");
+            }
+            if (!pulsoescolar_api.entity.terms.TermsVersion.label(general.getVersion()).equals(input.termsVersion())) {
+                throw new TermsVersionChangedException();
+            }
+            request.setTermsVersion(general.getVersion());
         }
         Integer privacyVersion = privacy.resolveRequired(input.privacyAccepted(), input.privacyVersion());
-        var request = new RegistrationRequest();
         request.setPrivacyVersion(privacyVersion);
         request.setFullName(input.name().strip());
         request.setBirthDate(input.birthDate());
@@ -78,7 +95,6 @@ public class SelfRegistrationService {
         request.setPasswordHash(passwords.encode(input.password()));
         request.setRole(role);
         request.setSchool(school);
-        request.setStudentTermVersion(term.getVersion());
         request.setProfilePhoto(photo);
         request.setStatus(RegistrationStatus.PENDING);
         request.setRequestedAt(clock.instant());

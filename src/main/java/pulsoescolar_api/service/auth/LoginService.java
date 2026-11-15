@@ -147,7 +147,7 @@ public class LoginService {
         var loginUser = new LoginResponse.LoginUser(user.getRole(),
                 user.getActiveClassroom() == null ? null : user.getActiveClassroom().getId(),
                 user.getSchool() == null ? null : user.getSchool().getId(), termsSatisfied, user.getTermsAcceptedVersions(),
-                user.isSchoolUnavailable());
+                user.isSchoolUnavailable(), user.getBirthDate());
         return new LoginResponse(token.getTokenValue(), "Bearer", expiresAt, loginUser,
                 !session.isTwoFactorVerified(), session.getCodeExpiresAt(), session.getResendAvailableAt(),
                 refreshToken, refreshToken == null ? null : session.getExpiresAt());

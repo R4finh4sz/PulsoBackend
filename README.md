@@ -125,7 +125,6 @@ As configurações ficam no arquivo `.env`, que não é versionado. As principai
 | `JWT_SECRET` | Chave de assinatura dos tokens: Base64 de pelo menos 32 bytes aleatórios (`openssl rand -base64 32`) |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` | **Obrigatórias.** Criam o administrador inicial se ele ainda não existir |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio de e-mails (opcionais para desenvolvimento, mas sem elas não há envio) |
-| `CORS_ALLOWED_ORIGINS` | Origens do front-end permitidas (padrão: `localhost:3001` e `localhost:5173`) |
 
 As migrations rodam sozinhas na inicialização. O restante das variáveis (validade do token, limites de requisição) tem valor padrão e está comentado em `.env.example`.
 

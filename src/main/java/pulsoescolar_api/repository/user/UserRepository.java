@@ -23,11 +23,11 @@ public interface UserRepository extends JpaRepository<SchoolUser,Long>, org.spri
  @org.springframework.data.jpa.repository.Query("UPDATE SchoolUser u SET u.termsAccepted = false")
  void resetTermsAcceptance();
  @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
- @org.springframework.data.jpa.repository.Query("UPDATE SchoolUser u SET u.termsAccepted = false WHERE u.role = :role")
- void resetTermsAcceptanceForRole(pulsoescolar_api.entity.user.Role role);
+ @org.springframework.data.jpa.repository.Query("UPDATE SchoolUser u SET u.termsAccepted = false WHERE u.role = pulsoescolar_api.entity.user.Role.STUDENT AND (u.birthDate IS NULL OR u.birthDate > :adultCutoff)")
+ void resetStudentTermAcceptance(java.time.LocalDate adultCutoff);
  @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
- @org.springframework.data.jpa.repository.Query("UPDATE SchoolUser u SET u.termsAccepted = false WHERE u.role <> pulsoescolar_api.entity.user.Role.STUDENT")
- void resetGeneralTermsAcceptance();
+ @org.springframework.data.jpa.repository.Query("UPDATE SchoolUser u SET u.termsAccepted = false WHERE u.role <> pulsoescolar_api.entity.user.Role.STUDENT OR u.birthDate <= :adultCutoff")
+ void resetGeneralTermsAcceptance(java.time.LocalDate adultCutoff);
  @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"school", "activeSchool"})
  Optional<SchoolUser> findByEmail(String email);
  @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"school", "activeSchool"})

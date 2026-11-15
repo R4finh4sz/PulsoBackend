@@ -7,7 +7,8 @@ public record LoginResponse(String accessToken, String tokenType, Instant expire
         boolean twoFactorRequired, Instant codeExpiresAt, Instant resendAvailableAt,
         String refreshToken, Instant refreshExpiresAt) {
     public record LoginUser(Role role, Long classroomId, Long schoolId, boolean termsAccepted,
-                            java.util.List<String> termsAcceptedVersions, boolean schoolUnavailable) {}
+                            java.util.List<String> termsAcceptedVersions, boolean schoolUnavailable,
+                            java.time.LocalDate birthDate) {}
 
     @Override public String toString() { return "LoginResponse[accessToken=REDACTED, expiresAt=" + expiresAt + "]"; }
 }
