@@ -31,6 +31,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         var path = path(request);
         boolean auth = path.startsWith("/api/auth/") || path.startsWith("/api/invitations/")
+                || path.startsWith("/api/guardian-invitations/") || path.startsWith("/api/guardian-corrections/")
                 || "POST".equals(request.getMethod()) && path.equals("/api/students");
         var principal = SecurityContextHolder.getContext().getAuthentication();
         String identity;

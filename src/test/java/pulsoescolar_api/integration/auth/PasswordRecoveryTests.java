@@ -44,7 +44,12 @@ class PasswordRecoveryTests {
     MockMvc mvc;
     SchoolUser account;
 
+    @Autowired pulsoescolar_api.repository.agreement.SchoolDataAgreementRepository agreements;
+    @Autowired pulsoescolar_api.repository.legal.LegalDocumentRepository legalDocs;
+    @org.junit.jupiter.api.AfterEach void cleanAgreements() { agreements.deleteAll(); }
+
     @BeforeEach void setup() {
+        agreements.deleteAll();
         sessions.deleteAll(); recoveries.deleteAll(); registrations.deleteAll(); users.deleteAll(); schools.deleteAll();
         account = new SchoolUser();
         account.setFullName("Nome que não deve aparecer"); account.setRa("recovery-user");
@@ -164,11 +169,12 @@ class PasswordRecoveryTests {
         school.setLogradouro("Rua"); school.setBairro("Centro"); school.setCidade("Recife"); schools.saveAndFlush(school);
         Role actorRole = role == Role.PEDAGOGICAL_COORDINATOR ? Role.ADMIN : Role.PEDAGOGICAL_COORDINATOR;
         account.setRole(actorRole); account.setSchool(actorRole == Role.ADMIN ? null : school); users.saveAndFlush(account);
+        pulsoescolar_api.integration.support.AgreementFixture.accept(legalDocs, agreements, school, account);
         var request = new RegistrationRequest(); request.setFullName("Pessoa que não aparece no e-mail");
         request.setEmail("reviewed@example.com"); request.setRa("reviewed"); request.setPasswordHash(passwords.encode("Chosen123"));
         request.setRole(role); request.setSchool(school); request.setTermsVersion(1L);
         request.setStatus(RegistrationStatus.PENDING); request.setRequestedAt(Instant.now()); registrations.saveAndFlush(request);
-        String body = json.writeValueAsString(java.util.Map.of("status", status.name(), "reason", "Documentação pendente"));
+        String body = json.writeValueAsString(java.util.Map.of("status", status.name(), "reason", "Documentação pendente", "identityChecked", true));
         mvc.perform(patch("/api/registration-requests/" + request.getId()).with(user(account.getEmail()).roles(actorRole.name()))
                 .contentType("application/json").content(body)).andExpect(status().isOk());
         var capture = org.mockito.ArgumentCaptor.forClass(String.class);

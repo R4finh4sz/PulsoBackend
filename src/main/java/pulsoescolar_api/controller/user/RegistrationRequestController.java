@@ -31,6 +31,12 @@ public class RegistrationRequestController {
         return service.review(id, input);
     }
 
+    /** Lets the school fix a student's birth date; becoming a minor opens the guardian flow right away. */
+    @PatchMapping("/{id}/birth-date")
+    public RegistrationResponse correctBirthDate(@PathVariable Long id, @Valid @RequestBody CorrectBirthDateRequest input) {
+        return service.correctBirthDate(id, input);
+    }
+
     @GetMapping(value = "/{id}/photo", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> photo(@PathVariable Long id, @RequestParam(required = false) RegistrationRequestType type) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.photo(id, type));

@@ -55,14 +55,17 @@ class InvitationTests {
         when(clock.getZone()).thenReturn(ZoneOffset.UTC);
         invitations.deleteAll();
         registrations.deleteAll();
+        agreements.deleteAll();
         users.deleteAll();
         schools.deleteAll();
         var school = new School();
         school.setNome("Escola");
         school.setLogradouro("Rua"); school.setBairro("Centro"); school.setCidade("Recife");
         schoolId = schools.saveAndFlush(school).getId();
-        actor("admin", Role.ADMIN, null);
-        actor("coordinator", Role.PEDAGOGICAL_COORDINATOR, school);
+        var admin = actor("admin", Role.ADMIN, null);
+        pulsoescolar_api.integration.support.AgreementFixture.publish(legalDocs,
+                pulsoescolar_api.entity.legal.LegalDocumentType.PRIVACY_POLICY, admin);
+        pulsoescolar_api.integration.support.AgreementFixture.accept(legalDocs, agreements, school, actor("coordinator", Role.PEDAGOGICAL_COORDINATOR, school));
         actor("teacher", Role.TEACHER, school);
         transactions.executeWithoutResult(status -> {
             var term = terms.lockCurrent();
@@ -72,12 +75,15 @@ class InvitationTests {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
-    private void actor(String name, Role role, School school) {
+    private SchoolUser actor(String name, Role role, School school) {
         var actor = new SchoolUser();
         actor.setFullName(name); actor.setRa(name); actor.setEmail(name + "@example.com");
         actor.setPasswordHash("unused"); actor.setRole(role); actor.setSchool(school);
-        users.saveAndFlush(actor);
+        return users.saveAndFlush(actor);
     }
+    @Autowired pulsoescolar_api.repository.agreement.SchoolDataAgreementRepository agreements;
+    @Autowired pulsoescolar_api.repository.legal.LegalDocumentRepository legalDocs;
+    @org.junit.jupiter.api.AfterEach void cleanAgreements() { agreements.deleteAll(); }
 
     private String create(boolean coordinator) throws Exception {
         String body = coordinator ? "{\"email\":\"invited@example.com\",\"schoolId\":" + schoolId + "}"
@@ -106,7 +112,7 @@ class InvitationTests {
     private String completion() {
         return """
                 {"name":"Pessoa Teste","ra":"1234","password":"Chosen-password-123",
-                 "termsAccepted":true,"termsVersion":"1.0"}
+                 "termsAccepted":true,"termsVersion":"1.0","privacyAccepted":true,"privacyVersion":"1.0"}
                 """;
     }
 
@@ -169,7 +175,7 @@ class InvitationTests {
         mvc.perform(post(endpoint).contentType("application/json").content(completion())).andExpect(status().isConflict());
         assertEquals(0, registrations.count());
         assertNull(invitations.findAll().getFirst().getUsedAt());
-        mvc.perform(post(endpoint).contentType("application/json").content(completion().replace("1.0", "1.1")))
+        mvc.perform(post(endpoint).contentType("application/json").content(completion().replace("\"termsVersion\":\"1.0\"", "\"termsVersion\":\"1.1\"")))
                 .andExpect(status().isCreated());
         assertEquals(2L, registrations.findAll().getFirst().getTermsVersion());
     }

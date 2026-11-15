@@ -22,7 +22,7 @@ class UserExportServiceTest {
         when(terms.findAllById(Set.of(1L, 3L))).thenReturn(List.of(
                 new TermsVersion(3L, "Terceiro", "Conteúdo terceiro"),
                 new TermsVersion(1L, "Primeiro", "Conteúdo primeiro")));
-        var service = new UserExportService(current, Clock.systemUTC(), terms);
+        var service = new UserExportService(current, Clock.systemUTC(), terms, mock(pulsoescolar_api.repository.legal.LegalDocumentRepository.class));
         var response = service.export();
         assertThat(response.termsAcceptedVersions()).containsExactly("1.0", "1.2");
         assertThat(response.acceptedTerms()).containsExactly(

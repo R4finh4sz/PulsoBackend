@@ -32,6 +32,27 @@ public final class AccountMailMessages {
                 + "\n\nPara esclarecer dúvidas ou receber orientações sobre seu cadastro, entre em contato com a equipe responsável na sua instituição." + SIGNATURE);
     }
 
+    public static NotificationMailRequested guardianInvitation(String email, String guardianName, String studentName,
+                                                               String schoolName, String link) {
+        return new NotificationMailRequested(email, "Confirmação de responsável legal — PulsoEscolar",
+                "Olá, " + guardianName + "!\n\nO(a) estudante " + studentName + " está se cadastrando em " + schoolName
+                + " no PulsoEscolar e indicou você como responsável legal. A escola conferiu este contato."
+                + "\n\nAcesse o link abaixo para ler os termos e registrar sua decisão. Abrir o e-mail ou o link não confirma nada: "
+                + "a confirmação só acontece quando você a registrar na página."
+                + "\n\n" + link
+                + "\n\nO link é válido por 48 horas e só pode ser usado uma vez. Se você não reconhece este estudante, "
+                + "acesse o link e escolha a opção correspondente, ou ignore este e-mail." + SIGNATURE);
+    }
+
+    public static NotificationMailRequested guardianCorrection(String email, String reason, String link) {
+        return new NotificationMailRequested(email, "Corrija os dados do seu responsável — PulsoEscolar",
+                "Olá!\n\nA escola precisa que você informe ou atualize os dados do responsável legal do seu cadastro."
+                + "\n\nMotivo: " + reason
+                + "\n\nAcesse o link abaixo para informar novamente o nome e o e-mail do seu responsável legal:\n\n" + link
+                + "\n\nO link é válido por 7 dias e só pode ser usado uma vez. Seu cadastro continua pendente até a conferência."
+                + SIGNATURE);
+    }
+
     public static NotificationMailRequested recoveryCode(String email, String code) {
         return new NotificationMailRequested(email, "Código para redefinir sua senha — PulsoEscolar",
                 "Olá!\n\nRecebemos uma solicitação para redefinir a senha da sua conta no PulsoEscolar."

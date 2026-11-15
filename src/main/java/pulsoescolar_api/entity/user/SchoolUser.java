@@ -61,7 +61,17 @@ public class SchoolUser {
  @CollectionTable(name="user_terms_acceptances", joinColumns=@JoinColumn(name="user_id"))
  @Column(name="version", nullable=false)
  private java.util.Set<Long> acceptedTermVersions = new java.util.HashSet<>();
+ @ElementCollection
+ @CollectionTable(name="user_privacy_acceptances", joinColumns=@JoinColumn(name="user_id"))
+ @Column(name="version", nullable=false)
+ private java.util.Set<Integer> acceptedPrivacyVersions = new java.util.HashSet<>();
+ @ElementCollection
+ @CollectionTable(name="user_student_term_acceptances", joinColumns=@JoinColumn(name="user_id"))
+ @Column(name="version", nullable=false)
+ private java.util.Set<Integer> acceptedStudentTermVersions = new java.util.HashSet<>();
  public java.util.List<String> getTermsAcceptedVersions() {
+  if (role == Role.STUDENT) return acceptedStudentTermVersions.stream().sorted()
+          .map(version -> "1." + (version - 1)).toList();
   return acceptedTermVersions.stream().sorted().map(pulsoescolar_api.entity.terms.TermsVersion::label).toList();
  }
  @Enumerated(EnumType.STRING) @Column(nullable=false, length=40) private Role role;

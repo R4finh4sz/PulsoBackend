@@ -46,16 +46,26 @@ class SelfRegistrationTests {
         s.setBairro("Centro"); s.setCidade("Recife"); s.setCep(cep); s.setUf(uf);
         return schools.saveAndFlush(s);
     }
-    void actor(String name, Role role, School school) {
+    SchoolUser actor(String name, Role role, School school) {
         var u = new SchoolUser(); u.setFullName(name); u.setRa(name); u.setEmail(name + "@test.com");
-        u.setPasswordHash("unused"); u.setRole(role); u.setSchool(school); users.saveAndFlush(u);
+        u.setPasswordHash("unused"); u.setRole(role); u.setSchool(school); return users.saveAndFlush(u);
     }
+    @Autowired pulsoescolar_api.repository.agreement.SchoolDataAgreementRepository agreements;
+    @Autowired pulsoescolar_api.repository.legal.LegalDocumentRepository legalDocs;
+    @org.junit.jupiter.api.AfterEach void cleanAgreements() { agreements.deleteAll(); }
     @BeforeEach void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         school = school("11111111111111", "50000000", "PE");
         other = school("22222222222222", "60000000", "SP");
-        actor("admin", Role.ADMIN, null); actor("coordinator", Role.PEDAGOGICAL_COORDINATOR, school);
-        actor("outsider", Role.PEDAGOGICAL_COORDINATOR, other); actor("unassigned", Role.PEDAGOGICAL_COORDINATOR, null);
+        agreements.deleteAll();
+        var admin = actor("admin", Role.ADMIN, null);
+        pulsoescolar_api.integration.support.AgreementFixture.publish(legalDocs,
+                pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM, admin);
+        pulsoescolar_api.integration.support.AgreementFixture.publish(legalDocs,
+                pulsoescolar_api.entity.legal.LegalDocumentType.PRIVACY_POLICY, admin);
+        pulsoescolar_api.integration.support.AgreementFixture.accept(legalDocs, agreements, school, actor("coordinator", Role.PEDAGOGICAL_COORDINATOR, school));
+        pulsoescolar_api.integration.support.AgreementFixture.accept(legalDocs, agreements, other, actor("outsider", Role.PEDAGOGICAL_COORDINATOR, other));
+        actor("unassigned", Role.PEDAGOGICAL_COORDINATOR, null);
         actor("teacher", Role.TEACHER, school);
         var t = terms.lockCurrent(); t.setVersion(1); t.setTitle("Termos"); t.setContent("Conteúdo"); terms.saveAndFlush(t);
         versions.saveAndFlush(new TermsVersion(1L, "Termos", "Conteúdo"));
@@ -64,7 +74,7 @@ class SelfRegistrationTests {
         return """
                 {"name":"Pessoa Teste","birthDate":"2000-01-01","ra":"%s",
                  "email":"person%s@example.com","password":"Chosen-password-123","confirmPassword":"Chosen-password-123","schoolId":%d,
-                 "termsAccepted":true,"termsVersion":"1.0","role":"%s"}
+                 "termsAccepted":true,"termsVersion":"1.0","privacyAccepted":true,"privacyVersion":"1.0","role":"%s"}
                 """.formatted(ra, ra, schoolId, role);
     }
     @Test void rejectsRegistrationIntoDeactivatedSchool() throws Exception {
@@ -104,7 +114,8 @@ class SelfRegistrationTests {
     void review(long id, String actor, String decision, int expected) throws Exception {
         mvc.perform(patch("/api/registration-requests/" + id)
                         .with(user(actor + "@test.com").roles(actor.equals("admin") ? "ADMIN" : "PEDAGOGICAL_COORDINATOR"))
-                        .contentType("application/json").content("{\"status\":\"" + decision + "\"}"))
+                        .contentType("application/json")
+                        .content("{\"status\":\"" + decision + "\",\"identityChecked\":true}"))
                 .andExpect(status().is(expected));
     }
 
@@ -131,7 +142,8 @@ class SelfRegistrationTests {
         review(id, "coordinator", "APPROVED", 200);
         var u = users.findByEmail("person100@example.com").orElseThrow();
         assertEquals(school.getId(), u.getSchool().getId()); assertEquals(LocalDate.of(2000, 1, 1), u.getBirthDate());
-        assertNull(u.getClassroom()); assertTrue(u.isTermsAccepted()); assertEquals(java.util.Set.of(1L), u.getAcceptedTermVersions());
+        assertNull(u.getClassroom()); assertTrue(u.isTermsAccepted()); assertEquals(java.util.Set.of(1), u.getAcceptedStudentTermVersions());
+        assertTrue(u.getAcceptedTermVersions().isEmpty());
         assertNull(requests.findById(id).orElseThrow().getPasswordHash());
         assertTrue(authentication.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(u.getEmail(), "Chosen-password-123")).isAuthenticated());
         review(id, "coordinator", "APPROVED", 409);
@@ -292,11 +304,13 @@ class SelfRegistrationTests {
 
     @Test void termsUpdatedWhilePendingRequireNewAcceptance() throws Exception {
         long id = submit("140", Role.STUDENT, school.getId());
-        var term = terms.lockCurrent(); term.setVersion(2); terms.saveAndFlush(term);
-        versions.saveAndFlush(new TermsVersion(2L, "Novos termos", "Novo conteúdo"));
+        legalDocs.saveAndFlush(new pulsoescolar_api.entity.legal.LegalDocument(
+                pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM, 2, "Novo termo estudantil", "Novo conteúdo",
+                "hash", java.time.Instant.now(), users.findByEmail("admin@test.com").orElseThrow()));
         review(id, "coordinator", "APPROVED", 200);
         var u = users.findByEmail("person140@example.com").orElseThrow();
-        assertFalse(u.isTermsAccepted()); assertEquals(java.util.Set.of(1L), u.getAcceptedTermVersions());
+        assertFalse(u.isTermsAccepted()); assertEquals(java.util.Set.of(1), u.getAcceptedStudentTermVersions());
+        assertTrue(u.getAcceptedTermVersions().isEmpty());
     }
 
     @Test void accountDeletionAlsoRemovesNewPersonalDataAndRegistrationCopy() throws Exception {

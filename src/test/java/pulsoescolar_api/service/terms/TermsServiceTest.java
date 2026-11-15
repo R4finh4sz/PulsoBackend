@@ -23,7 +23,8 @@ class TermsServiceTest {
         var entityManager = mock(jakarta.persistence.EntityManager.class);
         var service = new TermsService(mock(AuditService.class), mock(TermsRepository.class),
                 mock(TermsVersionRepository.class), mock(UserRepository.class), currentUser,
-                sessions, revocations, entityManager, java.time.Clock.systemUTC());
+                sessions, revocations, entityManager, java.time.Clock.systemUTC(),
+                mock(pulsoescolar_api.service.legal.PrivacyPolicyAcceptanceService.class), mock(pulsoescolar_api.service.legal.LegalDocumentService.class));
 
         assertThatThrownBy(service::revoke).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
         verifyNoInteractions(sessions, revocations, entityManager);
@@ -39,7 +40,8 @@ class TermsServiceTest {
         var service = new TermsService(mock(AuditService.class), terms, mock(TermsVersionRepository.class),
                 mock(UserRepository.class), currentUser, mock(pulsoescolar_api.repository.auth.AuthSessionRepository.class),
                 mock(pulsoescolar_api.repository.terms.TermsRevocationRepository.class),
-                mock(jakarta.persistence.EntityManager.class), java.time.Clock.systemUTC());
+                mock(jakarta.persistence.EntityManager.class), java.time.Clock.systemUTC(),
+                mock(pulsoescolar_api.service.legal.PrivacyPolicyAcceptanceService.class), mock(pulsoescolar_api.service.legal.LegalDocumentService.class));
         var request = new pulsoescolar_api.dto.terms.TermsRequest("Título", "Conteúdo");
 
         assertThatThrownBy(() -> service.publish(request, true)).isInstanceOf(ResourceNotFoundException.class);
@@ -55,7 +57,8 @@ class TermsServiceTest {
         var service = new TermsService(mock(AuditService.class), terms, mock(TermsVersionRepository.class),
                 mock(UserRepository.class), mock(CurrentUser.class), mock(pulsoescolar_api.repository.auth.AuthSessionRepository.class),
                 mock(pulsoescolar_api.repository.terms.TermsRevocationRepository.class),
-                mock(jakarta.persistence.EntityManager.class), java.time.Clock.systemUTC());
+                mock(jakarta.persistence.EntityManager.class), java.time.Clock.systemUTC(),
+                mock(pulsoescolar_api.service.legal.PrivacyPolicyAcceptanceService.class), mock(pulsoescolar_api.service.legal.LegalDocumentService.class));
 
         assertThatThrownBy(service::get).isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Nenhum termo publicado.");
