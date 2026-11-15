@@ -6,11 +6,17 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.AssertTrue;
 
+/** Teachers and coordinators must accept both general terms and the published privacy policy. */
 public record CompleteInvitationRequest(
         @NotBlank @Size(max = 100) @Pattern(regexp = ".*\\S+\\s+\\S+.*") String name,
         @NotBlank @Pattern(regexp = "[0-9]+") @Size(max = 50) String ra,
         @NotBlank @Size(min = 8, max = 72) @Pattern(regexp = "(?s)(?=.*[A-Z])(?=.*[0-9]).*") String password,
         @NotNull @AssertTrue Boolean termsAccepted,
-        @NotBlank @Pattern(regexp = "1\\.[0-9]+") String termsVersion) {
+        @NotBlank @Pattern(regexp = "1\\.[0-9]+") String termsVersion,
+        Boolean privacyAccepted,
+        @Pattern(regexp = "1\\.[0-9]+") String privacyVersion) {
+    public CompleteInvitationRequest(String name, String ra, String password, Boolean termsAccepted, String termsVersion) {
+        this(name, ra, password, termsAccepted, termsVersion, null, null);
+    }
     @Override public String toString() { return "CompleteInvitationRequest[REDACTED]"; }
 }

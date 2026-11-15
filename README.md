@@ -125,11 +125,23 @@ As configurações ficam no arquivo `.env`, que não é versionado. As principai
 | `JWT_SECRET` | Chave de assinatura dos tokens: Base64 de pelo menos 32 bytes aleatórios (`openssl rand -base64 32`) |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` | **Obrigatórias.** Criam o administrador inicial se ele ainda não existir |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Envio de e-mails (opcionais para desenvolvimento, mas sem elas não há envio) |
-| `CORS_ALLOWED_ORIGINS` | Origens do front-end permitidas (padrão: `localhost:3001` e `localhost:5173`) |
 
 As migrations rodam sozinhas na inicialização. O restante das variáveis (validade do token, limites de requisição) tem valor padrão e está comentado em `.env.example`.
 
 ## Testes
+
+### Documentos por perfil
+
+| Perfil | Documentos exigidos |
+|---|---|
+| Professor | Termo geral e política de privacidade |
+| Coordenador | Termo geral, política de privacidade e termo de adesão institucional e tratamento de dados |
+| Aluno | Termo do aluno (`/api/student-term`) e política de privacidade |
+| Responsável | Termo do responsável (`/api/guardian-term`) e política de privacidade, ao confirmar o convite |
+
+O aluno não aceita o termo geral. No cadastro de aluno e em `POST /api/terms/accept` autenticado como aluno, `termsVersion`/`version` identifica a versão do termo estudantil. Seu histórico fica separado em `user_student_term_acceptances`. Alterar o termo geral não invalida o aceite dos alunos; alterar o termo estudantil exige novo aceite apenas dos alunos. Alterar a política exige novo aceite dos usuários da plataforma. O termo de adesão institucional e tratamento de dados é aceito pelo coordenador em nome da escola.
+
+A migração V56 pede aos alunos existentes o aceite específico do termo estudantil, preservando os aceites gerais antigos como histórico. É necessário publicar o termo estudantil e a política antes de liberar cadastros/aceites de alunos. Novas confirmações de responsáveis também exigem a versão atual da política, registrada junto à decisão. Recusar ou não reconhecer o convite não exige aceitar os documentos.
 
 ```bash
 ./mvnw verify

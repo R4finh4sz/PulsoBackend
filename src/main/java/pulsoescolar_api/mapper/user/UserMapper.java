@@ -11,4 +11,13 @@ public class UserMapper {
                 user.getRole(), user.getActiveClassroom() == null ? null : user.getActiveClassroom().getId(),
                 user.getSchool() == null ? null : user.getSchool().getId(), user.isSchoolUnavailable());
     }
+
+    /** Resposta do próprio usuário: inclui a data de nascimento, usada para escolher os termos aplicáveis. */
+    public UserResponse toSelfResponse(SchoolUser user) {
+        var base = toResponse(user);
+        return new UserResponse(base.id(), base.fullName(), base.ra(), base.email(), base.role(), base.classroomId(),
+                base.schoolId(), base.schoolUnavailable(), user.getBirthDate(),
+                user.getRole() == pulsoescolar_api.entity.user.Role.ADMIN || user.isTermsAccepted(),
+                user.getTermsAcceptedVersions());
+    }
 }

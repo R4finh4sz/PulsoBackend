@@ -47,6 +47,7 @@ public class InvitationService {
     private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
     private final SchoolInvitationService schoolInvitations;
     private final pulsoescolar_api.security.user.PasswordPolicy passwordPolicy;
+    private final pulsoescolar_api.service.legal.PrivacyPolicyAcceptanceService privacy;
 
     @Transactional
     public InvitationReceipt createCoordinator(CreateCoordinatorInvitationRequest input) {
@@ -137,7 +138,9 @@ public class InvitationService {
         if (!TermsVersion.label(term.getVersion()).equals(input.termsVersion())) {
             throw new TermsVersionChangedException();
         }
+        Integer privacyVersion = privacy.resolveRequired(input.privacyAccepted(), input.privacyVersion());
         var request = new RegistrationRequest();
+        request.setPrivacyVersion(privacyVersion);
         request.setFullName(input.name().strip());
         request.setRa(ra);
         request.setEmail(invitation.getEmail());

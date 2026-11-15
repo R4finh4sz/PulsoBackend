@@ -31,6 +31,10 @@ public class RegistrationReviewService {
     private final pulsoescolar_api.service.school.SchoolCoordinatorPolicy coordinators;
     private final StudentTransferRepository transfers;
     private final pulsoescolar_api.service.user.student.StudentTransferService transferService;
+    private final pulsoescolar_api.service.guardian.GuardianConfirmationService guardians;
+    private final pulsoescolar_api.service.agreement.SchoolDataAgreementService dataAgreements;
+    private final pulsoescolar_api.service.legal.PrivacyPolicyAcceptanceService privacy;
+    private final pulsoescolar_api.service.legal.LegalDocumentService legalDocuments;
 
     public RegistrationPageResponse list(RegistrationStatus status, Role role, Long schoolId, int page, int size,
                                          RegistrationRequestType type) {
@@ -74,8 +78,21 @@ public class RegistrationReviewService {
         }
         if (input.status() == RegistrationStatus.APPROVED) {
             request.getSchool().requireActive();
+            if (request.getRole() == Role.STUDENT || request.getRole() == Role.TEACHER) {
+                dataAgreements.requireAccepted(request.getSchool().getId());
+            }
+            if (request.getRole() == Role.STUDENT) {
+                if (!Boolean.TRUE.equals(input.identityChecked())) {
+                    throw new BusinessValidationException(
+                            "Confirme que nome, RA e data de nascimento foram conferidos com os registros da escola.");
+                }
+                request.setIdentityCheckedAt(clock.instant());
+                guardians.requireConfirmedForApproval(request);
+            }
             // Same lock order as registration: terms before persisting a user.
-            var term = terms.lockCurrent();
+            boolean usesStudentTerm = SchoolUser.requiresStudentTerm(request.getRole(), request.getBirthDate(),
+                    java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("America/Sao_Paulo")));
+            var term = usesStudentTerm ? null : terms.lockCurrent();
             if (request.getRole() == Role.PEDAGOGICAL_COORDINATOR) {
                 coordinators.requireVacancy(request.getSchool().getId());
             }
@@ -91,13 +108,27 @@ public class RegistrationReviewService {
             user.setRole(request.getRole());
             user.setSchool(request.getSchool());
             user.setProfilePhoto(request.getProfilePhoto());
-            user.getAcceptedTermVersions().add(request.getTermsVersion());
-            user.setTermsAccepted(term != null && request.getTermsVersion().equals(term.getVersion()));
+            if (usesStudentTerm) {
+                if (request.getStudentTermVersion() != null) user.getAcceptedStudentTermVersions().add(request.getStudentTermVersion());
+            } else if (request.getTermsVersion() != null) {
+                user.getAcceptedTermVersions().add(request.getTermsVersion());
+            }
+            if (request.getPrivacyVersion() != null) user.getAcceptedPrivacyVersions().add(request.getPrivacyVersion());
+            user.setTermsAccepted(term != null && request.getTermsVersion() != null
+                    && request.getTermsVersion().equals(term.getVersion())
+                    && privacy.satisfiedBy(request.getPrivacyVersion()));
+            if (usesStudentTerm) {
+                var studentTerm = legalDocuments.current(pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM).orElse(null);
+                user.setTermsAccepted(studentTerm != null && request.getStudentTermVersion() != null
+                        && request.getStudentTermVersion() == studentTerm.getVersion()
+                        && request.getPrivacyVersion() != null && privacy.satisfiedBy(request.getPrivacyVersion()));
+            }
             request.setUser(users.saveAndFlush(user));
             if (user.getRole() == Role.PEDAGOGICAL_COORDINATOR) {
                 audit.record(pulsoescolar_api.service.audit.AuditEvent.COORDINATOR_CREATED, actor.getId());
             }
         }
+        if (input.status() == RegistrationStatus.REJECTED) guardians.closeOnRejection(request.getId());
         request.setPasswordHash(null);
         request.setStatus(input.status());
         request.setReviewedAt(clock.instant());
@@ -106,6 +137,35 @@ public class RegistrationReviewService {
         requests.flush();
         events.publishEvent(pulsoescolar_api.service.mail.AccountMailMessages.reviewed(
                 request.getEmail(), request.getRole(), request.getStatus(), request.getReviewReason()));
+        return RegistrationResponse.from(request);
+    }
+
+    @Transactional
+    public RegistrationResponse correctBirthDate(Long id, CorrectBirthDateRequest input) {
+        var actor = currentUser.get();
+        policy.requireReviewer(actor);
+        var request = requests.findForReview(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Solicitação não encontrada."));
+        policy.requireAccess(actor, request);
+        if (request.getRole() != Role.STUDENT) {
+            throw new BusinessConflictException("Somente o cadastro de alunos permite corrigir a data de nascimento.");
+        }
+        if (request.getStatus() != RegistrationStatus.PENDING) {
+            throw new BusinessConflictException("Esta solicitação já foi analisada.");
+        }
+        var today = java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("America/Sao_Paulo"));
+        if (input.birthDate().isAfter(today.minusYears(15))) {
+            throw new BusinessValidationException("É necessário ter pelo menos 15 anos.");
+        }
+        if (input.birthDate().isBefore(today.minusYears(90))) {
+            throw new BusinessValidationException("A idade máxima permitida é de 90 anos.");
+        }
+        request.setBirthDate(input.birthDate());
+        request.setBirthDateCorrectedAt(clock.instant());
+        request.setBirthDateCorrectedBy(actor);
+        request.setBirthDateCorrectionReason(input.reason().strip());
+        requests.flush();
+        guardians.reconcileAfterBirthDateChange(request);
         return RegistrationResponse.from(request);
     }
 

@@ -36,7 +36,7 @@ public class UserProfileService {
     }
 
     public UserResponse me() {
-        return mapper.toResponse(currentUser.get());
+        return mapper.toSelfResponse(currentUser.get());
     }
 
     @Transactional
@@ -49,7 +49,7 @@ public class UserProfileService {
                 .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
                         "Você não possui vínculo com esta escola."));
         user.setActiveSchool(school);
-        return mapper.toResponse(user);
+        return mapper.toSelfResponse(user);
     }
 
     public UserProfileResponse profile() {
@@ -61,7 +61,7 @@ public class UserProfileService {
                     ? List.<Classroom>of() : classrooms.findBySchoolId(user.getSchool().getId());
             case ADMIN -> List.<Classroom>of();
         };
-        return new UserProfileResponse(mapper.toResponse(user),
+        return new UserProfileResponse(mapper.toSelfResponse(user),
                 user.getSchools().stream().filter(pulsoescolar_api.entity.school.School::isActive)
                         .sorted(java.util.Comparator.comparing(pulsoescolar_api.entity.school.School::getId))
                         .map(SchoolOption::from).toList(),

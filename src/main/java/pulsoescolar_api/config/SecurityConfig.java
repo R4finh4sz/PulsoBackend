@@ -20,7 +20,7 @@ import pulsoescolar_api.security.auth.SessionJwtAuthenticationConverter;
 @org.springframework.boot.context.properties.EnableConfigurationProperties(RateLimitProperties.class)
 public class SecurityConfig {
     @Bean CorsConfigurationSource corsConfigurationSource(
-            @Value("${app.cors.allowed-origins:http://localhost:3001,http://localhost:5173}") List<String> origins) {
+            @Value("${app.cors.allowed-origins:https://pulsoescolar.com.br}") List<String> origins) {
         var cors = new CorsConfiguration();
         cors.setAllowedOrigins(origins);
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
@@ -56,6 +56,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/admin/metrics").hasRole("ADMIN")
                         .requestMatchers("/api/schools/me/metrics", "/api/schools/me/metrics/**").hasRole("PEDAGOGICAL_COORDINATOR")
+                        .requestMatchers("/api/schools/me/data-agreement", "/api/schools/me/data-agreement/**").hasRole("PEDAGOGICAL_COORDINATOR")
+                        .requestMatchers(HttpMethod.GET, "/api/privacy-policy", "/api/privacy-policy/history",
+                                "/api/guardian-term", "/api/guardian-term/history",
+                                "/api/student-term", "/api/student-term/history").permitAll()
+                        .requestMatchers("/api/privacy-policy", "/api/guardian-term", "/api/student-term", "/api/data-agreement",
+                                "/api/data-agreement/history").hasRole("ADMIN")
                         .requestMatchers("/actuator/**").denyAll()
                         .requestMatchers(HttpMethod.POST, "/api/faqs").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/faqs/*").hasRole("ADMIN")
@@ -68,6 +74,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/invitations/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/invitations/*/verify", "/api/invitations/*/resend", "/api/invitations/*/complete").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/guardian-invitations/*", "/api/guardian-corrections/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/guardian-invitations/*/decision", "/api/guardian-corrections/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/schools/search", "/api/terms").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/me", "/api/terms/history", "/api/terms/accepted")

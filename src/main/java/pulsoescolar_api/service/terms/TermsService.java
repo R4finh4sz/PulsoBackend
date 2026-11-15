@@ -29,6 +29,8 @@ public class TermsService {
     private final pulsoescolar_api.repository.terms.TermsRevocationRepository revocations;
     private final jakarta.persistence.EntityManager entityManager;
     private final java.time.Clock clock;
+    private final pulsoescolar_api.service.legal.PrivacyPolicyAcceptanceService privacy;
+    private final pulsoescolar_api.service.legal.LegalDocumentService legalDocuments;
 
     public TermsResponse get() {
         var term = terms.findById(1L)
@@ -53,12 +55,29 @@ public class TermsService {
         term.setVersion(term.getVersion() + 1);
         terms.saveAndFlush(term);
         versions.saveAndFlush(new pulsoescolar_api.entity.terms.TermsVersion(term.getVersion(), term.getTitle(), term.getContent()));
-        users.resetTermsAcceptance();
+        users.resetGeneralTermsAcceptance(
+                java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("America/Sao_Paulo")).minusYears(18));
         return response(term);
     }
 
     @Transactional
     public void accept(AcceptTermsRequest request) {
+        var user = currentUser.get();
+        if (user.usesStudentTerm()) {
+            var document = legalDocuments.lockCurrentForAcceptance(pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM);
+            if (!Boolean.TRUE.equals(request.termsAccepted())) {
+                throw new BusinessValidationException("É necessário aceitar o termo do estudante.");
+            }
+            if (!pulsoescolar_api.service.legal.LegalDocumentService.label(document.getVersion()).equals(request.version())) {
+                throw new TermsVersionChangedException();
+            }
+            var privacyVersion = privacy.resolveRequired(request.privacyAccepted(), request.privacyVersion());
+            boolean firstAcceptance = user.getAcceptedStudentTermVersions().add(document.getVersion());
+            user.getAcceptedPrivacyVersions().add(privacyVersion);
+            user.setTermsAccepted(true);
+            if (firstAcceptance) audit.record(pulsoescolar_api.service.audit.AuditEvent.TERMS_ACCEPTED);
+            return;
+        }
         var term = terms.lockCurrent();
         requirePublished(term);
         if (!Boolean.TRUE.equals(request.termsAccepted())) {
@@ -67,7 +86,9 @@ public class TermsService {
         if (request.version() == null || !pulsoescolar_api.entity.terms.TermsVersion.label(term.getVersion()).equals(request.version())) {
             throw new TermsVersionChangedException();
         }
-        var user = currentUser.get();
+        Integer privacyVersion = user.getRole() == Role.ADMIN ? privacy.resolve(request.privacyAccepted(), request.privacyVersion())
+                : privacy.resolveRequired(request.privacyAccepted(), request.privacyVersion());
+        if (privacyVersion != null) user.getAcceptedPrivacyVersions().add(privacyVersion);
         boolean firstAcceptance = user.getAcceptedTermVersions().add(term.getVersion());
         user.setTermsAccepted(true);
         if (firstAcceptance) audit.record(pulsoescolar_api.service.audit.AuditEvent.TERMS_ACCEPTED);

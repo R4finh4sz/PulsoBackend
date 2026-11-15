@@ -45,6 +45,7 @@ class JwtAuthenticationTests {
     @Autowired PasswordEncoder passwords;
     @Autowired JwtDecoder decoder;
     @Autowired JwtEncoder encoder;
+    @Autowired pulsoescolar_api.repository.legal.LegalDocumentRepository legalDocs;
     @MockitoBean Clock clock;
     @MockitoBean pulsoescolar_api.service.mail.TwoFactorMailService twoFactorMail;
     MockMvc mvc;
@@ -55,6 +56,7 @@ class JwtAuthenticationTests {
         now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         when(clock.instant()).thenReturn(now);
         users.deleteAll();
+        legalDocs.deleteAll();
         jdbc.update("DELETE FROM terms_versions");
         jdbc.update("UPDATE terms_of_use SET version = 0, title = NULL, content = NULL");
         var user = new SchoolUser();
@@ -413,6 +415,7 @@ class JwtAuthenticationTests {
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
                 .andExpect(status().isConflict());
+        pulsoescolar_api.integration.support.AgreementFixture.publish(legalDocs, pulsoescolar_api.entity.legal.LegalDocumentType.PRIVACY_POLICY, users.findById(userId).orElseThrow());
         for (Role role : List.of(Role.STUDENT, Role.TEACHER, Role.PEDAGOGICAL_COORDINATOR)) {
             var user = users.findById(userId).orElseThrow();
             user.setRole(role);
@@ -428,7 +431,7 @@ class JwtAuthenticationTests {
                 .contentType("application/json").content("{\"version\":\"1.1\",\"termsAccepted\":false}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType("application/json").content("{\"version\":\"1.1\",\"termsAccepted\":true}"))
+                .contentType("application/json").content("{\"version\":\"1.1\",\"termsAccepted\":true,\"privacyAccepted\":true,\"privacyVersion\":\"1.0\"}"))
                 .andExpect(status().isNoContent());
         assertTrue(users.findById(userId).orElseThrow().isTermsAccepted());
         mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
@@ -437,6 +440,11 @@ class JwtAuthenticationTests {
 
     @Test void pendingTermsBlockAllSchoolRolesUntilAcceptanceWithSameToken() throws Exception {
         String token = login();
+        var admin = users.findById(userId).orElseThrow();
+        pulsoescolar_api.integration.support.AgreementFixture.publish(legalDocs,
+                pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM, admin);
+        pulsoescolar_api.integration.support.AgreementFixture.publish(legalDocs,
+                pulsoescolar_api.entity.legal.LegalDocumentType.PRIVACY_POLICY, admin);
         mvc.perform(post("/api/terms").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType("application/json").content("{\"title\":\"Termos\",\"content\":\"Texto\"}"))
                 .andExpect(status().isCreated());
@@ -454,7 +462,7 @@ class JwtAuthenticationTests {
                         .andExpect(status().isOk());
             }
             mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                    .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
+                    .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true,\"privacyAccepted\":true,\"privacyVersion\":\"1.0\"}"))
                     .andExpect(status().isNoContent());
             mvc.perform(get("/api/me/export").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                     .andExpect(status().isOk());

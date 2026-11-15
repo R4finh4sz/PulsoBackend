@@ -18,6 +18,10 @@ public record SelfRegistrationRequest(
         @NotNull @AssertTrue Boolean termsAccepted,
         @NotBlank @Pattern(regexp = "1\\.[0-9]+") String termsVersion,
         Role role,
-        @NotBlank @Size(max = 72) String confirmPassword) {
+        @NotBlank @Size(max = 72) String confirmPassword,
+        @Size(max = 100) String guardianName,
+        @Email @Size(max = 254) String guardianEmail,
+        Boolean privacyAccepted,
+        @Pattern(regexp = "1\\.[0-9]+") String privacyVersion) {
     @Override public String toString() { return "SelfRegistrationRequest[data=REDACTED]"; }
 }

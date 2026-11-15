@@ -61,7 +61,23 @@ public class SchoolUser {
  @CollectionTable(name="user_terms_acceptances", joinColumns=@JoinColumn(name="user_id"))
  @Column(name="version", nullable=false)
  private java.util.Set<Long> acceptedTermVersions = new java.util.HashSet<>();
+ @ElementCollection
+ @CollectionTable(name="user_privacy_acceptances", joinColumns=@JoinColumn(name="user_id"))
+ @Column(name="version", nullable=false)
+ private java.util.Set<Integer> acceptedPrivacyVersions = new java.util.HashSet<>();
+ @ElementCollection
+ @CollectionTable(name="user_student_term_acceptances", joinColumns=@JoinColumn(name="user_id"))
+ @Column(name="version", nullable=false)
+ private java.util.Set<Integer> acceptedStudentTermVersions = new java.util.HashSet<>();
+ public static boolean requiresStudentTerm(Role role, java.time.LocalDate birthDate, java.time.LocalDate today) {
+  return role == Role.STUDENT && (birthDate == null || birthDate.isAfter(today.minusYears(18)));
+ }
+ public boolean usesStudentTerm() {
+  return requiresStudentTerm(role, birthDate, java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo")));
+ }
  public java.util.List<String> getTermsAcceptedVersions() {
+  if (usesStudentTerm()) return acceptedStudentTermVersions.stream().sorted()
+          .map(version -> "1." + (version - 1)).toList();
   return acceptedTermVersions.stream().sorted().map(pulsoescolar_api.entity.terms.TermsVersion::label).toList();
  }
  @Enumerated(EnumType.STRING) @Column(nullable=false, length=40) private Role role;
