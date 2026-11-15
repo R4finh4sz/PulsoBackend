@@ -73,7 +73,8 @@ public class LegalDocumentService {
                 request.title().strip(), content, sha256(content), clock.instant(), actor);
         var saved = documents.saveAndFlush(document);
         if (type == LegalDocumentType.PRIVACY_POLICY) users.resetTermsAcceptance();
-        if (type == LegalDocumentType.STUDENT_TERM) users.resetTermsAcceptanceForRole(Role.STUDENT);
+        if (type == LegalDocumentType.STUDENT_TERM) users.resetStudentTermAcceptance(
+                java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("America/Sao_Paulo")).minusYears(18));
         return LegalDocumentResponse.from(saved);
     }
 

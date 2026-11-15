@@ -90,7 +90,9 @@ public class RegistrationReviewService {
                 guardians.requireConfirmedForApproval(request);
             }
             // Same lock order as registration: terms before persisting a user.
-            var term = request.getRole() == Role.STUDENT ? null : terms.lockCurrent();
+            boolean usesStudentTerm = SchoolUser.requiresStudentTerm(request.getRole(), request.getBirthDate(),
+                    java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("America/Sao_Paulo")));
+            var term = usesStudentTerm ? null : terms.lockCurrent();
             if (request.getRole() == Role.PEDAGOGICAL_COORDINATOR) {
                 coordinators.requireVacancy(request.getSchool().getId());
             }
@@ -106,15 +108,16 @@ public class RegistrationReviewService {
             user.setRole(request.getRole());
             user.setSchool(request.getSchool());
             user.setProfilePhoto(request.getProfilePhoto());
-            if (request.getRole() == Role.STUDENT) {
+            if (usesStudentTerm) {
                 if (request.getStudentTermVersion() != null) user.getAcceptedStudentTermVersions().add(request.getStudentTermVersion());
-            } else {
+            } else if (request.getTermsVersion() != null) {
                 user.getAcceptedTermVersions().add(request.getTermsVersion());
             }
             if (request.getPrivacyVersion() != null) user.getAcceptedPrivacyVersions().add(request.getPrivacyVersion());
-            user.setTermsAccepted(term != null && request.getTermsVersion().equals(term.getVersion())
+            user.setTermsAccepted(term != null && request.getTermsVersion() != null
+                    && request.getTermsVersion().equals(term.getVersion())
                     && privacy.satisfiedBy(request.getPrivacyVersion()));
-            if (request.getRole() == Role.STUDENT) {
+            if (usesStudentTerm) {
                 var studentTerm = legalDocuments.current(pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM).orElse(null);
                 user.setTermsAccepted(studentTerm != null && request.getStudentTermVersion() != null
                         && request.getStudentTermVersion() == studentTerm.getVersion()
@@ -150,9 +153,12 @@ public class RegistrationReviewService {
         if (request.getStatus() != RegistrationStatus.PENDING) {
             throw new BusinessConflictException("Esta solicitação já foi analisada.");
         }
-        var today = java.time.LocalDate.now(clock.withZone(java.time.ZoneId.of("America/Sao_Paulo")));
+        var today = java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("America/Sao_Paulo"));
         if (input.birthDate().isAfter(today.minusYears(15))) {
             throw new BusinessValidationException("É necessário ter pelo menos 15 anos.");
+        }
+        if (input.birthDate().isBefore(today.minusYears(90))) {
+            throw new BusinessValidationException("A idade máxima permitida é de 90 anos.");
         }
         request.setBirthDate(input.birthDate());
         request.setBirthDateCorrectedAt(clock.instant());

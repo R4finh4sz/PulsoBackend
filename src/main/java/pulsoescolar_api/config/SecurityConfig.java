@@ -20,7 +20,7 @@ import pulsoescolar_api.security.auth.SessionJwtAuthenticationConverter;
 @org.springframework.boot.context.properties.EnableConfigurationProperties(RateLimitProperties.class)
 public class SecurityConfig {
     @Bean CorsConfigurationSource corsConfigurationSource(
-            @Value("${app.cors.allowed-origins:http://localhost:3001,http://localhost:5173}") List<String> origins) {
+            @Value("${app.cors.allowed-origins:https://pulsoescolar.com.br}") List<String> origins) {
         var cors = new CorsConfiguration();
         cors.setAllowedOrigins(origins);
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

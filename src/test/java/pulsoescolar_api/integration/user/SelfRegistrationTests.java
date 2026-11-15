@@ -142,8 +142,8 @@ class SelfRegistrationTests {
         review(id, "coordinator", "APPROVED", 200);
         var u = users.findByEmail("person100@example.com").orElseThrow();
         assertEquals(school.getId(), u.getSchool().getId()); assertEquals(LocalDate.of(2000, 1, 1), u.getBirthDate());
-        assertNull(u.getClassroom()); assertTrue(u.isTermsAccepted()); assertEquals(java.util.Set.of(1), u.getAcceptedStudentTermVersions());
-        assertTrue(u.getAcceptedTermVersions().isEmpty());
+        assertNull(u.getClassroom()); assertTrue(u.isTermsAccepted()); assertEquals(java.util.Set.of(1L), u.getAcceptedTermVersions());
+        assertTrue(u.getAcceptedStudentTermVersions().isEmpty());
         assertNull(requests.findById(id).orElseThrow().getPasswordHash());
         assertTrue(authentication.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(u.getEmail(), "Chosen-password-123")).isAuthenticated());
         review(id, "coordinator", "APPROVED", 409);
@@ -304,13 +304,12 @@ class SelfRegistrationTests {
 
     @Test void termsUpdatedWhilePendingRequireNewAcceptance() throws Exception {
         long id = submit("140", Role.STUDENT, school.getId());
-        legalDocs.saveAndFlush(new pulsoescolar_api.entity.legal.LegalDocument(
-                pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM, 2, "Novo termo estudantil", "Novo conteúdo",
-                "hash", java.time.Instant.now(), users.findByEmail("admin@test.com").orElseThrow()));
+        var t = terms.lockCurrent(); t.setVersion(2); t.setTitle("Termos 2"); t.setContent("Novo conteúdo"); terms.saveAndFlush(t);
+        versions.saveAndFlush(new TermsVersion(2L, "Termos 2", "Novo conteúdo"));
         review(id, "coordinator", "APPROVED", 200);
         var u = users.findByEmail("person140@example.com").orElseThrow();
-        assertFalse(u.isTermsAccepted()); assertEquals(java.util.Set.of(1), u.getAcceptedStudentTermVersions());
-        assertTrue(u.getAcceptedTermVersions().isEmpty());
+        assertFalse(u.isTermsAccepted()); assertEquals(java.util.Set.of(1L), u.getAcceptedTermVersions());
+        assertTrue(u.getAcceptedStudentTermVersions().isEmpty());
     }
 
     @Test void accountDeletionAlsoRemovesNewPersonalDataAndRegistrationCopy() throws Exception {

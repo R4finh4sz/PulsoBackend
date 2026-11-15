@@ -205,6 +205,29 @@ class LegalDocumentTests {
                 .content(consent.replace("\"version\":\"1.0\"", "\"version\":\"1.1\""))).andExpect(status().isNoContent());
     }
 
+    @Test void adultStudentFollowsGeneralTermsAndMeExposesTheAcceptanceState() throws Exception {
+        publish("POST", "student-term", BODY, "admin", "ADMIN", 201);
+        publish("POST", "privacy-policy", BODY, "admin", "ADMIN", 201);
+        var adult = actor("adult", Role.STUDENT, school);
+        adult.setBirthDate(java.time.LocalDate.of(1990, 1, 1)); users.saveAndFlush(adult);
+        var asAdult = user("adult@test.com").roles("STUDENT");
+        String consent = "{\"version\":\"1.0\",\"termsAccepted\":true,\"privacyAccepted\":true,\"privacyVersion\":\"1.0\"}";
+        mvc.perform(post("/api/terms/accept").with(asAdult).contentType("application/json").content(consent))
+                .andExpect(status().isNoContent());
+        adult = users.findById(adult.getId()).orElseThrow();
+        assertEquals(java.util.Set.of(1L), adult.getAcceptedTermVersions());
+        assertTrue(adult.getAcceptedStudentTermVersions().isEmpty());
+        mvc.perform(get("/api/me").with(asAdult)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.birthDate").value("1990-01-01"))
+                .andExpect(jsonPath("$.termsAccepted").value(true))
+                .andExpect(jsonPath("$.termsAcceptedVersions[0]").value("1.0"));
+        publish("PUT", "student-term", BODY_V2, "admin", "ADMIN", 200);
+        assertTrue(users.findById(adult.getId()).orElseThrow().isTermsAccepted());
+        mvc.perform(put("/api/terms").with(user("admin@test.com").roles("ADMIN"))
+                .contentType("application/json").content(BODY_V2)).andExpect(status().isOk());
+        assertFalse(users.findById(adult.getId()).orElseThrow().isTermsAccepted());
+    }
+
     @Test void registrationRequiresAcceptingTheCurrentPrivacyPolicyAndApprovalKeepsIt() throws Exception {
         publish("POST", "privacy-policy", BODY, "admin", "ADMIN", 201);
         register("", 400);
