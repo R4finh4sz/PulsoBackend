@@ -36,10 +36,14 @@ class AuthMailTests {
     @MockitoBean Emails sender;
     MockMvc mvc;
     Long schoolId;
+    @Autowired pulsoescolar_api.repository.agreement.SchoolDataAgreementRepository agreements;
+    @Autowired pulsoescolar_api.repository.legal.LegalDocumentRepository legalDocs;
+    @org.junit.jupiter.api.AfterEach void cleanAgreements() { agreements.deleteAll(); }
 
     @BeforeEach void setup() {
         invitations.deleteAll();
         requests.deleteAll();
+        agreements.deleteAll();
         users.deleteAll();
         schools.deleteAll();
         var school = new pulsoescolar_api.entity.school.School();
@@ -50,6 +54,11 @@ class AuthMailTests {
         coordinator.setFullName("Coordinator"); coordinator.setRa("coordinator"); coordinator.setEmail("coordinator@example.com");
         coordinator.setRole(Role.PEDAGOGICAL_COORDINATOR); coordinator.setSchool(school);
         coordinator.setPasswordHash(encoder.encode("coordinator-password-123")); users.saveAndFlush(coordinator);
+        pulsoescolar_api.integration.support.AgreementFixture.accept(legalDocs, agreements, school, coordinator);
+        pulsoescolar_api.integration.support.AgreementFixture.publish(legalDocs,
+                pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM, coordinator);
+        pulsoescolar_api.integration.support.AgreementFixture.publish(legalDocs,
+                pulsoescolar_api.entity.legal.LegalDocumentType.PRIVACY_POLICY, coordinator);
         var term = terms.findById(1L).orElseThrow();
         term.setVersion(1); term.setTitle("Terms"); term.setContent("Published terms"); terms.saveAndFlush(term);
         if (!versions.existsById(1L)) versions.saveAndFlush(new pulsoescolar_api.entity.terms.TermsVersion(1L, "Terms", "Published terms"));
@@ -59,7 +68,7 @@ class AuthMailTests {
     String registration(String name) {
         return """
                 {"name":"%s User","birthDate":"2000-01-01","ra":"%d","email":"%s@example.com",
-                 "schoolId":%d,"password":"Chosen-password-123","confirmPassword":"Chosen-password-123","termsAccepted":true,"termsVersion":"1.0"}
+                 "schoolId":%d,"password":"Chosen-password-123","confirmPassword":"Chosen-password-123","termsAccepted":true,"termsVersion":"1.0","privacyAccepted":true,"privacyVersion":"1.0"}
                 """.formatted(name, Math.abs((long) name.hashCode()), name, schoolId);
     }
 
@@ -106,7 +115,7 @@ class AuthMailTests {
         long requestId = requests.findAll().getFirst().getId();
         mvc.perform(patch("/api/registration-requests/" + requestId)
                         .with(user("coordinator@example.com").roles("PEDAGOGICAL_COORDINATOR"))
-                        .contentType("application/json").content("{\"status\":\"APPROVED\"}"))
+                        .contentType("application/json").content("{\"status\":\"APPROVED\",\"identityChecked\":true}"))
                 .andExpect(status().isOk());
         verify(sender, timeout(3000)).send(any(CreateEmailOptions.class));
         clearInvocations(sender);

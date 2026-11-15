@@ -56,6 +56,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/admin/metrics").hasRole("ADMIN")
                         .requestMatchers("/api/schools/me/metrics", "/api/schools/me/metrics/**").hasRole("PEDAGOGICAL_COORDINATOR")
+                        .requestMatchers("/api/schools/me/data-agreement", "/api/schools/me/data-agreement/**").hasRole("PEDAGOGICAL_COORDINATOR")
+                        .requestMatchers(HttpMethod.GET, "/api/privacy-policy", "/api/privacy-policy/history",
+                                "/api/guardian-term", "/api/guardian-term/history",
+                                "/api/student-term", "/api/student-term/history").permitAll()
+                        .requestMatchers("/api/privacy-policy", "/api/guardian-term", "/api/student-term", "/api/data-agreement",
+                                "/api/data-agreement/history").hasRole("ADMIN")
                         .requestMatchers("/actuator/**").denyAll()
                         .requestMatchers(HttpMethod.POST, "/api/faqs").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/faqs/*").hasRole("ADMIN")
@@ -68,6 +74,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/invitations/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/invitations/*/verify", "/api/invitations/*/resend", "/api/invitations/*/complete").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/guardian-invitations/*", "/api/guardian-corrections/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/guardian-invitations/*/decision", "/api/guardian-corrections/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/schools/search", "/api/terms").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/me", "/api/terms/history", "/api/terms/accepted")

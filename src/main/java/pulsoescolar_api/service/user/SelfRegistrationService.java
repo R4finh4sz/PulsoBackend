@@ -16,10 +16,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.user.*;
-import pulsoescolar_api.entity.terms.TermsVersion;
 import pulsoescolar_api.entity.user.*;
 import pulsoescolar_api.repository.school.SchoolRepository;
-import pulsoescolar_api.repository.terms.TermsRepository;
 import pulsoescolar_api.repository.user.*;
 
 @Service
@@ -28,11 +26,13 @@ public class SelfRegistrationService {
     private final RegistrationRepository requests;
     private final UserRepository users;
     private final SchoolRepository schools;
-    private final TermsRepository terms;
+    private final pulsoescolar_api.service.legal.LegalDocumentService legalDocuments;
     private final PasswordEncoder passwords;
     private final Validator validator;
     private final Clock clock;
     private final pulsoescolar_api.security.user.PasswordPolicy passwordPolicy;
+    private final pulsoescolar_api.service.guardian.GuardianConfirmationService guardians;
+    private final pulsoescolar_api.service.legal.PrivacyPolicyAcceptanceService privacy;
 
     @Transactional
     public RegistrationReceipt register(SelfRegistrationRequest input, Role role, byte[] photo) {
@@ -54,6 +54,7 @@ public class SelfRegistrationService {
         }
         String email = input.email().strip().toLowerCase(Locale.ROOT);
         String ra = input.ra().strip();
+        guardians.requireValidContactIfMinor(input.birthDate(), email, input.guardianName(), input.guardianEmail());
         if (users.existsByEmailOrRa(email, ra)) {
             throw new BusinessConflictException("Já existe uma conta com este e-mail ou RA. Entre na sua conta ou recupere sua senha.");
         }
@@ -63,15 +64,13 @@ public class SelfRegistrationService {
         var school = schools.findById(input.schoolId())
                 .orElseThrow(() -> new ResourceNotFoundException("Escola não encontrada."));
         school.requireActive();
-        // Share the publication lock so an outdated acceptance cannot race a new terms version.
-        var term = terms.lockCurrent();
-        if (term == null || term.getVersion() == 0) {
-            throw new ResourceNotFoundException("Nenhum termo publicado.");
-        }
-        if (!TermsVersion.label(term.getVersion()).equals(input.termsVersion())) {
+        var term = legalDocuments.lockCurrentForAcceptance(pulsoescolar_api.entity.legal.LegalDocumentType.STUDENT_TERM);
+        if (!pulsoescolar_api.service.legal.LegalDocumentService.label(term.getVersion()).equals(input.termsVersion())) {
             throw new TermsVersionChangedException();
         }
+        Integer privacyVersion = privacy.resolveRequired(input.privacyAccepted(), input.privacyVersion());
         var request = new RegistrationRequest();
+        request.setPrivacyVersion(privacyVersion);
         request.setFullName(input.name().strip());
         request.setBirthDate(input.birthDate());
         request.setRa(ra);
@@ -79,11 +78,12 @@ public class SelfRegistrationService {
         request.setPasswordHash(passwords.encode(input.password()));
         request.setRole(role);
         request.setSchool(school);
-        request.setTermsVersion(term.getVersion());
+        request.setStudentTermVersion(term.getVersion());
         request.setProfilePhoto(photo);
         request.setStatus(RegistrationStatus.PENDING);
         request.setRequestedAt(clock.instant());
         requests.saveAndFlush(request);
+        guardians.openIfRequired(request, input.guardianName(), input.guardianEmail());
         return new RegistrationReceipt(request.getId(), request.getStatus());
     }
 }
