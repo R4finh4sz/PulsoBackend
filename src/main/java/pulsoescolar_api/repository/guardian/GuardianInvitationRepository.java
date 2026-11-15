@@ -12,6 +12,9 @@ public interface GuardianInvitationRepository extends JpaRepository<GuardianInvi
     @Query("select i from GuardianInvitation i join fetch i.confirmation where i.tokenHash = :hash")
     Optional<GuardianInvitation> findForDecision(@Param("hash") String hash);
 
+    @Query("select i from GuardianInvitation i join fetch i.confirmation where i.tokenHash = :hash")
+    Optional<GuardianInvitation> findForView(@Param("hash") String hash);
+
     Optional<GuardianInvitation> findFirstByConfirmationIdOrderByIdDesc(Long confirmationId);
 
     void deleteByConfirmationId(Long confirmationId);
