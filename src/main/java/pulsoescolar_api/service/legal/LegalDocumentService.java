@@ -20,7 +20,6 @@ import pulsoescolar_api.exception.common.ResourceNotFoundException;
 import pulsoescolar_api.repository.legal.LegalDocumentRepository;
 import pulsoescolar_api.security.CurrentUser;
 
-/** Publishes and reads the versioned legal documents (privacy policy, guardian term, school data agreement). */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -31,7 +30,6 @@ public class LegalDocumentService {
     private final Clock clock;
     private final pulsoescolar_api.repository.terms.TermsRepository terms;
 
-    /** Same labelling as the platform terms: internal version 1 is shown as "1.0", 2 as "1.1". */
     public static String label(int version) { return "1." + (version - 1); }
 
     public Optional<LegalDocument> current(LegalDocumentType type) {
@@ -44,7 +42,6 @@ public class LegalDocumentService {
     }
 
     public LegalDocument lockCurrentForAcceptance(LegalDocumentType type) {
-        // Serialize publication and acceptance even though document versions are immutable rows.
         terms.lockCurrent();
         return requireCurrent(type);
     }
@@ -57,7 +54,6 @@ public class LegalDocumentService {
         return documents.findByTypeOrderByVersionAsc(type).stream().map(LegalDocumentResponse::from).toList();
     }
 
-    /** POST creates the first version; PUT publishes a new one. Older versions stay on record. */
     @Transactional
     public LegalDocumentResponse publish(LegalDocumentType type, TermsRequest request, boolean create) {
         var actor = currentUser.get();
@@ -76,7 +72,6 @@ public class LegalDocumentService {
         var document = new LegalDocument(type, latest.map(value -> value.getVersion() + 1).orElse(1),
                 request.title().strip(), content, sha256(content), clock.instant(), actor);
         var saved = documents.saveAndFlush(document);
-        // Like the terms of use, a new privacy policy has to be accepted again by everyone.
         if (type == LegalDocumentType.PRIVACY_POLICY) users.resetTermsAcceptance();
         if (type == LegalDocumentType.STUDENT_TERM) users.resetTermsAcceptanceForRole(Role.STUDENT);
         return LegalDocumentResponse.from(saved);

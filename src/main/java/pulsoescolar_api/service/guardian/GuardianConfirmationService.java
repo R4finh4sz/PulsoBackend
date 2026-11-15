@@ -28,10 +28,6 @@ import pulsoescolar_api.security.user.RegistrationAccessPolicy;
 import pulsoescolar_api.service.mail.AccountMailMessages;
 import pulsoescolar_api.service.user.InvitationTokenService;
 
-/**
- * Guardian confirmation flow of minor students. The student only informs the contact; the school checks it
- * against its records before any invitation is sent, and a divergence goes back to the student by e-mail.
- */
 @Service
 @RequiredArgsConstructor
 public class GuardianConfirmationService {
@@ -54,12 +50,11 @@ public class GuardianConfirmationService {
     @Value("${app.guardian.correction-base-url:https://pulsoescolar.com.br/guardian-correction}")
     private String correctionBaseUrl;
 
-    /** RN01: the guardian is required while the student is under 18, computed from the birth date. */
+
     public boolean requiresGuardian(LocalDate birthDate) {
         return birthDate != null && birthDate.isAfter(LocalDate.now(clock.withZone(ZONE)).minusYears(ADULT_AGE));
     }
 
-    /** Fails fast, before the registration is persisted, when a minor has no valid guardian contact. */
     public void requireValidContactIfMinor(LocalDate birthDate, String studentEmail, String name, String email) {
         if (requiresGuardian(birthDate)) validContact(studentEmail, name, email);
     }
@@ -111,8 +106,6 @@ public class GuardianConfirmationService {
         issueInvitation(confirmation);
         return response(confirmation);
     }
-
-    /** RN07: a divergent contact never receives an invitation; the student is asked to correct it by e-mail. */
     @Transactional
     public GuardianConfirmationResponse requestCorrection(Long id, RequestGuardianCorrectionRequest input) {
         var confirmation = lock(id);
@@ -142,7 +135,6 @@ public class GuardianConfirmationService {
         return response(confirmation);
     }
 
-    /** RN12: a new invitation invalidates the previous ones and the number of resends is limited. */
     @Transactional
     public GuardianConfirmationResponse resend(Long id) {
         var confirmation = lock(id);
@@ -168,7 +160,6 @@ public class GuardianConfirmationService {
                 confirmation.getCorrectionReason(), confirmation.getCorrectionTokenExpiresAt());
     }
 
-    /** RN19: a new contact needs a new school check and a new invitation. */
     @Transactional
     public GuardianCorrectionReceipt applyCorrection(String token, CorrectGuardianRequest input) {
         var confirmation = byCorrectionToken(token);
@@ -189,12 +180,6 @@ public class GuardianConfirmationService {
         confirmation.setUpdatedAt(now);
         return new GuardianCorrectionReceipt(confirmation.getStatus());
     }
-
-    /**
-     * The school corrected the birth date. A student who is now an adult no longer needs the process (unless the
-     * guardian already confirmed); one who is now a minor gets it opened right away, and is asked by e-mail to
-     * inform the guardian, since the registration did not carry that contact.
-     */
     @Transactional
     public void reconcileAfterBirthDateChange(RegistrationRequest registration) {
         var existing = confirmations.findByRegistrationId(registration.getId());
@@ -222,8 +207,6 @@ public class GuardianConfirmationService {
         events.publishEvent(AccountMailMessages.guardianCorrection(registration.getEmail(),
                 confirmation.getCorrectionReason(), correctionBaseUrl + "/" + token));
     }
-
-    /** RN20: guardian confirmation is required for minors, but never replaces the institutional approval. */
     @Transactional(readOnly = true)
     public void requireConfirmedForApproval(RegistrationRequest registration) {
         if (!requiresGuardian(registration.getBirthDate())) return;
@@ -250,7 +233,7 @@ public class GuardianConfirmationService {
         var invitation = new GuardianInvitation();
         invitation.setConfirmation(confirmation);
         invitation.setTokenHash(tokens.hash(token));
-        invitation.setEmail(confirmation.getGuardianEmail()); // RN09: only the e-mail the school checked.
+        invitation.setEmail(confirmation.getGuardianEmail());
         invitation.setCreatedAt(now);
         invitation.setExpiresAt(now.plus(INVITATION_TTL));
         invitations.save(invitation);

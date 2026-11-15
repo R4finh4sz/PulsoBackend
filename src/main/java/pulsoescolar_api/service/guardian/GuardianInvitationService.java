@@ -15,7 +15,6 @@ import pulsoescolar_api.repository.guardian.GuardianInvitationRepository;
 import pulsoescolar_api.service.legal.LegalDocumentService;
 import pulsoescolar_api.service.user.InvitationTokenService;
 
-/** Public side of the flow: the guardian reads the terms and records an express decision on the link (RN14). */
 @Service
 @RequiredArgsConstructor
 public class GuardianInvitationService {
@@ -61,7 +60,7 @@ public class GuardianInvitationService {
             invitation.setTermsVersion((long) term.getVersion());
             confirmation.setStatus(GuardianStatus.CONFIRMED);
         } else {
-            // RN17: declining or not recognizing the student keeps the registration restricted, with no new invitations.
+
             confirmation.setStatus(GuardianStatus.DECLINED);
         }
         invitation.setDecision(input.decision());
@@ -70,7 +69,6 @@ public class GuardianInvitationService {
         return new GuardianDecisionReceipt(input.decision(), now);
     }
 
-    /** Unknown, used, replaced and expired links are indistinguishable to avoid leaking their state. */
     private GuardianInvitation open(String token) {
         if (token == null || token.isBlank() || token.length() > 200) throw new InvitationUnavailableException();
         var invitation = invitations.findForDecision(tokens.hash(token)).orElseThrow(InvitationUnavailableException::new);

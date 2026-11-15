@@ -12,7 +12,6 @@ import pulsoescolar_api.repository.agreement.SchoolDataAgreementRepository;
 import pulsoescolar_api.security.CurrentUser;
 import pulsoescolar_api.service.legal.LegalDocumentService;
 
-/** The coordinator reads and accepts, for the school, the agreement the admin published. */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -47,7 +46,6 @@ public class SchoolDataAgreementService {
         return current();
     }
 
-    /** Blocks approval of student/teacher registrations until the school accepted the current agreement. */
     public void requireAccepted(Long schoolId) {
         var document = legalDocuments.current(LegalDocumentType.SCHOOL_DATA_AGREEMENT).orElseThrow(
                 () -> new BusinessConflictException(

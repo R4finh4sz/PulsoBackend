@@ -7,20 +7,12 @@ import pulsoescolar_api.entity.legal.LegalDocumentType;
 import pulsoescolar_api.exception.common.BusinessConflictException;
 import pulsoescolar_api.exception.common.BusinessValidationException;
 
-/**
- * Validates acceptance of the policy alongside the document applicable to each role.
- * The optional resolver is kept for administrator flows; school roles use resolveRequired.
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PrivacyPolicyAcceptanceService {
     private final LegalDocumentService legalDocuments;
 
-    /**
-     * Validates what the user sent and returns the accepted version, or null when no policy is published.
-     * Requires an explicit acceptance of exactly the current version.
-     */
     public Integer resolve(Boolean accepted, String versionLabel) {
         var policy = legalDocuments.current(LegalDocumentType.PRIVACY_POLICY).orElse(null);
         if (policy == null) return null;
@@ -41,8 +33,6 @@ public class PrivacyPolicyAcceptanceService {
         }
         return policy.getVersion();
     }
-
-    /** True when no policy is published or the given accepted version is the current one. */
     public boolean satisfiedBy(Integer acceptedVersion) {
         var policy = legalDocuments.current(LegalDocumentType.PRIVACY_POLICY).orElse(null);
         return policy == null || acceptedVersion != null && acceptedVersion == policy.getVersion();
