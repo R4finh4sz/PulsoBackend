@@ -72,6 +72,7 @@ public class AccountDeletionService {
                     .atStartOfDay(RETENTION_ZONE).toInstant();
             return !now.isBefore(deadline);
         }
+        // Escola desativada não conta como vínculo ativo (getSchool() retorna null e schools é filtrado por isActive).
         boolean linked = user.getRole() == Role.STUDENT ? user.getSchool() != null
                 : user.getSchool() != null || user.getSchools().stream().anyMatch(s -> s.isActive());
         var activity = user.getLastAuthenticatedAt() == null ? user.getCreatedAt() : user.getLastAuthenticatedAt();

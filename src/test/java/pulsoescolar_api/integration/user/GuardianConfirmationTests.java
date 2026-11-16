@@ -134,6 +134,13 @@ class GuardianConfirmationTests {
         assertEquals(0, events.stream(NotificationMailRequested.class).count(), "nothing is sent before the school check");
     }
 
+    @Test void minorWithoutGuardianRecordCannotBeApproved() throws Exception {
+        long registration = register("109");
+        confirmations.delete(confirmations.findByRegistrationId(registration).orElseThrow());
+        confirmations.flush();
+        review(registration, "coordinator", "APPROVED", 409);
+    }
+
     @Test void schoolCheckSendsInvitationAndGuardianConfirmsOnceWithMinimumData() throws Exception {
         long registration = register("110");
         long id = confirmationId(registration);

@@ -210,11 +210,11 @@ public class GuardianConfirmationService {
     @Transactional(readOnly = true)
     public void requireConfirmedForApproval(RegistrationRequest registration) {
         if (!requiresGuardian(registration.getBirthDate())) return;
-        confirmations.findByRegistrationId(registration.getId())
-                .filter(value -> value.getStatus() != GuardianStatus.CONFIRMED)
-                .ifPresent(value -> {
-                    throw new BusinessConflictException("Aguardando a confirmação do responsável legal do aluno.");
-                });
+        boolean confirmed = confirmations.findByRegistrationId(registration.getId())
+                .map(value -> value.getStatus() == GuardianStatus.CONFIRMED).orElse(false);
+        if (!confirmed) {
+            throw new BusinessConflictException("Aguardando a confirmação do responsável legal do aluno.");
+        }
     }
 
     @Transactional

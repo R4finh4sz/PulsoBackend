@@ -37,6 +37,13 @@ class AccountRetentionTest {
         assertThat(AccountDeletionService.retentionDue(user, null, Instant.parse("2027-01-01T03:00:00Z"))).isFalse();
     }
 
+    @Test void inactiveSchoolMembershipDoesNotProtectInactiveAccount() {
+        var user = account(Role.TEACHER);
+        var school = new School(); school.setActive(false);
+        user.getSchools().add(school);
+        assertThat(AccountDeletionService.retentionDue(user, null, Instant.parse("2027-01-01T03:00:00Z"))).isTrue();
+    }
+
     @Test void graduationWaitsUntilJanuary31InSaoPauloEvenWithRecentActivity() {
         var user = account(Role.STUDENT);
         var graduation = Instant.parse("2026-12-15T12:00:00Z");
