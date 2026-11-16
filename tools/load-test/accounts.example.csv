@@ -1,0 +1,5 @@
+# role,email,password  (contas FICTÍCIAS, sem 2FA, já aprovadas e vinculadas a turma com atividades)
+role,email,password
+TEACHER,professor.carga01@exemplo.invalid,TroqueEstaSenha1
+STUDENT,aluno.carga0001@exemplo.invalid,TroqueEstaSenha1
+STUDENT,aluno.carga0002@exemplo.invalid,TroqueEstaSenha1

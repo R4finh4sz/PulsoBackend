@@ -10,10 +10,10 @@ import pulsoescolar_api.exception.common.BusinessValidationException;
 @Component
 public class SchoolBimesterCalendar {
     private static final ZoneId ZONE = ZoneId.of("America/Sao_Paulo");
-    private static final List<MonthDay> STARTS = List.of(MonthDay.of(2, 1), MonthDay.of(4, 1),
-            MonthDay.of(7, 1), MonthDay.of(10, 1));
-    private static final List<MonthDay> ENDS = List.of(MonthDay.of(4, 30), MonthDay.of(7, 30),
-            MonthDay.of(10, 30), MonthDay.of(12, 30));
+    private static final List<MonthDay> STARTS = List.of(MonthDay.of(3, 1), MonthDay.of(5, 1),
+            MonthDay.of(8, 1), MonthDay.of(10, 1));
+    private static final List<MonthDay> ENDS = List.of(MonthDay.of(4, 30), MonthDay.of(6, 30),
+            MonthDay.of(9, 30), MonthDay.of(11, 30));
 
     public record Period(Instant start, Instant endExclusive) {}
 

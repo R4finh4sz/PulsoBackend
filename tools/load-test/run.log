@@ -1,0 +1,51 @@
+Destino https://api.pulsoescolar.com.br | contas: 95 alunos, 5 professores | estágios: 25u/120s → 50u/120s → 100u/180s
+Duração da carga: 420s. Login pacing: 8/min → ~13 min para 100 contas; tokens duram 50 min (máx. ~360 contas com token válido durante todo o teste).
+Autenticando 100 contas (pode levar ~13 min)...
+  20 ok, 0 falhas  40 ok, 0 falhas  60 ok, 0 falhas  80 ok, 0 falhas  100 ok, 0 falhas
+Login: 100 ok, 0 falhas em 893s
+Estágio 1/3 concluído (25 VUs, 1268 requisições)   Estágio 2/3 concluído (50 VUs, 3982 requisições)   Estágio 3/3 concluído (100 VUs, 12504 requisições)   
+Carga encerrada; gerando relatório...
+# Relatório do teste de carga
+
+## Ambiente
+- Destino: https://api.pulsoescolar.com.br
+- Início: 2026-11-15T22:29:35.842Z
+- Gerador de carga: Windows_NT 10.0.26200 12 CPU 16 GB, Node v24.21.0
+- Contas: 95 alunos e 5 professores autenticados (de 100 no arquivo); falhas de login: 0 
+- Think time: 1000–3000 ms; razão de professores: 0.05
+- Métricas do servidor (CPU, memória, conexões do banco): **não coletadas por este script** (sem acesso); preencher manualmente a partir do painel da hospedagem, se disponível.
+
+## Resultado por estágio
+
+| Estágio | Usuários simultâneos | Duração (s) | Requisições | req/s | Mediana 2xx (ms) | P95 2xx (ms) | 2xx | 429 | Rejeição esperada (4xx) | Falhas (5xx/rede/outros 4xx) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 25 (alvo 25) | 122 | 1268 | 10.4 | 452 | 532 | 45.3% | 50.7% | 4.0% | 0.0% |
+| 2 | 50 (alvo 50) | 122 | 2714 | 22.3 | 450 | 567 | 32.2% | 64.7% | 3.1% | 0.0% |
+| 3 | 100 (alvo 100) | 182 | 8622 | 47.4 | 702 | 956 | 7.6% | 91.6% | 0.8% | 0.0% |
+
+## Total
+
+| Requisições | req/s | Mediana 2xx (ms) | P95 2xx (ms) | 2xx | 429 | Rejeição esperada (4xx) | Falhas (5xx/rede/outros 4xx) |
+|---|---|---|---|---|---|---|---|
+| 12604 | 29.4 | 474 | 863 | 16.6% | 81.7% | 1.6% | 0.0% |
+
+## Por cenário (todos os estágios)
+
+| Cenário | Requisições | req/s | Mediana 2xx (ms) | P95 2xx (ms) | 2xx | 429 | Rejeição esperada (4xx) | Falhas (5xx/rede/outros 4xx) |
+|---|---|---|---|---|---|---|---|---|
+| student_activities | 6102 | 14.3 | 505 | 894 | 17.4% | 82.6% | 0.0% | 0.0% |
+| teacher_report | 526 | 1.2 | 265 | 665 | 15.0% | 85.0% | 0.0% | 0.0% |
+| quiz_open | 2729 | 6.4 | 355 | 758 | 19.9% | 80.1% | 0.0% | 0.0% |
+| submit_first | 1865 | 4.4 | 448 | 798 | 20.5% | 79.5% | 0.0% | 0.0% |
+| teacher_activities | 215 | 0.5 | 979 | 1616 | 15.8% | 84.2% | 0.0% | 0.0% |
+| submit_duplicate | 1167 | 2.7 | — | — | 0.0% | 82.3% | 17.7% | 0.0% |
+
+## Códigos HTTP
+- 200: 1716
+- 201: 382
+- 409: 206
+- 429: 10300
+
+> Mediana e P95 calculados apenas sobre respostas 2xx. 429 (limite de requisições) e rejeições esperadas da regra de entrega única (`submit_first`/`submit_duplicate` com 4xx) são separados das falhas.
+
+Arquivos em results\2026-11-15T22-51-36-374Z

@@ -9,5 +9,8 @@ public interface SubjectRepository extends JpaRepository<Subject,Long> {
  @org.springframework.data.jpa.repository.Query("select count(s) > 0 from Subject s left join s.collaborators c "
          + "where s.classroom.id = :classroomId and (s.teacher.id = :teacherId or c.id = :teacherId)")
  boolean hasTeacherInClassroom(Long classroomId, Long teacherId);
+ @org.springframework.data.jpa.repository.Query("select count(s) > 0 from Subject s left join s.collaborators c "
+         + "where s.classroom.school.id = :schoolId and s.classroom.deletedAt is null and (s.teacher.id = :teacherId or c.id = :teacherId)")
+ boolean hasTeacherInSchool(Long schoolId, Long teacherId);
  List<Subject> findByClassroomId(Long classroomId);
 }
