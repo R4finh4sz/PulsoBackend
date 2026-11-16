@@ -287,6 +287,15 @@ class AccountDeletionTests {
                 .contentType("application/json").content(body)).andExpect(status().isCreated());
         Long nextId = requests.findByRequesterIdOrderByRequestedAtDesc(coordinator.getId()).stream()
                 .filter(r -> r.getStatus() == DeletionStatus.PENDING).findFirst().orElseThrow().getId();
+        if (name.equals("coordinator")) {
+            // Coordenador vinculado a uma escola não pode ser excluído: aprovação é barrada.
+            mvc.perform(patch("/api/account-deletion-requests/" + nextId).with(user("admin@example.com"))
+                    .contentType("application/json").content("{\"status\":\"APPROVED\",\"reason\":\"OK\"}"))
+                    .andExpect(status().isConflict());
+            assertNull(coordinator.getDeletedAt());
+            assertTrue(sessions.existsById(session.getId()));
+            return;
+        }
         mvc.perform(patch("/api/account-deletion-requests/" + nextId).with(user("admin@example.com"))
                 .contentType("application/json").content("{\"status\":\"APPROVED\",\"reason\":\"OK\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.fullName").value("DeletedUser_" + coordinator.getId()));
