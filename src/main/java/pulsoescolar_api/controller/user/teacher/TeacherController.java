@@ -38,5 +38,4 @@ public class TeacherController {
     public UserResponse update(@PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
         return service.update(id, request);
     }
-
 }

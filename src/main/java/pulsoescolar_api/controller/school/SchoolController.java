@@ -13,6 +13,7 @@ import static org.springframework.http.HttpStatus.CREATED;
 @RequiredArgsConstructor
 public class SchoolController {
     private final SchoolService service;
+    private final pulsoescolar_api.service.user.teacher.TeacherService teachers;
 
     @PostMapping
     @ResponseStatus(CREATED)
@@ -45,5 +46,11 @@ public class SchoolController {
     public SchoolResponse updateCoordinator(@PathVariable Long id,
             @Valid @RequestBody UpdateSchoolCoordinatorRequest request) {
         return service.updateCoordinator(id, request);
+    }
+
+    @DeleteMapping("/{id}/users/{teacherId}")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void removeTeacher(@PathVariable Long id, @PathVariable Long teacherId) {
+        teachers.removeFromSchool(id, teacherId);
     }
 }

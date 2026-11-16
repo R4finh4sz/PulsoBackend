@@ -31,4 +31,10 @@ public class SubjectController {
         return service.updateSyllabus(classroomId, subjectId, request);
     }
 
+    @DeleteMapping("/{subjectId}/teachers/{teacherId}")
+    @ResponseStatus(NO_CONTENT)
+    public void removeTeacher(@PathVariable Long classroomId, @PathVariable Long subjectId,
+            @PathVariable Long teacherId) {
+        service.removeTeacher(classroomId, subjectId, teacherId);
+    }
 }

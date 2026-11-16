@@ -9,7 +9,8 @@ public class UserMapper {
     public UserResponse toResponse(SchoolUser user) {
         return new UserResponse(user.getId(), user.getFullName(), user.getRa(), user.getEmail(),
                 user.getRole(), user.getActiveClassroom() == null ? null : user.getActiveClassroom().getId(),
-                user.getSchool() == null ? null : user.getSchool().getId(), user.isSchoolUnavailable());
+                user.getSchool() == null ? null : user.getSchool().getId(), user.isSchoolUnavailable(),
+                null, null, null, user.isGraduated() ? "FORMADO" : null);
     }
 
     /** Resposta do próprio usuário: inclui a data de nascimento, usada para escolher os termos aplicáveis. */
@@ -18,6 +19,6 @@ public class UserMapper {
         return new UserResponse(base.id(), base.fullName(), base.ra(), base.email(), base.role(), base.classroomId(),
                 base.schoolId(), base.schoolUnavailable(), user.getBirthDate(),
                 user.getRole() == pulsoescolar_api.entity.user.Role.ADMIN || user.isTermsAccepted(),
-                user.getTermsAcceptedVersions());
+                user.getTermsAcceptedVersions(), base.status());
     }
 }

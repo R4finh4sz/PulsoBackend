@@ -89,6 +89,7 @@ public class ClassroomDeliberationService {
         for (var entry : deliberation.getEntries()) {
             var student = entry.getStudent();
             student.setClassroom(entry.getDestination());
+            if (request.action() == DeliberationAction.GRADUATE) student.setGraduatedAt(deliberation.getPerformedAt());
             if (entry.getDestination() != null) recipients.assignOpenActivities(student);
         }
         if (request.action() == DeliberationAction.GRADUATE) {

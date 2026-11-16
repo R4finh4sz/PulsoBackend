@@ -57,6 +57,31 @@ public class SubjectService {
         return mapper.toResponse(subjects.saveAndFlush(subject));
     }
 
+    @Transactional
+    public void removeTeacher(Long classroomId, Long subjectId, Long teacherId) {
+        var classroom = classrooms.findById(classroomId);
+        var user = currentUser.get();
+        if (user.getRole() != Role.PEDAGOGICAL_COORDINATOR || user.getSchool() == null) {
+            throw new AccessDeniedException("Esta operação exige um coordenador vinculado à escola.");
+        }
+        requireSchool(classroom, user);
+        var subject = subjects.findLockedById(subjectId)
+                .filter(s -> s.getClassroom().getId().equals(classroomId))
+                .orElseThrow(() -> new ResourceNotFoundException("Disciplina não encontrada nesta turma."));
+        if (!subject.hasTeacher(teacherId)) {
+            throw new ResourceNotFoundException("Professor não vinculado a esta disciplina.");
+        }
+        if (subject.getTeacher().getId().equals(teacherId)) {
+            var successor = subject.getCollaborators().stream().findFirst().orElseThrow(() ->
+                    new pulsoescolar_api.exception.common.BusinessConflictException(
+                            "A disciplina precisa de ao menos um professor responsável."));
+            subject.getCollaborators().remove(successor);
+            subject.setTeacher(successor);
+        } else {
+            subject.getCollaborators().removeIf(t -> t.getId().equals(teacherId));
+        }
+    }
+
     private void replaceTopics(Subject subject, List<CreateSubjectRequest.Topic> topics) {
         var titles = new java.util.HashSet<String>();
         subject.getTopics().clear();

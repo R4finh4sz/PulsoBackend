@@ -40,6 +40,12 @@ public class ApiExceptionHandler {
  public ProblemDetail verificationCooldown(VerificationCooldownException ex) {
   return ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
  }
+ @ExceptionHandler(pulsoescolar_api.exception.auth.LoginLockedException.class)
+ public ResponseEntity<ProblemDetail> loginLocked(pulsoescolar_api.exception.auth.LoginLockedException ex) {
+  return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+   .header(HttpHeaders.RETRY_AFTER, Long.toString(ex.getRetryAfterSeconds()))
+   .body(ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage()));
+ }
  @ExceptionHandler(InvitationUnavailableException.class)
  public ProblemDetail invitationUnavailable(InvitationUnavailableException ex) {
   return ProblemDetail.forStatusAndDetail(HttpStatus.GONE, ex.getMessage());

@@ -15,8 +15,8 @@ class SchoolBimesterCalendarTest {
     @ValueSource(ints = {1, 2025, 2026, 2027, 2028, 9999})
     void usesRequestedYearForEveryBimester(int year) {
         var zone = ZoneId.of("America/Sao_Paulo");
-        int[] startMonths = {2, 4, 7, 10};
-        int[] endMonths = {4, 7, 10, 12};
+        int[] startMonths = {3, 5, 8, 10};
+        int[] endMonths = {4, 6, 9, 11};
         for (int bimester = 1; bimester <= 4; bimester++) {
             var period = calendar.period(year, bimester);
             assertThat(period.start()).isEqualTo(LocalDate.of(year, startMonths[bimester - 1], 1)

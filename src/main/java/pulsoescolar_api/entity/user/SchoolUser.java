@@ -82,4 +82,10 @@ public class SchoolUser {
  }
  @Enumerated(EnumType.STRING) @Column(nullable=false, length=40) private Role role;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="classroom_id") private Classroom classroom;
+ @Column private java.time.Instant graduatedAt;
+ public void setClassroom(Classroom classroom) {
+  this.classroom = classroom;
+  if (classroom != null) graduatedAt = null;
+ }
+ public boolean isGraduated() { return role == Role.STUDENT && graduatedAt != null && classroom == null; }
 }
