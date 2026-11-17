@@ -3,7 +3,10 @@ package pulsoescolar_api.service.classroom;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.time.Clock;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
+import pulsoescolar_api.dto.classroom.ClassroomResponse;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -35,6 +38,9 @@ public class ClassroomDeliberationService {
     private final ActivityRecipientService recipients;
     private final EntityManager entityManager;
     private final Clock clock;
+    private final pulsoescolar_api.repository.classroom.ClassroomRepository classrooms;
+    private final pulsoescolar_api.mapper.classroom.ClassroomMapper mapper;
+    private static final int MAX_GRADE = 3;
 
     /** Aplica tudo ou nada: qualquer validação que falhar desfaz a transação inteira. */
     @Transactional
@@ -82,6 +88,7 @@ public class ClassroomDeliberationService {
                 }
             } else {
                 destination = destination(item, origin, destinations);
+                requireGradeProgression(origin, destination, item.result());
             }
             deliberation.getEntries().add(new DeliberationEntry(enrolled.get(item.studentId()), item.result(), destination));
         }
@@ -90,7 +97,9 @@ public class ClassroomDeliberationService {
             var student = entry.getStudent();
             student.setClassroom(entry.getDestination());
             if (request.action() == DeliberationAction.GRADUATE) student.setGraduatedAt(deliberation.getPerformedAt());
-            if (entry.getDestination() != null) recipients.assignOpenActivities(student);
+            if (entry.getDestination() != null && !entry.getDestination().getId().equals(origin.getId())) {
+                recipients.assignOpenActivities(student);
+            }
         }
         if (request.action() == DeliberationAction.GRADUATE) {
             var now = clock.instant();
@@ -100,14 +109,47 @@ public class ClassroomDeliberationService {
         return DeliberationResponse.from(deliberations.saveAndFlush(deliberation));
     }
 
+    /** Aprovado vai para a série seguinte; reprovado permanece na mesma série (nunca volta a uma anterior). */
+    private void requireGradeProgression(Classroom origin, Classroom destination, DeliberationResult result) {
+        var from = origin.resolveGradeLevel();
+        var to = destination.resolveGradeLevel();
+        if (from == null || to == null) return;
+        if (result == DeliberationResult.APPROVED) {
+            if (from >= MAX_GRADE) {
+                throw new BusinessValidationException("Alunos aprovados do " + MAX_GRADE + "º ano devem ser formados.");
+            }
+            if (to != from + 1) {
+                throw new BusinessValidationException("Aluno aprovado só pode ir para uma turma do " + (from + 1) + "º ano.");
+            }
+        } else if (to != from) {
+            throw new BusinessValidationException("Aluno reprovado só pode ficar no " + from + "º ano.");
+        }
+    }
+
+    /** Turmas que o coordenador pode escolher como destino para o resultado informado. */
+    @Transactional(readOnly = true)
+    public List<ClassroomResponse> destinations(Long classroomId, DeliberationResult result) {
+        var actor = currentUser.get();
+        accessPolicy.requireCoordinator(actor);
+        var origin = lookup.findById(classroomId);
+        classroomPolicy.requireAccess(origin, actor);
+        if (origin.getSchool() == null) return List.of();
+        var from = origin.resolveGradeLevel();
+        return classrooms.findBySchoolId(origin.getSchool().getId()).stream()
+                .filter(room -> room.getDeletedAt() == null)
+                .filter(room -> from == null || room.resolveGradeLevel() == null
+                        || room.resolveGradeLevel().equals(result == DeliberationResult.APPROVED ? from + 1 : from))
+                .filter(room -> result != DeliberationResult.APPROVED || !room.getId().equals(origin.getId()))
+                .sorted(Comparator.comparing(Classroom::getName).thenComparing(Classroom::getIdentifier))
+                .map(mapper::toResponse).toList();
+    }
+
     private Classroom destination(DeliberateClassroomRequest.StudentResult item, Classroom origin,
                                   Map<Long, Classroom> cache) {
         if (item.destinationClassroomId() == null) {
             throw new BusinessValidationException("Informe a turma de destino do aluno " + item.studentId() + ".");
         }
-        if (item.destinationClassroomId().equals(origin.getId())) {
-            throw new BusinessValidationException("A turma de destino deve ser diferente da turma de origem.");
-        }
+        if (item.destinationClassroomId().equals(origin.getId())) return origin;
         return cache.computeIfAbsent(item.destinationClassroomId(), id -> {
             var destination = lookup.findById(id);
             if (destination.getSchool() == null || origin.getSchool() == null

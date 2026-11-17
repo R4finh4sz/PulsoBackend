@@ -63,8 +63,14 @@ public class ClassroomService {
         accessPolicy.requireCoordinator(user);
         var classroom = lookup.findById(id);
         classroomPolicy.requireAccess(classroom, user);
-        if (request.name() != null) classroom.setName(request.name().strip());
-        if (request.identifier() != null) classroom.setIdentifier(request.identifier());
+        var newName = request.name() != null ? request.name().strip() : classroom.getName();
+        var newIdentifier = request.identifier() != null ? request.identifier() : classroom.getIdentifier();
+        if (classroom.getDeletedAt() == null && classroom.getSchool() != null
+                && (!newName.equals(classroom.getName()) || !newIdentifier.equals(classroom.getIdentifier()))) {
+            requireUnique(classroom.getSchool().getId(), newName, newIdentifier);
+        }
+        classroom.setName(newName);
+        classroom.setIdentifier(newIdentifier);
         return mapper.toResponse(classrooms.saveAndFlush(classroom));
     }
 
@@ -73,10 +79,18 @@ public class ClassroomService {
         var user = currentUser.get();
         accessPolicy.requireCoordinator(user);
         var classroom = new Classroom();
+        if (user.getSchool() != null) requireUnique(user.getSchool().getId(), request.name().strip(), request.identifier());
         classroom.setSchool(user.getSchool());
         classroom.setName(request.name().strip());
         classroom.setIdentifier(request.identifier());
         return mapper.toResponse(classrooms.saveAndFlush(classroom));
+    }
+
+    /** Só turmas ativas contam: turmas apagadas ou formadas liberam o nome/identificador para reuso. */
+    private void requireUnique(Long schoolId, String name, String identifier) {
+        if (classrooms.existsBySchoolIdAndNameAndIdentifierAndDeletedAtIsNull(schoolId, name, identifier)) {
+            throw new org.springframework.dao.DataIntegrityViolationException("Turma duplicada.");
+        }
     }
 
     public List<TeacherClassroomResponse> listTeacherClassrooms() {

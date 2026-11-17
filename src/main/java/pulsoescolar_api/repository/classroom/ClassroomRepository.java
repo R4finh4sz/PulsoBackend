@@ -5,4 +5,5 @@ import java.util.List;
 public interface ClassroomRepository extends JpaRepository<Classroom,Long> {
  List<Classroom> findByTeachersId(Long teacherId);
  List<Classroom> findBySchoolId(Long schoolId);
+ boolean existsBySchoolIdAndNameAndIdentifierAndDeletedAtIsNull(Long schoolId, String name, String identifier);
 }
