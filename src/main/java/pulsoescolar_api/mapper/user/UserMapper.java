@@ -13,7 +13,19 @@ public class UserMapper {
                 null, null, null, user.isGraduated() ? "FORMADO" : null);
     }
 
-    /** Resposta do próprio usuário: inclui a data de nascimento, usada para escolher os termos aplicáveis. */
+
+    public UserResponse toMaskedResponse(SchoolUser user) {
+        var base = toResponse(user);
+        return new UserResponse(base.id(), base.fullName(), base.ra(), maskEmail(base.email()), base.role(),
+                base.classroomId(), base.schoolId(), base.schoolUnavailable(), null, null, null, base.status());
+    }
+
+    public static String maskEmail(String email) {
+        if (email == null || email.isEmpty()) return email;
+        int visible = Math.max(1, (int) Math.floor(email.length() * 0.4));
+        return email.substring(0, visible) + "*".repeat(email.length() - visible);
+    }
+
     public UserResponse toSelfResponse(SchoolUser user) {
         var base = toResponse(user);
         return new UserResponse(base.id(), base.fullName(), base.ra(), base.email(), base.role(), base.classroomId(),
