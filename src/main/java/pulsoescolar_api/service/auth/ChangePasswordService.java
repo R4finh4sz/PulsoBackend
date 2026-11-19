@@ -3,7 +3,6 @@ package pulsoescolar_api.service.auth;
 import pulsoescolar_api.exception.common.BusinessValidationException;
 import pulsoescolar_api.exception.auth.SessionUnavailableException;
 
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -34,6 +33,6 @@ public class ChangePasswordService {
             throw new BusinessValidationException("A nova senha deve ser diferente da atual.");
         }
         user.setPasswordHash(encoder.encode(request.newPassword()));
-        sessions.revokeOthers(user.getId(), UUID.fromString(jwt.getId()));
+        sessions.revokeAll(user.getId());
     }
 }
