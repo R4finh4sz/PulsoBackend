@@ -97,15 +97,15 @@ O login (`user.schoolUnavailable`) e `GET /api/me` (`schoolUnavailable`) retorna
 
 ### Carga de demonstração
 
-Para adicionar 10 escolas fictícias, 10 coordenadores, 100 professores e 1.000 alunos ao banco configurado, ative o perfil `demo-seed` e configure `DEMO_SEED_PASSWORD` com uma senha válida (mínimo de 8 caracteres, uma maiúscula e um número; máximo de 72 bytes). Não há senha padrão. O administrador continua sendo criado pelo `AdminBootstrap`.
+Para carregar 20 escolas fictícias, 20 coordenadores, 200 professores e 4.780 alunos ao banco configurado, ative o perfil `demo-seed` e configure `DEMO_SEED_PASSWORD` com uma senha válida (mínimo de 8 caracteres, uma maiúscula e um número; máximo de 72 bytes). Não há senha padrão. O administrador continua sendo criado pelo `AdminBootstrap`.
 
 Na hospedagem, configure temporariamente `SPRING_PROFILES_ACTIVE=demo-seed` e `DEMO_SEED_PASSWORD`, mantendo as variáveis normais do banco e do administrador, e inicie a aplicação. Após a carga, remova o perfil e a variável de senha. Localmente, com as mesmas variáveis configuradas, execute `./mvnw spring-boot:run`. A carga grava no banco indicado por `DB_URL`; não cria um banco separado.
 
-Cada escola recebe 1 coordenador, 10 professores e 100 alunos. Todos os endereços usam o CEP de referência `01001000` (Praça da Sé, Sé, São Paulo/SP); as escolas são fictícias. Não são criadas turmas, disciplinas ou atividades. O aluno precisa ser matriculado em turma pela coordenação. Os termos precisam ser aceitos no login.
+Cada escola tem 1 coordenador e 10 professores. As escolas de 1 a 10 ficam em São Paulo/SP e têm 100 alunos cada. As escolas de 11 a 20 ficam em RJ, MG, PR, SC, RS, BA, PE, CE, GO e PA, com 378 alunos cada. As novas contas têm datas de cadastro distribuídas pelos 90 dias anteriores à carga, no fuso de São Paulo. Não são criadas turmas, disciplinas ou atividades. O aluno precisa ser matriculado em turma pela coordenação. Os termos precisam ser aceitos no login.
 
-Os logins seguem `{escola}-{perfil}-{número}@example.invalid`, com escolas de 1 a 10 e perfis `coordenador`, `professor` e `aluno`. Exemplos: `1-coordenador-1@example.invalid`, `1-professor-10@example.invalid`, `1-aluno-100@example.invalid`. O RA é `DEMO-` seguido da parte anterior ao `@`. Todos usam a senha informada na carga. Os e-mails são deliberadamente fictícios e não recebem recuperação de senha ou códigos por e-mail.
+Os logins seguem `{escola}-{perfil}-{número}@example.invalid`, com escolas de 1 a 20 e perfis `coordenador`, `professor` e `aluno`. O RA é `DEMO-` seguido da parte anterior ao `@`. As contas criadas em cada execução usam a senha informada naquela carga. Os e-mails são deliberadamente fictícios e não recebem recuperação de senha ou códigos por e-mail.
 
-A carga roda em uma transação, não altera contas existentes e não duplica uma carga completa de 1.110 contas `DEMO-`. Se encontrar uma quantidade parcial, interrompe a inicialização para revisão. O prefixo `DEMO-` fica reservado para essa carga; não execute a carga simultaneamente em várias instâncias. Esta carga acessa os repositórios diretamente e não consulta o ViaCEP nem gera eventos de auditoria de cadastro.
+A carga roda em uma transação. Em um banco com as 1.110 contas `DEMO-` originais, a execução cria somente as escolas de 11 a 20 e suas 3.890 contas. Com 5.000 contas `DEMO-`, a execução termina sem gravar dados. Se encontrar outra quantidade positiva, interrompe a inicialização para revisão. O prefixo `DEMO-` fica reservado para essa carga. Execute a carga em uma única instância. Esta carga acessa os repositórios diretamente e não consulta o ViaCEP nem gera eventos de auditoria de cadastro.
 
 Pré-requisitos: Java 21 e um banco PostgreSQL. O Maven não precisa estar instalado, pois o projeto traz o wrapper (`mvnw`).
 

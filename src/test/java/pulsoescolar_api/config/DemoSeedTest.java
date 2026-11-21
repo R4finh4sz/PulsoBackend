@@ -1,5 +1,7 @@
 package pulsoescolar_api.config;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,18 +34,30 @@ class DemoSeedTest {
         var seed = seed("Demo-test-password-123");
         seed.run();
         seed.run();
-        assertEquals(originalSchools + 10, schools.count());
-        assertEquals(originalUsers + 1110, users.count());
+        assertEquals(originalSchools + 20, schools.count());
+        assertEquals(originalUsers + 5000, users.count());
         var demoUsers = users.findAll().stream().filter(u -> u.getRa().startsWith("DEMO-")).toList();
-        assertEquals(10, demoUsers.stream().filter(u -> u.getRole() == Role.PEDAGOGICAL_COORDINATOR).count());
-        assertEquals(100, demoUsers.stream().filter(u -> u.getRole() == Role.TEACHER).count());
-        assertEquals(1000, demoUsers.stream().filter(u -> u.getRole() == Role.STUDENT).count());
-        for (var school : schools.findAll().stream().filter(s -> s.getNome().startsWith("Escola Demonstração ")).toList()) {
+        assertEquals(20, demoUsers.stream().filter(u -> u.getRole() == Role.PEDAGOGICAL_COORDINATOR).count());
+        assertEquals(200, demoUsers.stream().filter(u -> u.getRole() == Role.TEACHER).count());
+        assertEquals(4780, demoUsers.stream().filter(u -> u.getRole() == Role.STUDENT).count());
+        var demoSchools = schools.findAll().stream().filter(s -> s.getNome().startsWith("Escola Demonstração ")).toList();
+        assertEquals(11, demoSchools.stream().map(s -> s.getUf()).distinct().count());
+        var zone = ZoneId.of("America/Sao_Paulo");
+        var today = LocalDate.now(zone);
+        for (var school : demoSchools) {
             var members = demoUsers.stream().filter(u -> u.getSchool().getId().equals(school.getId())).toList();
-            assertEquals(111, members.size());
+            boolean original = school.getUf().equals("SP");
+            assertEquals(original ? 111 : 389, members.size());
             assertEquals(1, members.stream().filter(u -> u.getRole() == Role.PEDAGOGICAL_COORDINATOR).count());
             assertEquals(10, members.stream().filter(u -> u.getRole() == Role.TEACHER).count());
-            assertEquals(100, members.stream().filter(u -> u.getRole() == Role.STUDENT).count());
+            assertEquals(original ? 100 : 378, members.stream().filter(u -> u.getRole() == Role.STUDENT).count());
+            if (!original) {
+                var registrationDays = members.stream().map(u -> u.getCreatedAt().atZone(zone).toLocalDate())
+                        .distinct().toList();
+                assertEquals(90, registrationDays.size());
+                assertTrue(registrationDays.stream().allMatch(day -> day.isBefore(today)
+                        && !day.isBefore(today.minusDays(91))));
+            }
         }
         for (var user : demoUsers) {
             assertTrue(user.belongsToSchool(user.getSchool().getId()));

@@ -17,6 +17,12 @@ public interface GuardianInvitationRepository extends JpaRepository<GuardianInvi
 
     Optional<GuardianInvitation> findFirstByConfirmationIdOrderByIdDesc(Long confirmationId);
 
+    Optional<GuardianInvitation> findFirstByConfirmationIdAndDecidedAtIsNotNullOrderByIdDesc(Long confirmationId);
+
+    Optional<GuardianInvitation> findFirstByConfirmationIdAndRenewalSessionIdIsNotNullOrderByIdDesc(Long confirmationId);
+
+    int countByConfirmationIdAndRenewalSessionId(Long confirmationId, java.util.UUID sessionId);
+
     void deleteByConfirmationId(Long confirmationId);
 
     @Modifying(flushAutomatically = true)

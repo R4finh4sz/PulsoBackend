@@ -3,6 +3,8 @@ package pulsoescolar_api.service.guardian;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.Instant;
+import java.util.UUID;
 import java.time.ZoneId;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.guardian.GuardianDtos.*;
 import pulsoescolar_api.entity.guardian.*;
+import pulsoescolar_api.entity.legal.LegalDocumentType;
+import pulsoescolar_api.entity.user.SchoolUser;
+import pulsoescolar_api.repository.legal.LegalDocumentRepository;
+import pulsoescolar_api.exception.auth.VerificationCooldownException;
 import pulsoescolar_api.entity.user.RegistrationRequest;
 import pulsoescolar_api.entity.user.RegistrationStatus;
 import pulsoescolar_api.entity.user.Role;
@@ -34,6 +40,7 @@ public class GuardianConfirmationService {
     public static final int ADULT_AGE = 18;
     public static final int MAX_CORRECTIONS = 3;
     public static final int MAX_RESENDS = 3;
+    private static final Duration RENEWAL_COOLDOWN = Duration.ofMinutes(3);
     static final Duration INVITATION_TTL = Duration.ofHours(48);
     static final Duration CORRECTION_TTL = Duration.ofDays(7);
     private static final ZoneId ZONE = ZoneId.of("America/Sao_Paulo");
@@ -44,6 +51,7 @@ public class GuardianConfirmationService {
     private final CurrentUser currentUser;
     private final RegistrationAccessPolicy policy;
     private final Clock clock;
+    private final LegalDocumentRepository legalDocuments;
     private final ApplicationEventPublisher events;
     @Value("${app.guardian.invitation-base-url:https://pulsoescolar.com.br/guardian}")
     private String invitationBaseUrl;
@@ -103,7 +111,7 @@ public class GuardianConfirmationService {
         confirmation.setCheckedAt(now);
         confirmation.setCheckMethod(input.method().strip());
         confirmation.setCheckJustification(input.justification() == null ? null : input.justification().strip());
-        issueInvitation(confirmation);
+        issueInvitation(confirmation, null);
         return response(confirmation);
     }
     @Transactional
@@ -148,7 +156,7 @@ public class GuardianConfirmationService {
             throw new BusinessConflictException("Limite de reenvios atingido. Encaminhe o caso para análise.");
         }
         confirmation.setResendCount(confirmation.getResendCount() + 1);
-        issueInvitation(confirmation);
+        issueInvitation(confirmation, null);
         return response(confirmation);
     }
 
@@ -226,7 +234,63 @@ public class GuardianConfirmationService {
         });
     }
 
-    private void issueInvitation(GuardianConfirmation confirmation) {
+    @Transactional(readOnly = true)
+    public boolean renewalRequired(SchoolUser student) {
+        return student.getRole() == Role.STUDENT && requiresGuardian(student.getBirthDate())
+                && renewalRequired(confirmations.findByRegistrationUserId(student.getId()).orElse(null));
+    }
+
+    @Transactional(readOnly = true)
+    public GuardianRenewalStatus renewalStatus(UUID sessionId) {
+        var student = currentUser.get();
+        if (student.getRole() != Role.STUDENT || !requiresGuardian(student.getBirthDate())) {
+            return new GuardianRenewalStatus(false, 0, null);
+        }
+        return renewalStatus(confirmations.findByRegistrationUserId(student.getId()).orElse(null), sessionId);
+    }
+
+    @Transactional
+    public GuardianRenewalStatus sendRenewal(UUID sessionId) {
+        var student = currentUser.get();
+        if (student.getRole() != Role.STUDENT || !requiresGuardian(student.getBirthDate())) {
+            throw new BusinessConflictException("Nenhum aceite do responsável está pendente.");
+        }
+        var confirmation = confirmations.lockByRegistrationUserId(student.getId()).orElse(null);
+        var status = renewalStatus(confirmation, sessionId);
+        if (!status.required()) {
+            throw new BusinessConflictException("Nenhum aceite do responsável está pendente.");
+        }
+        if (status.sendsRemaining() == 0) {
+            throw new BusinessConflictException("Limite de três envios nesta sessão atingido.");
+        }
+        if (status.nextSendAt() != null) {
+            throw new VerificationCooldownException("Aguarde três minutos entre os envios.");
+        }
+        return new GuardianRenewalStatus(true, status.sendsRemaining() - 1,
+                issueInvitation(confirmation, sessionId).plus(RENEWAL_COOLDOWN));
+    }
+
+    private GuardianRenewalStatus renewalStatus(GuardianConfirmation confirmation, UUID sessionId) {
+        if (!renewalRequired(confirmation)) return new GuardianRenewalStatus(false, 0, null);
+        var nextSendAt = invitations.findFirstByConfirmationIdAndRenewalSessionIdIsNotNullOrderByIdDesc(confirmation.getId())
+                .map(i -> i.getCreatedAt().plus(RENEWAL_COOLDOWN))
+                .filter(at -> at.isAfter(clock.instant())).orElse(null);
+        int remaining = MAX_RESENDS - invitations.countByConfirmationIdAndRenewalSessionId(confirmation.getId(), sessionId);
+        return new GuardianRenewalStatus(true, remaining, nextSendAt);
+    }
+
+    private boolean renewalRequired(GuardianConfirmation confirmation) {
+        if (confirmation == null || confirmation.getStatus() != GuardianStatus.CONFIRMED) return false;
+        var decision = invitations.findFirstByConfirmationIdAndDecidedAtIsNotNullOrderByIdDesc(confirmation.getId())
+                .orElse(null);
+        if (decision == null || decision.getDecision() != GuardianDecision.CONFIRM) return true;
+        return legalDocuments.findCurrentVersion(LegalDocumentType.GUARDIAN_TERM)
+                .filter(version -> !Long.valueOf(version).equals(decision.getTermsVersion())).isPresent()
+                || legalDocuments.findCurrentVersion(LegalDocumentType.PRIVACY_POLICY)
+                .filter(version -> !version.equals(decision.getPrivacyVersion())).isPresent();
+    }
+
+    private Instant issueInvitation(GuardianConfirmation confirmation, UUID renewalSessionId) {
         var now = clock.instant();
         invitations.supersedeOpen(confirmation.getId(), now);
         var token = tokens.generate();
@@ -236,12 +300,15 @@ public class GuardianConfirmationService {
         invitation.setEmail(confirmation.getGuardianEmail());
         invitation.setCreatedAt(now);
         invitation.setExpiresAt(now.plus(INVITATION_TTL));
+        invitation.setRenewalSessionId(renewalSessionId);
         invitations.save(invitation);
-        confirmation.setStatus(GuardianStatus.AWAITING_GUARDIAN);
+        if (renewalSessionId == null) confirmation.setStatus(GuardianStatus.AWAITING_GUARDIAN);
         confirmation.setUpdatedAt(now);
         var registration = confirmation.getRegistration();
         events.publishEvent(AccountMailMessages.guardianInvitation(invitation.getEmail(), confirmation.getGuardianName(),
-                registration.getFullName(), registration.getSchool().getNome(), invitationBaseUrl + "/" + token));
+                registration.getFullName(), registration.getSchool().getNome(), invitationBaseUrl + "/" + token,
+                renewalSessionId != null));
+        return now;
     }
 
     private GuardianConfirmation lock(Long id) {

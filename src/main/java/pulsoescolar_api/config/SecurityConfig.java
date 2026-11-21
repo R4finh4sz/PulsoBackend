@@ -7,12 +7,15 @@ import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.*;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.context.*;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.security.auth.SessionJwtAuthenticationConverter;
@@ -45,6 +48,10 @@ public class SecurityConfig {
     }
     @Bean SecurityFilterChain securityFilterChain(HttpSecurity http,
             SessionJwtAuthenticationConverter converter, RateLimitProperties rateLimit, java.time.Clock clock) throws Exception {
+        AuthorizationManager<RequestAuthorizationContext> publicOnboarding = (authentication, context) ->
+                new AuthorizationDecision(authentication.get().getAuthorities().stream().noneMatch(authority ->
+                        "TERMS_PENDING".equals(authority.getAuthority())
+                                || "GUARDIAN_RENEWAL_PENDING".equals(authority.getAuthority())));
         return http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(s -> s.securityContextRepository(new RequestAttributeSecurityContextRepository()))
                 .csrf(c -> c.disable())
@@ -54,7 +61,7 @@ public class SecurityConfig {
                 .formLogin(c -> c.disable())
                 .logout(c -> c.disable())
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers("/api/admin/metrics").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/metrics", "/api/admin/metrics/usage").hasRole("ADMIN")
                         .requestMatchers("/api/schools/me/metrics", "/api/schools/me/metrics/**").hasRole("PEDAGOGICAL_COORDINATOR")
                         .requestMatchers("/api/schools/me/data-agreement", "/api/schools/me/data-agreement/**").hasRole("PEDAGOGICAL_COORDINATOR")
                         .requestMatchers(HttpMethod.GET, "/api/privacy-policy", "/api/privacy-policy/history",
@@ -71,21 +78,24 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login",
                                 "/api/auth/password-recovery/request", "/api/auth/password-recovery/verify",
                                 "/api/auth/password-recovery/reset", "/api/auth/refresh").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/invitations/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/invitations/*/verify", "/api/invitations/*/resend", "/api/invitations/*/complete").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/students").access(publicOnboarding)
+                        .requestMatchers(HttpMethod.GET, "/api/invitations/*", "/api/schools/search").access(publicOnboarding)
+                        .requestMatchers(HttpMethod.POST, "/api/invitations/*/verify", "/api/invitations/*/resend", "/api/invitations/*/complete").access(publicOnboarding)
                         .requestMatchers(HttpMethod.GET, "/api/guardian-invitations/*", "/api/guardian-corrections/*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/guardian-invitations/*/decision", "/api/guardian-corrections/*").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/schools/search", "/api/terms").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/terms").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/me/guardian-renewal")
+                                .hasAnyAuthority("GUARDIAN_RENEWAL_PENDING", "STUDENT_TERMS_PENDING", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/me/guardian-renewal/send")
+                                .hasAuthority("GUARDIAN_RENEWAL_PENDING")
                         .requestMatchers(HttpMethod.GET, "/api/me", "/api/terms/history", "/api/terms/accepted")
-                                .hasAnyAuthority("TERMS_PENDING", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                                .hasAnyAuthority("GUARDIAN_RENEWAL_PENDING", "TERMS_PENDING", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/auth/2fa/verify", "/api/auth/2fa/resend").hasAuthority("TWO_FACTOR_PENDING")
                         .requestMatchers(HttpMethod.PATCH, "/api/auth/password").hasAnyAuthority("ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/terms").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/terms").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/terms", "/api/terms/history", "/api/terms/accepted").hasAnyAuthority("ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
-                        .requestMatchers(HttpMethod.POST, "/api/terms/accept").hasAnyAuthority("TERMS_PENDING", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/terms/accept").hasAnyAuthority("GUARDIAN_RENEWAL_PENDING", "TERMS_PENDING", "ROLE_ADMIN", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/terms/revoke").hasAnyAuthority("ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_TEACHER", "ROLE_STUDENT")
                         .requestMatchers(HttpMethod.GET, "/api/teacher/classrooms").hasRole("TEACHER")
                         .requestMatchers(HttpMethod.GET, "/api/teacher/reports").hasRole("TEACHER")

@@ -453,10 +453,13 @@ class JwtAuthenticationTests {
             user.setRole(role);
             user.setTermsAccepted(false);
             users.saveAndFlush(user);
-            for (String path : List.of("/api/me/export", "/api/teacher/classrooms", "/api/schools/me/metrics")) {
+            for (String path : List.of("/api/me/export", "/api/teacher/classrooms", "/api/schools/me/metrics",
+                    "/api/schools/search", "/api/invitations/example")) {
                 mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                         .andExpect(status().isForbidden());
             }
+            mvc.perform(post("/api/auth/register").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isForbidden());
             for (String path : List.of("/api/me", "/api/terms", "/api/terms/history", "/api/terms/accepted")) {
                 mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                         .andExpect(status().isOk());

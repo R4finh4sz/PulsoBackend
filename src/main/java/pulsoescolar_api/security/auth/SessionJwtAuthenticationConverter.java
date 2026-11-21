@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.repository.auth.AuthSessionRepository;
+import pulsoescolar_api.entity.user.Role;
 import pulsoescolar_api.repository.user.UserRepository;
 
 @Component
@@ -21,6 +22,7 @@ public class SessionJwtAuthenticationConverter implements Converter<Jwt, Abstrac
     private final AuthSessionRepository sessions;
     private final UserRepository users;
     private final Clock clock;
+    private final pulsoescolar_api.service.guardian.GuardianConfirmationService guardians;
 
     @Override
     @Transactional
@@ -45,9 +47,16 @@ public class SessionJwtAuthenticationConverter implements Converter<Jwt, Abstrac
                     List.of(new SimpleGrantedAuthority("TWO_FACTOR_PENDING")), user.getEmail());
         }
         user.setLastAuthenticatedAt(clock.instant());
-        if (user.getRole() != pulsoescolar_api.entity.user.Role.ADMIN && !user.isTermsAccepted()) {
+        if (guardians.renewalRequired(user)) {
             return new JwtAuthenticationToken(jwt,
-                    List.of(new SimpleGrantedAuthority("TERMS_PENDING")), user.getEmail());
+                    List.of(new SimpleGrantedAuthority("GUARDIAN_RENEWAL_PENDING")), user.getEmail());
+        }
+        if (user.getRole() != Role.ADMIN && !user.isTermsAccepted()) {
+            var pending = new SimpleGrantedAuthority("TERMS_PENDING");
+            var authorities = user.getRole() == Role.STUDENT
+                    ? List.of(pending, new SimpleGrantedAuthority("STUDENT_TERMS_PENDING"))
+                    : List.of(pending);
+            return new JwtAuthenticationToken(jwt, authorities, user.getEmail());
         }
         return new JwtAuthenticationToken(jwt,
                 List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())), user.getEmail());

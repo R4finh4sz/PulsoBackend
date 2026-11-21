@@ -23,7 +23,8 @@ public class StudentRankingCalculator {
         alphabetical.setStrength(Collator.PRIMARY);
         var rows = entries.stream()
                 .sorted(performance.thenComparing(QuizSubmissionRepository.StudentRanking::getStudentName, alphabetical)
-                        .thenComparing(QuizSubmissionRepository.StudentRanking::getStudentId)).toList();
+                        .thenComparing(QuizSubmissionRepository.StudentRanking::getStudentId))
+                .limit(30).toList();
         var result = new ArrayList<StudentRankingResponse>();
         int position = 0;
         QuizSubmissionRepository.StudentRanking previous = null;

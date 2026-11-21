@@ -59,5 +59,7 @@ public final class GuardianDtos {
     public record GuardianInvitationView(String studentName, String schoolName, String purpose, Instant expiresAt,
             GuardianTermsView terms, GuardianTermsView privacy, List<GuardianRelationship> relationships) {}
 
+    public record GuardianRenewalStatus(boolean required, int sendsRemaining, Instant nextSendAt) {}
+
     public record GuardianDecisionReceipt(GuardianDecision decision, Instant decidedAt) {}
 }
