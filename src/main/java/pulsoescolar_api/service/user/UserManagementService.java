@@ -29,6 +29,7 @@ public class UserManagementService {
     public UserPageResponse list(Role role, String q, Long classroomId, Boolean unassigned, int page, int size) {
         var actor = currentUser.get();
         policy.requireManager(actor);
+        boolean filtered = (q != null && !q.isBlank()) || classroomId != null || unassigned != null;
         Specification<SchoolUser> filter = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("role"), role));
@@ -52,7 +53,7 @@ public class UserManagementService {
         };
         return UserPageResponse.from(users.findAll(filter,
                 PageRequest.of(page, size, Sort.by("fullName").ascending().and(Sort.by("id"))))
-                .map(mapper::toResponse));
+                .map(filtered ? mapper::toResponse : mapper::toMaskedResponse));
     }
 
     public UserResponse get(Long id, Role role) {
