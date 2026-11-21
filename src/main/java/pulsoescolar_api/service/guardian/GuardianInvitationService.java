@@ -29,7 +29,7 @@ public class GuardianInvitationService {
 
     @Transactional(readOnly = true)
     public GuardianInvitationView view(String token) {
-        var invitation = open(token);
+        var invitation = open(token, false);
         var registration = invitation.getConfirmation().getRegistration();
         var term = legalDocuments.current(LegalDocumentType.GUARDIAN_TERM)
                 .orElseThrow(InvitationUnavailableException::new);
@@ -43,7 +43,7 @@ public class GuardianInvitationService {
 
     @Transactional
     public GuardianDecisionReceipt decide(String token, GuardianDecisionRequest input) {
-        var invitation = open(token);
+        var invitation = open(token, true);
         var confirmation = invitation.getConfirmation();
         var now = clock.instant();
         if (input.decision() == GuardianDecision.CONFIRM) {
@@ -69,9 +69,12 @@ public class GuardianInvitationService {
         return new GuardianDecisionReceipt(input.decision(), now);
     }
 
-    private GuardianInvitation open(String token) {
+    private GuardianInvitation open(String token, boolean lock) {
         if (token == null || token.isBlank() || token.length() > 200) throw new InvitationUnavailableException();
-        var invitation = invitations.findForDecision(tokens.hash(token)).orElseThrow(InvitationUnavailableException::new);
+        var hash = tokens.hash(token);
+        // A leitura roda em transação somente leitura: o Postgres não aceita SELECT ... FOR UPDATE nela.
+        var invitation = (lock ? invitations.findForDecision(hash) : invitations.findForView(hash))
+                .orElseThrow(InvitationUnavailableException::new);
         var confirmation = invitation.getConfirmation();
         if (!invitation.isOpen(clock.instant()) || confirmation.getStatus() != GuardianStatus.AWAITING_GUARDIAN
                 || confirmation.getRegistration().getStatus() != RegistrationStatus.PENDING) {

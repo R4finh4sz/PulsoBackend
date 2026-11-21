@@ -5,7 +5,7 @@ import pulsoescolar_api.entity.school.School;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.*;
-@Entity @Table(name="classrooms", uniqueConstraints=@UniqueConstraint(name="uk_classroom_school_name_identifier", columnNames={"school_id", "name", "identifier"}))
+@Entity @Table(name="classrooms")
 @Getter @Setter @NoArgsConstructor
 public class Classroom {
  private java.time.Instant deletedAt;
@@ -17,4 +17,9 @@ public class Classroom {
  @ManyToMany
  @JoinTable(name="classroom_teachers", joinColumns=@JoinColumn(name="classroom_id"), inverseJoinColumns=@JoinColumn(name="teacher_id"))
  private Set<SchoolUser> teachers = new HashSet<>();
+ /** Série (1 a 3) lida do nome "Nº ano · Turno"; null se o nome não seguir o padrão. */
+ public Integer resolveGradeLevel() {
+  if (name == null || name.isEmpty() || !Character.isDigit(name.charAt(0))) return null;
+  return Character.getNumericValue(name.charAt(0));
+ }
 }

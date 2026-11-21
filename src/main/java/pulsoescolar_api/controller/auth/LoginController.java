@@ -22,6 +22,7 @@ public class LoginController {
     private final ChangePasswordService changePasswordService;
     private final pulsoescolar_api.service.auth.TwoFactorService twoFactor;
     private final AuthAuditService audit;
+    private final pulsoescolar_api.service.auth.LoginAttemptService attempts;
 
     @PatchMapping("/2fa")
     public ResponseEntity<Void> updateTwoFactor(@AuthenticationPrincipal Jwt jwt,
@@ -56,9 +57,22 @@ public class LoginController {
     }
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest body) {
+        var key = body.email().strip().toLowerCase(java.util.Locale.ROOT);
         try {
-            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(loginService.login(body));
-        } catch (org.springframework.security.core.AuthenticationException | VerificationCooldownException ex) {
+            attempts.requireNotLocked(key);
+        } catch (LoginLockedException ex) {
+            audit.recordFailure(LOGIN_FAILED, null);
+            throw ex;
+        }
+        try {
+            var result = loginService.login(body);
+            attempts.recordSuccess(key);
+            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
+        } catch (org.springframework.security.core.AuthenticationException ex) {
+            attempts.recordFailure(key);
+            audit.recordFailure(LOGIN_FAILED, null);
+            throw ex;
+        } catch (VerificationCooldownException ex) {
             // A transação da tentativa já terminou; a falha não desaparece no rollback.
             audit.recordFailure(LOGIN_FAILED, null);
             throw ex;

@@ -72,6 +72,7 @@ public class AccountDeletionService {
                     .atStartOfDay(RETENTION_ZONE).toInstant();
             return !now.isBefore(deadline);
         }
+        // Escola desativada não conta como vínculo ativo (getSchool() retorna null e schools é filtrado por isActive).
         boolean linked = user.getRole() == Role.STUDENT ? user.getSchool() != null
                 : user.getSchool() != null || user.getSchools().stream().anyMatch(s -> s.isActive());
         var activity = user.getLastAuthenticatedAt() == null ? user.getCreatedAt() : user.getLastAuthenticatedAt();
@@ -142,6 +143,11 @@ public class AccountDeletionService {
         if (requester.getRole() == Role.ADMIN) {
             throw new BusinessValidationException("Administradores não podem ser excluídos.");
         }
+        if (input.status() == DeletionStatus.APPROVED && hasSchoolLink(requester)) {
+            throw new BusinessConflictException(
+                    "Não é possível aprovar a exclusão de um coordenador vinculado a uma escola. "
+                    + "Remova o vínculo antes ou rejeite o pedido.");
+        }
         request.setStatus(input.status());
         request.setReviewedAt(clock.instant());
         request.setReviewedBy(actor);
@@ -164,6 +170,7 @@ public class AccountDeletionService {
         var now = clock.instant();
         if (request.getStatus() != DeletionStatus.PENDING || requester.getDeletedAt() != null
                 || requester.getRole() == Role.ADMIN
+                || hasSchoolLink(requester)
                 || request.getRequestedAt().isAfter(now.minus(15, java.time.temporal.ChronoUnit.DAYS))) return;
         request.setStatus(DeletionStatus.APPROVED);
         request.setReviewedAt(now);
@@ -172,6 +179,12 @@ public class AccountDeletionService {
         anonymize(requester, null);
         request.setReviewReason("Exclusão automática após 15 dias corridos sem análise.");
         entityManager.flush();
+    }
+
+    /** Coordenador com qualquer vínculo (mesmo escola inativa) não pode ser excluído. */
+    private static boolean hasSchoolLink(SchoolUser user) {
+        return user.getRole() == Role.PEDAGOGICAL_COORDINATOR
+                && (user.getEnrollmentSchool() != null || !user.getSchools().isEmpty());
     }
 
     private void anonymize(SchoolUser requester, Long actorId) {

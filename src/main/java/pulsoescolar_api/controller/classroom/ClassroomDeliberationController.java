@@ -19,4 +19,10 @@ public class ClassroomDeliberationController {
     public DeliberationResponse deliberate(@Valid @RequestBody DeliberateClassroomRequest request) {
         return service.deliberate(request);
     }
+
+    @GetMapping("/destinations")
+    public java.util.List<pulsoescolar_api.dto.classroom.ClassroomResponse> destinations(
+            @RequestParam Long classroomId, @RequestParam pulsoescolar_api.entity.classroom.DeliberationResult result) {
+        return service.destinations(classroomId, result);
+    }
 }

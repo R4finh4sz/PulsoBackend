@@ -3,6 +3,7 @@ package pulsoescolar_api.integration.classroom;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -134,13 +135,33 @@ class ClassroomDeliberationTests {
     }
 
     @Test void rejectsInvalidDestinationsWithoutApplyingAnyChange() throws Exception {
-        for (Object destination : new Object[] {"null", origin.getId(), foreign.getId(), 999999L}) {
+        for (Object destination : new Object[] {"null", foreign.getId(), 999999L, next.getId(), room("1º ano · Manhã", school).getId()}) {
             int expected = destination.equals(999999L) ? 404 : 400;
             mvc.perform(post(URL).with(coordinator).contentType("application/json")
                             .content(body("TRANSFER", student(approved, "APPROVED", next.getId()), student(failed, "FAILED", destination))))
                     .andExpect(status().is(expected));
         }
         assertUnchanged();
+    }
+
+    @Test void failedStudentMayStayInSameClassroomButApprovedMustAdvanceOneGrade() throws Exception {
+        mvc.perform(post(URL).with(coordinator).contentType("application/json")
+                        .content(body("TRANSFER", student(approved, "APPROVED", repeat.getId()), student(failed, "FAILED", origin.getId()))))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(URL).with(coordinator).contentType("application/json")
+                        .content(body("TRANSFER", student(approved, "APPROVED", next.getId()), student(failed, "FAILED", origin.getId()))))
+                .andExpect(status().isCreated());
+        entityManager.flush(); entityManager.clear();
+        assertEquals(origin.getId(), users.findById(failed.getId()).orElseThrow().getClassroom().getId());
+    }
+
+    @Test void listsOnlyAllowedDestinations() throws Exception {
+        room("1º ano · Manhã", school);
+        mvc.perform(get(URL + "/destinations").with(coordinator).param("classroomId", origin.getId().toString()).param("result", "APPROVED"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(next.getId()));
+        mvc.perform(get(URL + "/destinations").with(coordinator).param("classroomId", origin.getId().toString()).param("result", "FAILED"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test void rejectsEmptyClassroom() throws Exception {

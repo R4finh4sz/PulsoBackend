@@ -1,0 +1,110 @@
+Destino https://api.pulsoescolar.com.br | contas: 25 alunos, 1 professores | estágios: 25u/120s
+Duração da carga: 120s. Login pacing: 8/min → ~4 min para 26 contas; tokens duram 50 min (máx. ~360 contas com token válido durante todo o teste).
+Autenticando 26 contas (pode levar ~4 min)...
+  20 ok, 0 falhas
+Login: 26 ok, 0 falhas em 207s
+Estágio 1/1 concluído (25 VUs, 1273 requisições)   
+Carga encerrada; gerando relatório...
+# Relatório do teste de carga
+
+## Ambiente
+- Destino: https://api.pulsoescolar.com.br
+- Início: 2026-11-15T22:57:26.604Z
+- Gerador de carga: Windows_NT 10.0.26200 12 CPU 16 GB, Node v24.21.0
+- Contas: 25 alunos e 1 professores autenticados (de 26 no arquivo); falhas de login: 0 
+- Think time: 1000–3000 ms; razão de professores: 0.05
+- Métricas do servidor (CPU, memória, conexões do banco): **não coletadas por este script** (sem acesso); preencher manualmente a partir do painel da hospedagem, se disponível.
+
+## Resultado por estágio
+
+| Estágio | Usuários simultâneos | Duração (s) | Requisições | req/s | Mediana 2xx (ms) | P95 2xx (ms) | 2xx | 429 | Rejeição esperada (4xx) | Falhas (5xx/rede/outros 4xx) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 25 (alvo 25) | 122 | 1298 | 10.6 | 532 | 585 | 34.0% | 56.1% | 9.9% | 0.0% |
+
+## Total
+
+| Requisições | req/s | Mediana 2xx (ms) | P95 2xx (ms) | 2xx | 429 | Rejeição esperada (4xx) | Falhas (5xx/rede/outros 4xx) |
+|---|---|---|---|---|---|---|---|
+| 1298 | 10.4 | 532 | 585 | 34.0% | 56.1% | 9.9% | 0.0% |
+
+## Por cenário (todos os estágios)
+
+| Cenário | Requisições | req/s | Mediana 2xx (ms) | P95 2xx (ms) | 2xx | 429 | Rejeição esperada (4xx) | Falhas (5xx/rede/outros 4xx) |
+|---|---|---|---|---|---|---|---|---|
+| student_activities | 585 | 4.7 | 550 | 591 | 45.5% | 54.5% | 0.0% | 0.0% |
+| quiz_open | 324 | 2.6 | 340 | 399 | 45.1% | 54.9% | 0.0% | 0.0% |
+| submit_duplicate | 338 | 2.7 | — | — | 0.0% | 61.8% | 38.2% | 0.0% |
+| submit_first | 51 | 0.4 | 450 | 508 | 56.9% | 43.1% | 0.0% | 0.0% |
+
+## Códigos HTTP
+- 200: 412
+- 201: 29
+- 409: 129
+- 429: 728
+
+## Origem dos 429 (cabeçalhos e corpo da resposta)
+- 4× server=cloudflare content-type=text/plain retry-after=60 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 8× server=cloudflare content-type=text/plain retry-after=59 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 16× server=cloudflare content-type=text/plain retry-after=58 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 13× server=cloudflare content-type=text/plain retry-after=57 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=56 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=55 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=54 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=53 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 13× server=cloudflare content-type=text/plain retry-after=52 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=51 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=50 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=49 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 15× server=cloudflare content-type=text/plain retry-after=48 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=47 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=46 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=45 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 10× server=cloudflare content-type=text/plain retry-after=44 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=43 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 8× server=cloudflare content-type=text/plain retry-after=42 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 16× server=cloudflare content-type=text/plain retry-after=41 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 10× server=cloudflare content-type=text/plain retry-after=40 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=39 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 10× server=cloudflare content-type=text/plain retry-after=38 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 18× server=cloudflare content-type=text/plain retry-after=37 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=36 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 13× server=cloudflare content-type=text/plain retry-after=35 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 9× server=cloudflare content-type=text/plain retry-after=34 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 13× server=cloudflare content-type=text/plain retry-after=33 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=32 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 10× server=cloudflare content-type=text/plain retry-after=31 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=30 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 9× server=cloudflare content-type=text/plain retry-after=29 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=28 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=27 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 9× server=cloudflare content-type=text/plain retry-after=26 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 13× server=cloudflare content-type=text/plain retry-after=25 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=24 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=23 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=22 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 13× server=cloudflare content-type=text/plain retry-after=21 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=20 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=19 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=18 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 15× server=cloudflare content-type=text/plain retry-after=17 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=16 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 6× server=cloudflare content-type=text/plain retry-after=15 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 19× server=cloudflare content-type=text/plain retry-after=14 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 11× server=cloudflare content-type=text/plain retry-after=13 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 10× server=cloudflare content-type=text/plain retry-after=12 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=11 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 10× server=cloudflare content-type=text/plain retry-after=10 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=9 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=8 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 10× server=cloudflare content-type=text/plain retry-after=7 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 14× server=cloudflare content-type=text/plain retry-after=6 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=5 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 12× server=cloudflare content-type=text/plain retry-after=4 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 15× server=cloudflare content-type=text/plain retry-after=3 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 9× server=cloudflare content-type=text/plain retry-after=2 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 15× server=cloudflare content-type=text/plain retry-after=1 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+- 8× server=cloudflare content-type=text/plain retry-after=0 body=[SQUARE-SHIELD] We have detected a high level of requests from your source to this website. Your access has been blocked
+
+> Mediana e P95 calculados apenas sobre respostas 2xx. 429 (limite de requisições) e rejeições esperadas da regra de entrega única (`submit_first`/`submit_duplicate` com 4xx) são separados das falhas.
+
+Arquivos em results\2026-11-15T23-02-58-015Z
