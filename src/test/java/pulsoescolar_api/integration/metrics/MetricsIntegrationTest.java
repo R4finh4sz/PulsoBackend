@@ -14,6 +14,7 @@ import pulsoescolar_api.entity.school.School;
 import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.entity.subject.Subject;
 import pulsoescolar_api.entity.activity.*;
+import pulsoescolar_api.entity.terms.TermsVersion;
 import pulsoescolar_api.entity.user.*;
 import pulsoescolar_api.service.metrics.SchoolMetricsService;
 
@@ -62,6 +63,7 @@ class MetricsIntegrationTest {
     }
 
     @Test void adminUsageFiltersBySaoPauloMonthAndRanksRegistrationRequests() throws Exception {
+        em.persist(new TermsVersion(1L, "Termos", "Termos de teste"));
         var pernambuco = school("usage-pe");
         pernambuco.setUf("PE");
         var saoPaulo = school("usage-sp");
@@ -253,6 +255,7 @@ class MetricsIntegrationTest {
         request.setRole(Role.STUDENT);
         request.setSchool(school);
         request.setStatus(RegistrationStatus.PENDING);
+        request.setTermsVersion(1L);
         request.setRequestedAt(Instant.parse(date));
         em.persist(request);
     }
