@@ -20,7 +20,6 @@ import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.security.user.PasswordPolicy;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
 class ChangePasswordServiceTest {
@@ -42,7 +41,7 @@ class ChangePasswordServiceTest {
     }
 
     @Test
-    void deveAtualizarHashERevogarOutrasSessoesQuandoSenhaValida() {
+    void deveAtualizarHashERevogarTodasAsSessoesQuandoSenhaValida() {
         // Arrange
         var user = usuarioExistente();
         when(encoder.matches("Atual123", "hash-atual")).thenReturn(true);
@@ -52,7 +51,7 @@ class ChangePasswordServiceTest {
         // Assert
         assertEquals("hash-novo", user.getPasswordHash());
         verify(passwordPolicy).requireValidNewPassword("Nova1234");
-        verify(sessions).revokeOthers(1L, jti);
+        verify(sessions).revokeAll(1L);
     }
 
     @Test
@@ -64,7 +63,7 @@ class ChangePasswordServiceTest {
         // Assert
         assertEquals("Senha atual incorreta.", erro.getMessage());
         assertEquals("hash-atual", user.getPasswordHash());
-        verify(sessions, never()).revokeOthers(any(), any());
+        verify(sessions, never()).revokeAll(any());
         verifyNoInteractions(passwordPolicy);
     }
 

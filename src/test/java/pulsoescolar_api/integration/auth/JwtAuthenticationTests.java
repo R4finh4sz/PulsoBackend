@@ -484,11 +484,7 @@ class JwtAuthenticationTests {
         assertFalse(changed.isTermsAccepted());
         assertTrue(passwords.matches("Nova1234", changed.getPasswordHash()));
         mvc.perform(get("/api/terms/accepted").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk()).andExpect(content().json("[]"));
-        mvc.perform(post("/api/terms/accept").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType("application/json").content("{\"version\":\"1.0\",\"termsAccepted\":true}"))
-                .andExpect(status().isNoContent());
-        assertTrue(users.findById(userId).orElseThrow().isTermsAccepted());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test void passwordChangeEnforcesMobileRulesAndPreservesPasswordOnFailure() throws Exception {
