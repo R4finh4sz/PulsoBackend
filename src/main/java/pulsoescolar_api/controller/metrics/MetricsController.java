@@ -14,10 +14,16 @@ import pulsoescolar_api.service.metrics.*;
 public class MetricsController {
     private final TechnicalMetricsService technical;
     private final SchoolMetricsService school;
+    private final AdminUsageMetricsService adminUsage;
 
     @GetMapping("/api/admin/metrics")
     public ResponseEntity<TechnicalMetricsResponse> technical() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(technical.get());
+    }
+
+    @GetMapping("/api/admin/metrics/usage")
+    public ResponseEntity<AdminUsageMetricsResponse> usage(@RequestParam(required = false) String month) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(adminUsage.get(month));
     }
 
     @GetMapping("/api/schools/me/metrics")

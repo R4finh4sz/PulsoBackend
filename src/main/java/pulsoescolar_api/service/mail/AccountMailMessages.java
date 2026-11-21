@@ -33,7 +33,13 @@ public final class AccountMailMessages {
     }
 
     public static NotificationMailRequested guardianInvitation(String email, String guardianName, String studentName,
-                                                               String schoolName, String link) {
+                                                               String schoolName, String link, boolean renewal) {
+        if (renewal) {
+            return new NotificationMailRequested(email, "Atualização dos documentos do responsável — PulsoEscolar",
+                    "Olá, " + guardianName + "!\n\nPara liberar o acesso de " + studentName + " no PulsoEscolar, "
+                    + "leia os documentos atualizados e registre sua decisão no link abaixo. "
+                    + "O link é válido por 48 horas e pode ser usado uma vez.\n\n" + link + SIGNATURE);
+        }
         return new NotificationMailRequested(email, "Confirmação de responsável legal — PulsoEscolar",
                 "Olá, " + guardianName + "!\n\nO(a) estudante " + studentName + " está se cadastrando em " + schoolName
                 + " no PulsoEscolar e indicou você como responsável legal. A escola conferiu este contato."

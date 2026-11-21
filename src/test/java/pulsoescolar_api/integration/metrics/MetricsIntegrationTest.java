@@ -33,7 +33,8 @@ class MetricsIntegrationTest {
 
     @Test void routesRestrictRolesAndRetainCors() throws Exception {
         var mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
-        for (String path : new String[]{"/api/admin/metrics", "/api/schools/me/metrics", "/api/schools/me/metrics/growth?year=2026"}) {
+        for (String path : new String[]{"/api/admin/metrics", "/api/admin/metrics/usage",
+                "/api/schools/me/metrics", "/api/schools/me/metrics/growth?year=2026"}) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
             mvc.perform(get(path).with(user("student").roles("STUDENT"))).andExpect(status().isForbidden());
             mvc.perform(get(path).with(user("pending").authorities(() -> "TWO_FACTOR_PENDING")))
@@ -57,6 +58,46 @@ class MetricsIntegrationTest {
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
         mvc.perform(options("/api/auth/login").header("Origin", "https://untrusted.example")
                 .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test void adminUsageFiltersBySaoPauloMonthAndRanksRegistrationRequests() throws Exception {
+        var pernambuco = school("usage-pe");
+        pernambuco.setUf("PE");
+        var saoPaulo = school("usage-sp");
+        saoPaulo.setUf("SP");
+        var january = "2031-02-01T02:59:59Z";
+        var february = "2031-02-01T03:00:00Z";
+        datedPerson("usage-teacher", Role.TEACHER, pernambuco, january);
+        datedPerson("usage-student", Role.STUDENT, saoPaulo, january).setDeletedAt(Instant.now());
+        datedPerson("usage-february", Role.STUDENT, saoPaulo, february);
+        registration("usage-pe-1", pernambuco, january);
+        registration("usage-pe-2", pernambuco, january);
+        registration("usage-sp-1", saoPaulo, january);
+        registration("usage-sp-2", saoPaulo, february);
+        em.flush();
+
+        var mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        var auth = user("admin").roles("ADMIN");
+        var path = "/api/admin/metrics/usage";
+        mvc.perform(get(path).param("month", "2031-01").with(auth))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.month").value("2031-01"))
+                .andExpect(jsonPath("$.totalUsers").value(2))
+                .andExpect(jsonPath("$.usersByRole.TEACHER").value(1))
+                .andExpect(jsonPath("$.usersByRole.STUDENT").value(1))
+                .andExpect(jsonPath("$.usersByRole.ADMIN").value(0))
+                .andExpect(jsonPath("$.demandByState[0].state").value("PE"))
+                .andExpect(jsonPath("$.demandByState[0].requests").value(2))
+                .andExpect(jsonPath("$.demandByState[1].state").value("SP"))
+                .andExpect(jsonPath("$.demandByState[1].requests").value(1));
+        mvc.perform(get(path).param("month", "2031-03").with(auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalUsers").value(0))
+                .andExpect(jsonPath("$.demandByState").isEmpty());
+        mvc.perform(get(path).with(auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.usersByRole.STUDENT").value(1));
+        mvc.perform(get(path).param("month", "2031-13").with(auth)).andExpect(status().isBadRequest());
+        mvc.perform(get(path).with(user("coord").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isForbidden());
     }
 
@@ -202,6 +243,18 @@ class MetricsIntegrationTest {
                 assertThat(month.teachers()).isZero();
             });
         } finally { SecurityContextHolder.clearContext(); }
+    }
+
+    private void registration(String name, School school, String date) {
+        var request = new RegistrationRequest();
+        request.setFullName(name);
+        request.setRa(name);
+        request.setEmail(name + "@example.com");
+        request.setRole(Role.STUDENT);
+        request.setSchool(school);
+        request.setStatus(RegistrationStatus.PENDING);
+        request.setRequestedAt(Instant.parse(date));
+        em.persist(request);
     }
 
     private SchoolUser datedPerson(String name, Role role, School school, String date) {
