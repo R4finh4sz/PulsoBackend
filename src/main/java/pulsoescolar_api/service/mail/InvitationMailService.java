@@ -18,7 +18,7 @@ public class InvitationMailService {
         sender.send(email, "Convite para o Pulso Escolar",
                 "Acesse seu convite para criar a conta: " + baseUrl + "/" + token
                         + "\n\nEste link é válido por 48 horas a partir do envio do convite."
-                        + " Após esse prazo, entre em contato com suportePulso@gmail.com para solicitar um novo convite.");
+                        + " Após esse prazo, entre em contato com rafael.souza6657@gmail.com para solicitar um novo convite.");
     }
 
     public void sendCode(String email, String code) {
