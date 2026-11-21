@@ -2,9 +2,13 @@ package pulsoescolar_api.integration.user;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -14,6 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.json.JsonMapper;
 import pulsoescolar_api.entity.guardian.GuardianStatus;
+import pulsoescolar_api.config.JwtConfig;
+import pulsoescolar_api.entity.auth.AuthSession;
+import pulsoescolar_api.entity.legal.LegalDocument;
+import pulsoescolar_api.entity.legal.LegalDocumentType;
+import pulsoescolar_api.repository.auth.AuthSessionRepository;
 import pulsoescolar_api.entity.school.School;
 import pulsoescolar_api.entity.terms.TermsVersion;
 import pulsoescolar_api.entity.user.*;
@@ -40,6 +49,8 @@ class GuardianConfirmationTests {
     @Autowired TermsVersionRepository versions;
     @Autowired JsonMapper json;
     @Autowired ApplicationEvents events;
+    @Autowired AuthSessionRepository sessions;
+    @Autowired JwtEncoder encoder;
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     pulsoescolar_api.service.school.SchoolAddressValidator addressValidator;
     MockMvc mvc;
@@ -176,6 +187,76 @@ class GuardianConfirmationTests {
         mvc.perform(get("/api/guardian-invitations/" + token)).andExpect(status().isGone());
 
         review(registration, "coordinator", "APPROVED", 200);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = LegalDocumentType.class, names = {"GUARDIAN_TERM", "PRIVACY_POLICY"})
+    void updatedDocumentsBlockStudentUntilGuardianRenews(LegalDocumentType updated) throws Exception {
+        long registration = register("111");
+        long id = confirmationId(registration);
+        verify(id, "coordinator", 200);
+        decide(token(lastMail()), CONFIRM, 200);
+        review(registration, "coordinator", "APPROVED", 200);
+        var student = requests.findById(registration).orElseThrow().getUser();
+
+        var now = Instant.now();
+        var session = new AuthSession();
+        session.setId(UUID.randomUUID());
+        session.setUser(student);
+        session.setTwoFactorVerified(true);
+        session.setCreatedAt(now);
+        session.setExpiresAt(now.plusSeconds(3600));
+        sessions.saveAndFlush(session);
+        var claims = JwtClaimsSet.builder().issuer(JwtConfig.ISSUER).audience(List.of(JwtConfig.AUDIENCE))
+                .subject(student.getId().toString()).id(session.getId().toString())
+                .issuedAt(now).expiresAt(session.getExpiresAt()).build();
+        var bearer = "Bearer " + encoder.encode(JwtEncoderParameters.from(
+                JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
+        var renewal = "/api/me/guardian-renewal";
+        mvc.perform(get(renewal).header("Authorization", bearer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.required").value(false));
+        student.setTermsAccepted(false);
+        mvc.perform(get(renewal).header("Authorization", bearer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.required").value(false));
+        student.setTermsAccepted(true);
+
+        legalDocs.saveAndFlush(new LegalDocument(updated, 2, "Documento atualizado", "Novo conteúdo",
+                "hash-novo", now, users.findByEmail("admin@test.com").orElseThrow()));
+        mvc.perform(get("/api/me/export").header("Authorization", bearer)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/schools/search").header("Authorization", bearer)).andExpect(status().isForbidden());
+        mvc.perform(get(renewal).header("Authorization", bearer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.sendsRemaining").value(3));
+        String latestToken = null;
+        for (int remaining = 2; remaining >= 0; remaining--) {
+            mvc.perform(post(renewal + "/send").header("Authorization", bearer))
+                    .andExpect(status().isAccepted()).andExpect(jsonPath("$.sendsRemaining").value(remaining));
+            latestToken = token(lastMail());
+            if (remaining == 2) {
+                mvc.perform(post(renewal + "/send").header("Authorization", bearer))
+                        .andExpect(status().isTooManyRequests());
+            }
+            var invitation = invitations.findFirstByConfirmationIdOrderByIdDesc(id).orElseThrow();
+            invitation.setCreatedAt(now.minusSeconds(181));
+            invitations.saveAndFlush(invitation);
+        }
+        mvc.perform(post(renewal + "/send").header("Authorization", bearer)).andExpect(status().isConflict());
+        decide(latestToken, CONFIRM, updated == LegalDocumentType.GUARDIAN_TERM ? 400 : 409);
+        var versionField = updated == LegalDocumentType.GUARDIAN_TERM ? "termsVersion" : "privacyVersion";
+        decide(latestToken, CONFIRM.replace("\"" + versionField + "\":\"1.0\"", "\"" + versionField + "\":\"1.1\""), 200);
+        mvc.perform(get(renewal).header("Authorization", bearer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.required").value(false));
+    }
+
+    @Test void renewalRoutesRejectAnonymousAndNonStudents() throws Exception {
+        var renewal = "/api/me/guardian-renewal";
+        mvc.perform(get(renewal)).andExpect(status().isUnauthorized());
+        mvc.perform(post(renewal + "/send")).andExpect(status().isUnauthorized());
+        for (var authority : List.of("TERMS_PENDING", "ROLE_TEACHER", "ROLE_PEDAGOGICAL_COORDINATOR", "ROLE_ADMIN")) {
+            var actor = user("other@test.com").authorities(
+                    new org.springframework.security.core.authority.SimpleGrantedAuthority(authority));
+            mvc.perform(get(renewal).with(actor)).andExpect(status().isForbidden());
+            mvc.perform(post(renewal + "/send").with(actor)).andExpect(status().isForbidden());
+        }
     }
 
     void review(long id, String actor, String decision, int expected) throws Exception {

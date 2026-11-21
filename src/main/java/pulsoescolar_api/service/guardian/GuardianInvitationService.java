@@ -34,7 +34,9 @@ public class GuardianInvitationService {
         var term = legalDocuments.current(LegalDocumentType.GUARDIAN_TERM)
                 .orElseThrow(InvitationUnavailableException::new);
         var policy = legalDocuments.current(LegalDocumentType.PRIVACY_POLICY).orElseThrow(InvitationUnavailableException::new);
-        return new GuardianInvitationView(registration.getFullName(), registration.getSchool().getNome(), PURPOSE,
+        var purpose = invitation.getRenewalSessionId() == null ? PURPOSE
+                : "Ler os documentos atualizados e renovar o aceite para liberar o acesso do aluno.";
+        return new GuardianInvitationView(registration.getFullName(), registration.getSchool().getNome(), purpose,
                 invitation.getExpiresAt(),
                 new GuardianTermsView(LegalDocumentService.label(term.getVersion()), term.getTitle(), term.getContent()),
                 new GuardianTermsView(LegalDocumentService.label(policy.getVersion()), policy.getTitle(), policy.getContent()),
@@ -59,8 +61,7 @@ public class GuardianInvitationService {
             invitation.setPrivacyVersion(privacyVersion);
             invitation.setTermsVersion((long) term.getVersion());
             confirmation.setStatus(GuardianStatus.CONFIRMED);
-        } else {
-
+        } else if (invitation.getRenewalSessionId() == null) {
             confirmation.setStatus(GuardianStatus.DECLINED);
         }
         invitation.setDecision(input.decision());
@@ -76,8 +77,12 @@ public class GuardianInvitationService {
         var invitation = (lock ? invitations.findForDecision(hash) : invitations.findForView(hash))
                 .orElseThrow(InvitationUnavailableException::new);
         var confirmation = invitation.getConfirmation();
-        if (!invitation.isOpen(clock.instant()) || confirmation.getStatus() != GuardianStatus.AWAITING_GUARDIAN
-                || confirmation.getRegistration().getStatus() != RegistrationStatus.PENDING) {
+        boolean registrationOpen = invitation.getRenewalSessionId() == null
+                ? confirmation.getStatus() == GuardianStatus.AWAITING_GUARDIAN
+                    && confirmation.getRegistration().getStatus() == RegistrationStatus.PENDING
+                : confirmation.getStatus() == GuardianStatus.CONFIRMED
+                    && confirmation.getRegistration().getStatus() == RegistrationStatus.APPROVED;
+        if (!invitation.isOpen(clock.instant()) || !registrationOpen) {
             throw new InvitationUnavailableException();
         }
         return invitation;

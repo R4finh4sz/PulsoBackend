@@ -20,6 +20,7 @@ public class GuardianInvitation {
     private Long termsVersion;
     private Integer privacyVersion;
     private Instant supersededAt;
+    private java.util.UUID renewalSessionId;
 
     public boolean isOpen(Instant now) {
         return decidedAt == null && supersededAt == null && expiresAt.isAfter(now);

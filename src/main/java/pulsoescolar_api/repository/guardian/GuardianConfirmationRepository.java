@@ -11,6 +11,12 @@ import pulsoescolar_api.entity.guardian.*;
 public interface GuardianConfirmationRepository extends JpaRepository<GuardianConfirmation, Long> {
     Optional<GuardianConfirmation> findByRegistrationId(Long registrationId);
 
+    Optional<GuardianConfirmation> findByRegistrationUserId(Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from GuardianConfirmation c where c.registration.user.id = :userId")
+    Optional<GuardianConfirmation> lockByRegistrationUserId(@Param("userId") Long userId);
+
     Page<GuardianConfirmation> findByStatusOrderByCreatedAtAscIdAsc(GuardianStatus status, Pageable pageable);
 
     Page<GuardianConfirmation> findByStatusAndRegistrationSchoolIdOrderByCreatedAtAscIdAsc(
