@@ -1,7 +1,10 @@
 package pulsoescolar_api.config;
 
+import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +16,7 @@ import pulsoescolar_api.entity.user.SchoolUser;
 import pulsoescolar_api.repository.school.SchoolRepository;
 import pulsoescolar_api.repository.user.UserRepository;
 import pulsoescolar_api.security.user.PasswordPolicy;
+import pulsoescolar_api.service.metrics.AdminUsageMetricsService;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,10 +26,12 @@ class DemoSeedTest {
     @Autowired SchoolRepository schools;
     @Autowired UserRepository users;
     @Autowired PasswordEncoder passwords;
+    @Autowired EntityManager entityManager;
+    @Autowired AdminUsageMetricsService metrics;
 
     DemoSeed seed(String password) {
         return new DemoSeed(schools, users, passwords, new PasswordPolicy(),
-                new MockEnvironment().withProperty("DEMO_SEED_PASSWORD", password));
+                new MockEnvironment().withProperty("DEMO_SEED_PASSWORD", password), entityManager);
     }
 
     @Test void createsExactCountsAndLinksWithoutDuplicatingOnRepeat() {
@@ -33,7 +39,11 @@ class DemoSeedTest {
         long originalUsers = users.count();
         var seed = seed("Demo-test-password-123");
         seed.run();
-        seed.run();
+        assertEquals(5000, entityManager.createQuery(
+                "delete from RegistrationRequest r where r.ra like 'DEMO-%'").executeUpdate());
+        entityManager.clear();
+        seed("weak").run();
+        seed("weak").run();
         assertEquals(originalSchools + 20, schools.count());
         assertEquals(originalUsers + 5000, users.count());
         var demoUsers = users.findAll().stream().filter(u -> u.getRa().startsWith("DEMO-")).toList();
@@ -44,6 +54,13 @@ class DemoSeedTest {
         assertEquals(11, demoSchools.stream().map(s -> s.getUf()).distinct().count());
         var zone = ZoneId.of("America/Sao_Paulo");
         var today = LocalDate.now(zone);
+        var month = YearMonth.from(today).minusMonths(1);
+        var expectedByState = demoUsers.stream()
+                .filter(user -> YearMonth.from(user.getCreatedAt().atZone(zone)).equals(month))
+                .collect(Collectors.groupingBy(user -> user.getSchool().getUf(), Collectors.counting()));
+        assertFalse(expectedByState.isEmpty());
+        assertEquals(expectedByState, metrics.get(month.toString()).demandByState().stream()
+                .collect(Collectors.toMap(state -> state.state(), state -> state.requests())));
         for (var school : demoSchools) {
             var members = demoUsers.stream().filter(u -> u.getSchool().getId().equals(school.getId())).toList();
             boolean original = school.getUf().equals("SP");

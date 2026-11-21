@@ -1,5 +1,6 @@
 package pulsoescolar_api.config;
 
+import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -11,6 +12,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.entity.school.School;
+import pulsoescolar_api.entity.user.RegistrationRequest;
+import pulsoescolar_api.entity.user.RegistrationStatus;
 import pulsoescolar_api.entity.user.Role;
 import pulsoescolar_api.entity.user.SchoolUser;
 import pulsoescolar_api.repository.school.SchoolRepository;
@@ -42,15 +45,40 @@ public class DemoSeed implements CommandLineRunner {
     private final PasswordEncoder passwords;
     private final PasswordPolicy passwordPolicy;
     private final Environment environment;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional
     public void run(String... args) {
         long existing = users.countByRaStartingWith("DEMO-");
-        if (existing == 5000) return;
-        if (existing != 0 && existing != 1110) {
+        if (existing != 0 && existing != 1110 && existing != 5000) {
             throw new IllegalStateException("Carga DEMO parcial encontrada. Revise os dados antes de continuar.");
         }
+        if (existing != 5000) createDemoUsers(existing);
+
+        var missingRequests = entityManager.createQuery("""
+                select u from SchoolUser u
+                where u.ra like 'DEMO-%' and u.email like '%@example.invalid'
+                    and u.school is not null and u.deletedAt is null
+                    and not exists (select r.id from RegistrationRequest r
+                        where r.user = u or r.ra = u.ra or lower(r.email) = lower(u.email))
+                """, SchoolUser.class).getResultList();
+        for (var user : missingRequests) {
+            var request = new RegistrationRequest();
+            request.setUser(user);
+            request.setFullName(user.getFullName());
+            request.setRa(user.getRa());
+            request.setEmail(user.getEmail());
+            request.setRole(user.getRole());
+            request.setSchool(user.getSchool());
+            request.setStatus(RegistrationStatus.APPROVED);
+            request.setRequestedAt(user.getCreatedAt());
+            request.setReviewedAt(user.getCreatedAt());
+            entityManager.persist(request);
+        }
+    }
+
+    private void createDemoUsers(long existing) {
         String password = environment.getRequiredProperty("DEMO_SEED_PASSWORD");
         passwordPolicy.requireValidNewPassword(password);
         String hash = passwords.encode(password);
