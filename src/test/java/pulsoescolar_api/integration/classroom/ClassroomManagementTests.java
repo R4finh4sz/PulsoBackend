@@ -52,7 +52,7 @@ class ClassroomManagementTests {
         mvc.perform(get(path).with(user("student@example.com").roles("STUDENT")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.identifier").value("A"));
         mvc.perform(get(path + "/teachers").with(user("teacher@example.com").roles("TEACHER")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$[0].email").value("teacher@example.com"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].email").value("teacher************"));
         mvc.perform(get(path + "/teachers").with(user("student@example.com").roles("STUDENT"))).andExpect(status().isForbidden());
         mvc.perform(get(path).with(user("outsider@example.com").roles("TEACHER"))).andExpect(status().isForbidden());
         mvc.perform(get("/api/classrooms/999999").with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR"))).andExpect(status().isNotFound());

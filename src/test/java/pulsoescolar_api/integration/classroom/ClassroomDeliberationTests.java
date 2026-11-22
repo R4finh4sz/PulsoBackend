@@ -184,6 +184,14 @@ class ClassroomDeliberationTests {
         assertNull(student.getDeletedAt());
         assertNull(student.getClassroom());
         assertEquals(1, deliberations.count());
+        mvc.perform(get("/api/students").param("unassigned", "true").param("q", student.getRa()).with(coordinator))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(get("/api/students").param("schoolId", student.getSchool().getId().toString())
+                        .param("q", student.getRa()).with(coordinator))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/classrooms/{id}/students/{studentId}", next.getId(), student.getId()).with(coordinator))
+                .andExpect(status().isConflict());
     }
 
     @Test void graduationRequiresEveryoneApprovedWithoutDestination() throws Exception {

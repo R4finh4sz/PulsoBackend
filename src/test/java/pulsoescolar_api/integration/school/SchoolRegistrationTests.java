@@ -142,7 +142,8 @@ class SchoolRegistrationTests {
         mvc.perform(get("/api/schools").with(user("ADMIN@school.test").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].coordinator.id").value(coordinator.getId()))
                 .andExpect(jsonPath("$[0].coordinator.fullName").value(coordinator.getFullName()))
-                .andExpect(jsonPath("$[0].coordinator.email").value(coordinator.getEmail()))
+                .andExpect(jsonPath("$[0].coordinator.email").value(
+                        org.hamcrest.Matchers.matchesPattern("[^*]*\\*+")))
                 .andExpect(jsonPath("$[0].coordinator.passwordHash").doesNotExist());
         coordinator.setDeletedAt(java.time.Instant.now());
         users.saveAndFlush(coordinator);

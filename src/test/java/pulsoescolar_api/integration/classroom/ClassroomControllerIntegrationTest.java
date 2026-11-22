@@ -72,7 +72,7 @@ class ClassroomControllerIntegrationTest extends HttpIntegrationSupport {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).hasSize(1);
         assertThat(response.getBody()[0].id()).isEqualTo(teacher.getId());
-        assertThat(response.getBody()[0].email()).isEqualTo(teacher.getEmail());
+        assertThat(response.getBody()[0].email()).contains("*").isNotEqualTo(teacher.getEmail());
     }
 
     @Test
