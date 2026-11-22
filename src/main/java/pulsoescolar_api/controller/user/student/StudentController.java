@@ -43,11 +43,12 @@ public class StudentController {
 
     @GetMapping
     public UserPageResponse list(@RequestParam(required = false) String q,
+            @RequestParam(required = false) @Min(1) Long schoolId,
             @RequestParam(required = false) @Min(1) Long classroomId,
             @RequestParam(required = false) Boolean unassigned,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return service.list(q, classroomId, unassigned, page, size);
+        return service.list(q, schoolId, classroomId, unassigned, page, size);
     }
 
     @GetMapping("/{id}")

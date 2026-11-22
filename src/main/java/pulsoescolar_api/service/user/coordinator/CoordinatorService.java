@@ -20,7 +20,7 @@ public class CoordinatorService {
     }
 
     public UserPageResponse list(String q, int page, int size) {
-        return users.list(Role.PEDAGOGICAL_COORDINATOR, q, null, null, page, size);
+        return users.list(Role.PEDAGOGICAL_COORDINATOR, q, null, null, null, page, size);
     }
 
 }

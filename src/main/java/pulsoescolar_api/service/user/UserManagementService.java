@@ -26,10 +26,10 @@ public class UserManagementService {
     private final UserAccessPolicy policy;
     private final UserMapper mapper;
 
-    public UserPageResponse list(Role role, String q, Long classroomId, Boolean unassigned, int page, int size) {
+    public UserPageResponse list(Role role, String q, Long schoolId, Long classroomId, Boolean unassigned, int page, int size) {
         var actor = currentUser.get();
         policy.requireManager(actor);
-        boolean filtered = (q != null && !q.isBlank()) || classroomId != null || unassigned != null;
+        String search = q == null ? "" : q.strip();
         Specification<SchoolUser> filter = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("role"), role));
@@ -37,23 +37,31 @@ public class UserManagementService {
             if (actor.getRole() == Role.PEDAGOGICAL_COORDINATOR && actor.getSchool() != null) {
                 predicates.add(cb.isMember(actor.getSchool(), root.get("schools")));
             }
-            if (q != null && !q.isBlank()) {
-                String term = "%" + q.strip().toLowerCase(Locale.ROOT)
+            if (!search.isEmpty()) {
+                String term = "%" + search.toLowerCase(Locale.ROOT)
                         .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
                 predicates.add(cb.or(cb.like(cb.lower(root.get("fullName")), term, '!'),
-                        cb.like(cb.lower(root.get("ra")), term, '!')));
+                        cb.like(cb.lower(root.get("ra")), term, '!'),
+                        cb.equal(root.get("email"), search)));
             }
             if (classroomId != null) {
                 predicates.add(cb.equal(root.get("classroom").get("id"), classroomId));
             }
+            if (schoolId != null) {
+                predicates.add(cb.equal(root.get("school").get("id"), schoolId));
+            }
             if (unassigned != null) {
                 predicates.add(unassigned ? cb.isNull(root.get("classroom")) : cb.isNotNull(root.get("classroom")));
+            }
+            if (role == Role.STUDENT && (schoolId != null || Boolean.TRUE.equals(unassigned))) {
+                predicates.add(cb.isNull(root.get("graduatedAt")));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         return UserPageResponse.from(users.findAll(filter,
                 PageRequest.of(page, size, Sort.by("fullName").ascending().and(Sort.by("id"))))
-                .map(filtered ? mapper::toResponse : mapper::toMaskedResponse));
+                .map(user -> !search.isEmpty() && (search.equals(user.getRa()) || search.equals(user.getEmail()))
+                        ? mapper.toResponse(user) : mapper.toListResponse(user)));
     }
 
     public UserResponse get(Long id, Role role) {

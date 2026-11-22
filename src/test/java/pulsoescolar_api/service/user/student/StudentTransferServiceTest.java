@@ -4,6 +4,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 import pulsoescolar_api.dto.user.TransferStudentRequest;
+import pulsoescolar_api.dto.user.ReviewStudentTransferRequest;
 import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.entity.school.School;
 import pulsoescolar_api.entity.user.*;
@@ -55,6 +56,26 @@ class StudentTransferServiceTest {
             assertThatThrownBy(() -> service.transfer(request)).isInstanceOf(AccessDeniedException.class);
         }
         verifyNoInteractions(users, schools);
+    }
+
+    @Test void blocksNewRequestsAndApprovalOfPendingRequestsAfterGraduation() {
+        student.setClassroom(null);
+        student.setGraduatedAt(java.time.Instant.now());
+        assertThatThrownBy(() -> service.transfer(request)).isInstanceOf(BusinessConflictException.class);
+        verifyNoInteractions(transfers);
+
+        var pending = new StudentTransfer();
+        pending.setStudent(student);
+        pending.setOrigin(origin);
+        pending.setDestination(destination);
+        pending.setStatus(RegistrationStatus.PENDING);
+        when(transfers.findForReview(1L)).thenReturn(Optional.of(pending));
+        when(current.get()).thenReturn(user(Role.PEDAGOGICAL_COORDINATOR, destination));
+
+        assertThatThrownBy(() -> service.review(1L, new ReviewStudentTransferRequest(RegistrationStatus.APPROVED, 1L)))
+                .isInstanceOf(BusinessConflictException.class);
+        assertThat(pending.getStatus()).isEqualTo(RegistrationStatus.PENDING);
+        assertThat(student.getSchool()).isSameAs(origin);
     }
 
     @Test void deniesCoordinatorFromAnotherSchool() {

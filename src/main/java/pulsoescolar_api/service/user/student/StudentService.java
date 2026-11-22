@@ -21,8 +21,8 @@ public class StudentService {
         return registration.register(request, Role.STUDENT, null);
     }
 
-    public UserPageResponse list(String q, Long classroomId, Boolean unassigned, int page, int size) {
-        return users.list(Role.STUDENT, q, classroomId, unassigned, page, size);
+    public UserPageResponse list(String q, Long schoolId, Long classroomId, Boolean unassigned, int page, int size) {
+        return users.list(Role.STUDENT, q, schoolId, classroomId, unassigned, page, size);
     }
 
     public UserResponse get(Long id) {

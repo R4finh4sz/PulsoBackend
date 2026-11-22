@@ -48,9 +48,14 @@ class UserManagementTests {
                 .param("size", "1").with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(student.getId()))
-                .andExpect(jsonPath("$.content[0].passwordHash").doesNotExist());
+                .andExpect(jsonPath("$.content[0].passwordHash").doesNotExist())
+                .andExpect(jsonPath("$.content[0].email").value("Alice@***********"));
+        mvc.perform(get("/api/students").param("q", student.getRa())
+                .with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].email").value(student.getEmail()));
         mvc.perform(get("/api/teachers").with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].role").value("TEACHER"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].role").value("TEACHER"))
+                .andExpect(jsonPath("$.content[0].email").value("teacher************"));
         mvc.perform(get("/api/coordinators").with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
         mvc.perform(get("/api/students").param("page", "-1").with(user("manager@example.com").roles("PEDAGOGICAL_COORDINATOR")))

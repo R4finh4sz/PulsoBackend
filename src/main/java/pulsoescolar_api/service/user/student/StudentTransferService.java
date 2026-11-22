@@ -43,6 +43,7 @@ public class StudentTransferService {
         if (!student.getFullName().equalsIgnoreCase(input.fullName().strip())) {
             throw new BusinessValidationException("O nome não corresponde ao RA informado.");
         }
+        student.requireNotGraduated();
         if (student.belongsToSchool(input.schoolId())) {
             throw new BusinessConflictException("O aluno já pertence à escola de destino.");
         }
@@ -90,6 +91,7 @@ public class StudentTransferService {
             throw new BusinessConflictException("O aluno não está mais ativo na escola de origem.");
         }
         if (input.status() == RegistrationStatus.APPROVED) {
+            student.requireNotGraduated();
             if (input.classroomId() == null) throw new BusinessValidationException("Informe a sala de destino.");
             var classroom = classrooms.findById(input.classroomId());
             if (classroom.getSchool() == null || !classroom.getSchool().getId().equals(transfer.getDestination().getId())) {
