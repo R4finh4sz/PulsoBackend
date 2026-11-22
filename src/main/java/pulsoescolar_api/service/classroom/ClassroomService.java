@@ -54,7 +54,7 @@ public class ClassroomService {
         return classroom.getTeachers().stream()
                 .sorted(Comparator.comparing(SchoolUser::getFullName)
                         .thenComparing(SchoolUser::getId))
-                .map(userMapper::toResponse).toList();
+                .map(userMapper::toListResponse).toList();
     }
 
     @Transactional

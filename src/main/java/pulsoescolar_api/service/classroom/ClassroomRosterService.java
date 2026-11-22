@@ -24,6 +24,6 @@ public class ClassroomRosterService {
         var classroom = classrooms.findById(classroomId);
         accessPolicy.requireRosterAccess(classroom, currentUser.get());
         return users.findByClassroomIdAndRoleAndDeletedAtIsNull(classroomId, pulsoescolar_api.entity.user.Role.STUDENT)
-                .stream().map(mapper::toResponse).toList();
+                .stream().map(mapper::toListResponse).toList();
     }
 }

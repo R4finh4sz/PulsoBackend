@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pulsoescolar_api.dto.school.*;
 import pulsoescolar_api.entity.school.School;
 import pulsoescolar_api.entity.user.Role;
+import pulsoescolar_api.mapper.user.UserMapper;
 import pulsoescolar_api.repository.school.SchoolRepository;
 import pulsoescolar_api.security.CurrentUser;
 
@@ -22,7 +23,7 @@ public class SchoolService {
     private final SchoolAddressValidator addressValidator;
     private final pulsoescolar_api.repository.user.UserRepository users;
     private final jakarta.persistence.EntityManager entityManager;
-    private final pulsoescolar_api.mapper.user.UserMapper userMapper;
+    private final UserMapper userMapper;
 
     private void requireAdmin() {
         if (currentUser.get().getRole() != Role.ADMIN) {
@@ -53,7 +54,7 @@ public class SchoolService {
         var coordinators = users.findByRoleAndDeletedAtIsNullAndSchoolIdIn(Role.PEDAGOGICAL_COORDINATOR,
                 result.stream().map(School::getId).toList()).stream().collect(java.util.stream.Collectors.toMap(
                         u -> u.getEnrollmentSchool().getId(),
-                        u -> new SchoolResponse.Coordinator(u.getId(), u.getFullName(), u.getEmail())));
+                        u -> new SchoolResponse.Coordinator(u.getId(), u.getFullName(), UserMapper.maskEmail(u.getEmail()))));
         return result.stream().map(s -> response(s, coordinators.get(s.getId()))).toList();
     }
 

@@ -2,6 +2,7 @@ package pulsoescolar_api.entity.user;
 
 import pulsoescolar_api.entity.classroom.Classroom;
 import pulsoescolar_api.entity.school.School;
+import pulsoescolar_api.exception.common.BusinessConflictException;
 import jakarta.persistence.*;
 import lombok.*;
 @Entity @Table(name="school_users")
@@ -84,8 +85,11 @@ public class SchoolUser {
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="classroom_id") private Classroom classroom;
  @Column private java.time.Instant graduatedAt;
  public void setClassroom(Classroom classroom) {
+  if (classroom != null) requireNotGraduated();
   this.classroom = classroom;
-  if (classroom != null) graduatedAt = null;
  }
- public boolean isGraduated() { return role == Role.STUDENT && graduatedAt != null && classroom == null; }
+ public boolean isGraduated() { return role == Role.STUDENT && graduatedAt != null; }
+ public void requireNotGraduated() {
+  if (isGraduated()) throw new BusinessConflictException("Alunos formados não podem ser matriculados ou transferidos.");
+ }
 }

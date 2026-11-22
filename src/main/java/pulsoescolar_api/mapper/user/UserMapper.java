@@ -14,7 +14,7 @@ public class UserMapper {
     }
 
 
-    public UserResponse toMaskedResponse(SchoolUser user) {
+    public UserResponse toListResponse(SchoolUser user) {
         var base = toResponse(user);
         return new UserResponse(base.id(), base.fullName(), base.ra(), maskEmail(base.email()), base.role(),
                 base.classroomId(), base.schoolId(), base.schoolUnavailable(), null, null, null, base.status());
@@ -22,7 +22,7 @@ public class UserMapper {
 
     public static String maskEmail(String email) {
         if (email == null || email.isEmpty()) return email;
-        int visible = Math.max(1, (int) Math.floor(email.length() * 0.4));
+        int visible = (int) Math.floor(email.length() * 0.4);
         return email.substring(0, visible) + "*".repeat(email.length() - visible);
     }
 

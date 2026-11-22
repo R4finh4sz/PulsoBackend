@@ -35,7 +35,7 @@ public class TeacherService {
     }
 
     public UserPageResponse list(String q, int page, int size) {
-        return users.list(Role.TEACHER, q, null, null, page, size);
+        return users.list(Role.TEACHER, q, null, null, null, page, size);
     }
 
     public UserResponse get(Long id) {
